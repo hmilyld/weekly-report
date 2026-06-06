@@ -209,11 +209,19 @@ function AppLayout() {
 
 export default function App() {
   const [needsSetup, setNeedsSetup] = useState(null)
+  const [authError, setAuthError] = useState(false)
 
   useEffect(() => {
     getAuthStatus()
-      .then(({ data }) => setNeedsSetup(data.needs_setup))
-      .catch(() => setNeedsSetup(false))
+      .then(({ data }) => {
+        setNeedsSetup(data.needs_setup)
+        setAuthError(false)
+      })
+      .catch(() => {
+        // API 调用失败时默认显示初始化页面（首次部署场景）
+        setNeedsSetup(true)
+        setAuthError(true)
+      })
   }, [])
 
   const handleSetupComplete = () => setNeedsSetup(false)
@@ -246,7 +254,7 @@ export default function App() {
             path="/setup"
             element={
               needsSetup ? (
-                <Setup onComplete={handleSetupComplete} />
+                <Setup onComplete={handleSetupComplete} authError={authError} />
               ) : (
                 <Navigate to="/login" replace />
               )

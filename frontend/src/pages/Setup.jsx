@@ -1,9 +1,10 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import toast from 'react-hot-toast'
+import { AlertTriangle } from 'lucide-react'
 import { setupAccount } from '../api'
 
-export default function Setup({ onComplete }) {
+export default function Setup({ onComplete, authError }) {
   const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
   const [confirm, setConfirm] = useState('')
@@ -21,8 +22,8 @@ export default function Setup({ onComplete }) {
       toast.error('用户名至少 2 个字符')
       return
     }
-    if (password.length < 6) {
-      toast.error('密码至少 6 位')
+    if (password.length < 8) {
+      toast.error('密码至少 8 位')
       return
     }
     if (password !== confirm) {
@@ -35,7 +36,6 @@ export default function Setup({ onComplete }) {
       const { data } = await setupAccount(username.trim(), password)
       localStorage.setItem('token', data.access_token)
       toast.success('账户创建成功！')
-      // Tell parent setup is done, then navigate
       onComplete()
       navigate('/', { replace: true })
     } catch (err) {
@@ -50,6 +50,26 @@ export default function Setup({ onComplete }) {
       <div className="login-card">
         <h1>📋 欢迎使用周报系统</h1>
         <p className="subtitle">首次使用，请设置您的账户</p>
+        {authError && (
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'flex-start',
+              gap: '8px',
+              padding: '10px 12px',
+              marginBottom: '16px',
+              background: '#fef9c3',
+              border: '1px solid #fde047',
+              borderRadius: 'var(--radius-md)',
+              fontSize: '0.8125rem',
+              color: '#854d0e',
+              lineHeight: 1.5,
+            }}
+          >
+            <AlertTriangle size={16} style={{ flexShrink: 0, marginTop: '2px' }} />
+            <span>无法连接后端 API，请确认服务已启动且可通过当前地址访问。</span>
+          </div>
+        )}
         <form onSubmit={handleSubmit}>
           <div className="form-group">
             <label className="form-label">用户名</label>
@@ -68,7 +88,7 @@ export default function Setup({ onComplete }) {
             <input
               type="password"
               className="form-input"
-              placeholder="至少 6 位"
+              placeholder="至少 8 位，包含字母和数字"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               autoComplete="new-password"
