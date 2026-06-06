@@ -2,7 +2,8 @@
 
 from datetime import date, datetime
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
+
 
 # ─── Auth ───────────────────────────────────────────────
 
@@ -18,7 +19,7 @@ class TokenResponse(BaseModel):
 
 
 class PasswordChange(BaseModel):
-    new_password: str = Field(min_length=6)
+    new_password: str = Field(min_length=8, max_length=100)
 
 
 # ─── Daily Report ───────────────────────────────────────
@@ -26,11 +27,11 @@ class PasswordChange(BaseModel):
 
 class DailyReportCreate(BaseModel):
     date: date
-    content: str = ""
+    content: str = Field(default="", max_length=50000)
 
 
 class DailyReportUpdate(BaseModel):
-    content: str
+    content: str = Field(max_length=50000)
 
 
 class DailyReportResponse(BaseModel):
@@ -64,6 +65,10 @@ class WeeklyReportGenerate(BaseModel):
     force: bool = False  # Force regeneration even if exists
 
 
+class WeeklyReportUpdate(BaseModel):
+    content: str = Field(max_length=50000)
+
+
 # ─── App Config ─────────────────────────────────────────
 
 
@@ -77,6 +82,19 @@ class AppConfigResponse(BaseModel):
 
 
 class AppConfigUpdate(BaseModel):
-    llm_api_url: str | None = None
-    llm_model_name: str | None = None
-    api_key: str | None = None
+    llm_api_url: str | None = Field(default=None, max_length=2000)
+    llm_model_name: str | None = Field(default=None, max_length=200)
+    api_key: str | None = Field(default=None, max_length=500)
+
+    @field_validator("llm_api_url")
+    @classmethod
+    def validate_url(cls, v: str | None) -> str | None:
+        if v is not None and v.strip():
+            from urllib.parse import urlparse
+
+            parsed = urlparse(v)
+            if parsed.scheme not in ("http", "https"):
+                raise ValueError("URL must start with http:// or https://")
+            if not parsed.hostname:
+                raise ValueError("URL must have a valid hostname")
+        return v

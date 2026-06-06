@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import toast from 'react-hot-toast'
 import {
   ChevronLeft,
@@ -11,38 +11,14 @@ import {
   X,
   Check,
 } from 'lucide-react'
-import { getWeeklyReport, getWeeklyReports, generateWeeklyReport, updateWeeklyReport } from '../api'
-
-function getMonday(date) {
-  const d = new Date(date)
-  const day = d.getDay()
-  const diff = d.getDate() - day + (day === 0 ? -6 : 1)
-  d.setDate(diff)
-  d.setHours(0, 0, 0, 0)
-  return d
-}
-
-function formatDate(d) {
-  return d.toISOString().split('T')[0]
-}
-
-function addDays(d, n) {
-  const r = new Date(d)
-  r.setDate(r.getDate() + n)
-  return r
-}
-
-function formatWeekRange(monday) {
-  const sunday = addDays(monday, 6)
-  return `${formatDate(monday)} ~ ${formatDate(sunday)}`
-}
+import { getWeeklyReport, generateWeeklyReport, updateWeeklyReport } from '../api'
+import { getMonday, formatDate, addDays, formatWeekRange } from '../utils/date'
 
 export default function WeeklyReport() {
   const [currentMonday, setCurrentMonday] = useState(() => getMonday(new Date()))
   const [report, setReport] = useState(null)
   const [loading, setLoading] = useState(false)
   const [generating, setGenerating] = useState(false)
-  const [savedReports, setSavedReports] = useState([])
 
   // Edit state
   const [editing, setEditing] = useState(false)
@@ -51,19 +27,13 @@ export default function WeeklyReport() {
 
   // Copy state
   const [copied, setCopied] = useState(false)
-
-  const fetchSavedReports = useCallback(async () => {
-    try {
-      const { data } = await getWeeklyReports()
-      setSavedReports(data)
-    } catch (err) {
-      console.error('Failed to load saved reports', err)
-    }
-  }, [])
+  const copyTimerRef = useRef(null)
 
   useEffect(() => {
-    fetchSavedReports()
-  }, [fetchSavedReports])
+    return () => {
+      if (copyTimerRef.current) clearTimeout(copyTimerRef.current)
+    }
+  }, [])
 
   // When switching weeks, try to load existing report (don't auto-generate)
   const loadReport = useCallback(async () => {
@@ -97,7 +67,6 @@ export default function WeeklyReport() {
       const { data } = await generateWeeklyReport(ws)
       setReport(data)
       toast.success('周报生成成功')
-      fetchSavedReports()
     } catch (err) {
       toast.error(err.response?.data?.detail || '生成失败')
     } finally {
@@ -139,11 +108,8 @@ export default function WeeklyReport() {
   const handleCopy = async () => {
     try {
       await navigator.clipboard.writeText(report.content)
-      setCopied(true)
-      toast.success('已复制到剪贴板')
-      setTimeout(() => setCopied(false), 2000)
     } catch {
-      // Fallback for older browsers
+      // Fallback for insecure contexts
       const ta = document.createElement('textarea')
       ta.value = report.content
       ta.style.position = 'fixed'
@@ -152,10 +118,11 @@ export default function WeeklyReport() {
       ta.select()
       document.execCommand('copy')
       document.body.removeChild(ta)
-      setCopied(true)
-      toast.success('已复制到剪贴板')
-      setTimeout(() => setCopied(false), 2000)
     }
+    setCopied(true)
+    toast.success('已复制到剪贴板')
+    if (copyTimerRef.current) clearTimeout(copyTimerRef.current)
+    copyTimerRef.current = setTimeout(() => setCopied(false), 2000)
   }
 
   return (

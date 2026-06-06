@@ -85,8 +85,14 @@ export default function SettingsPage() {
   const handleSaveConfig = async () => {
     setSaving(true)
     try {
-      await updateConfig(config)
+      // Only send api_key if user changed it from the masked version
+      const payload = { ...config }
+      if (config.api_key && config.api_key.includes('*')) {
+        delete payload.api_key
+      }
+      await updateConfig(payload)
       toast.success('配置已保存')
+      loadConfig() // Reload to get fresh masked key
     } catch (err) {
       toast.error(err.response?.data?.detail || '保存失败')
     } finally {
@@ -98,7 +104,12 @@ export default function SettingsPage() {
     setTesting(true)
     setTestResult(null)
     try {
-      await updateConfig(config)
+      // Save config first (skip masked key)
+      const payload = { ...config }
+      if (config.api_key && config.api_key.includes('*')) {
+        delete payload.api_key
+      }
+      await updateConfig(payload)
       const { data } = await testConnection()
       setTestResult(data)
       toast[data.success ? 'success' : 'error'](data.message)

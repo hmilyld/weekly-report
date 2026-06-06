@@ -3,6 +3,7 @@ import toast from 'react-hot-toast'
 import { ChevronLeft, ChevronRight, Trash2 } from 'lucide-react'
 import { getDailyReportsRange } from '../api'
 import useMediaQuery from '../hooks/useMediaQuery'
+import { formatDate } from '../utils/date'
 
 const WEEKDAY_HEADERS = ['一', '二', '三', '四', '五', '六', '日']
 const MONTH_NAMES = [
@@ -19,13 +20,6 @@ const MONTH_NAMES = [
   '11月',
   '12月',
 ]
-
-function formatDate(d) {
-  const y = d.getFullYear()
-  const m = String(d.getMonth() + 1).padStart(2, '0')
-  const day = String(d.getDate()).padStart(2, '0')
-  return `${y}-${m}-${day}`
-}
 
 function isSameDay(a, b) {
   return formatDate(a) === formatDate(b)
@@ -49,7 +43,7 @@ function getMonthDays(year, month) {
   return days
 }
 
-export default function CalendarView({ onEditDate, onDeleteDate }) {
+export default function CalendarView({ onEditDate, onDeleteDate, refreshRef }) {
   const isDesktop = useMediaQuery('(min-width: 769px)')
   const today = new Date()
   const [year, setYear] = useState(today.getFullYear())
@@ -67,7 +61,7 @@ export default function CalendarView({ onEditDate, onDeleteDate }) {
     try {
       const { data } = await getDailyReportsRange(rangeStart, rangeEnd)
       setReports(data)
-    } catch (_) {
+    } catch {
       toast.error('加载日报失败')
     } finally {
       setLoading(false)
@@ -78,6 +72,13 @@ export default function CalendarView({ onEditDate, onDeleteDate }) {
     fetchReports()
   }, [fetchReports])
 
+  // Expose refresh function to parent
+  useEffect(() => {
+    if (refreshRef) {
+      refreshRef.current = fetchReports
+    }
+  }, [fetchReports, refreshRef])
+
   const getReportForDate = (dateStr) => reports.find((r) => r.date === dateStr)
 
   const handleDelete = async (e, dateStr) => {
@@ -87,7 +88,7 @@ export default function CalendarView({ onEditDate, onDeleteDate }) {
     try {
       await onDeleteDate(dateStr)
       fetchReports()
-    } catch (_) {
+    } catch {
       toast.error('删除失败')
     } finally {
       setDeletingDate(null)
@@ -163,8 +164,9 @@ export default function CalendarView({ onEditDate, onDeleteDate }) {
             const isDeleting = deletingDate === dateStr
 
             return (
-              <div
+              <button
                 key={dateStr}
+                type="button"
                 className={[
                   'calendar-day',
                   !inMonth && 'other-month',
@@ -187,10 +189,14 @@ export default function CalendarView({ onEditDate, onDeleteDate }) {
                 )}
                 {/* Delete button for days with reports */}
                 {isDesktop && hasReport && (
-                  <button
+                  <span
                     className={`calendar-day-delete ${isDeleting ? 'deleting' : ''}`}
+                    role="button"
+                    tabIndex={0}
                     onClick={(e) => handleDelete(e, dateStr)}
-                    disabled={isDeleting}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' || e.key === ' ') handleDelete(e, dateStr)
+                    }}
                     title="删除日报"
                     aria-label={`删除 ${dateStr} 日报`}
                   >
@@ -199,9 +205,9 @@ export default function CalendarView({ onEditDate, onDeleteDate }) {
                     ) : (
                       <Trash2 size={12} />
                     )}
-                  </button>
+                  </span>
                 )}
-              </div>
+              </button>
             )
           })
         )}

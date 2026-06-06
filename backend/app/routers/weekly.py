@@ -1,9 +1,9 @@
 """Weekly report router: query & generate weekly summaries."""
 
-from datetime import UTC, date, timedelta
+import logging
+from datetime import UTC, date, datetime, timedelta
 
 from fastapi import APIRouter, Depends, HTTPException
-from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from .. import crud
@@ -11,7 +11,9 @@ from ..auth import get_current_user
 from ..database import get_db
 from ..llm_client import generate_weekly_report
 from ..models import User
-from ..schemas import WeeklyReportResponse
+from ..schemas import WeeklyReportResponse, WeeklyReportUpdate
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/v1/weekly", tags=["weekly"])
 
@@ -19,10 +21,6 @@ router = APIRouter(prefix="/api/v1/weekly", tags=["weekly"])
 def _get_week_bounds(week_start: date) -> tuple[date, date]:
     """Return (week_start, week_end) where week_end = week_start + 6 days."""
     return week_start, week_start + timedelta(days=6)
-
-
-class WeeklyReportUpdate(BaseModel):
-    content: str
 
 
 @router.get("", response_model=list[WeeklyReportResponse])
@@ -69,8 +67,6 @@ def update_weekly_report(
     if not report:
         raise HTTPException(status_code=404, detail="Weekly report not found")
     report.content = body.content
-    from datetime import datetime
-
     report.generated_at = datetime.now(UTC)
     db.commit()
     db.refresh(report)
@@ -92,7 +88,10 @@ def _generate(db: Session, user_id: int, week_start: date) -> WeeklyReportRespon
     try:
         content = generate_weekly_report(db, daily_entries)
     except RuntimeError as e:
-        raise HTTPException(status_code=502, detail=f"LLM generation failed: {e!s}") from e
+        logger.error("LLM generation failed: %s", e)
+        raise HTTPException(
+            status_code=502, detail="LLM generation failed. Please check your configuration."
+        ) from e
 
     config = crud.get_app_config(db)
     report = crud.save_weekly_report(

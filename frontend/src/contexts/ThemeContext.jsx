@@ -44,12 +44,10 @@ export function ThemeProvider({ children }) {
     })
   }, [])
 
-  // Icon name helper
-  const icon = mode === 'system' ? 'monitor' : mode === 'dark' ? 'moon' : 'sun'
   const label = mode === 'system' ? '跟随系统' : mode === 'dark' ? '暗色模式' : '亮色模式'
 
   return (
-    <ThemeContext.Provider value={{ mode, cycleTheme, icon, label }}>
+    <ThemeContext.Provider value={{ mode, cycleTheme, label }}>
       {children}
     </ThemeContext.Provider>
   )

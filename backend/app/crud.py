@@ -23,6 +23,7 @@ def create_user(db: Session, username: str, password_hash: str) -> models.User:
 
 def change_password(db: Session, user: models.User, new_hash: str) -> None:
     user.password_hash = new_hash
+    user.password_version = (user.password_version or 0) + 1
     db.commit()
 
 
@@ -175,7 +176,8 @@ def update_app_config(
         config.llm_api_url = llm_api_url
     if llm_model_name is not None:
         config.llm_model_name = llm_model_name
-    if api_key is not None:
+    # Skip masked keys (contain *) — only update with real keys
+    if api_key is not None and "*" not in api_key:
         config.api_key = api_key
     from datetime import datetime
 

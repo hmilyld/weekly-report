@@ -9,7 +9,7 @@ GET    /api/v1/external/weekly/recent  获取当周+上周周报
 from datetime import UTC, date, datetime, timedelta
 
 from fastapi import APIRouter, Depends, Header, HTTPException
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
 from .. import crud
@@ -22,7 +22,7 @@ router = APIRouter(prefix="/api/v1/external", tags=["external"])
 
 class ExternalDailyReport(BaseModel):
     date: str | None = None  # yyyy-mm-dd, defaults to today
-    content: str
+    content: str = Field(max_length=50000)
     append: bool = False  # False = overwrite, True = append
 
 

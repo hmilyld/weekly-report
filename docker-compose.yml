@@ -1,14 +1,19 @@
-version: '3.8'
-
 services:
   weekly-report:
+    image: hmilyld/weekly-report:latest
     build: .
     container_name: weekly-report
     ports:
-      - "8000:8000"
+      - "127.0.0.1:8000:8000"
     volumes:
       - ./data:/app/data
     environment:
-      - JWT_SECRET_KEY=${JWT_SECRET_KEY:-super-secret-change-me}
+      - JWT_SECRET_KEY=${JWT_SECRET_KEY:?请在 .env 文件中设置 JWT_SECRET_KEY}
       - DATABASE_URL=sqlite:///./data/weekly_report.db
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/api/v1/health')"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s

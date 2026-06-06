@@ -1,40 +1,17 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import toast from 'react-hot-toast'
 import { ChevronLeft, ChevronRight, Pencil, Trash2 } from 'lucide-react'
 import { getDailyReportsWeek, saveDailyReport, deleteDailyReport } from '../api'
 import DailyEditModal from '../components/DailyEditModal'
 import CalendarView from '../components/CalendarView'
 import useMediaQuery from '../hooks/useMediaQuery'
+import { getMonday, formatDate, addDays, formatWeekRange } from '../utils/date'
 
 const WEEKDAYS = ['周一', '周二', '周三', '周四', '周五', '周六', '周日']
 
-function getMonday(date) {
-  const d = new Date(date)
-  const day = d.getDay()
-  const diff = d.getDate() - day + (day === 0 ? -6 : 1)
-  d.setDate(diff)
-  d.setHours(0, 0, 0, 0)
-  return d
-}
-
-function formatDate(d) {
-  return d.toISOString().split('T')[0]
-}
-
-function addDays(d, n) {
-  const r = new Date(d)
-  r.setDate(r.getDate() + n)
-  return r
-}
-
-function formatWeekRange(monday) {
-  const sunday = addDays(monday, 6)
-  return `${formatDate(monday)} ~ ${formatDate(sunday)}`
-}
-
 /* ─── Week List View (Mobile) ─────────────────────────── */
 
-function WeekListView({ onEditDate }) {
+function WeekListView({ onEditDate, refreshRef }) {
   const [currentMonday, setCurrentMonday] = useState(() => getMonday(new Date()))
   const [reports, setReports] = useState([])
   const [loading, setLoading] = useState(false)
@@ -48,7 +25,7 @@ function WeekListView({ onEditDate }) {
       const ws = formatDate(currentMonday)
       const { data } = await getDailyReportsWeek(ws)
       setReports(data)
-    } catch (_) {
+    } catch {
       toast.error('加载日报失败')
     } finally {
       setLoading(false)
@@ -59,6 +36,13 @@ function WeekListView({ onEditDate }) {
     fetchReports()
   }, [fetchReports])
 
+  // Expose refresh function
+  useEffect(() => {
+    if (refreshRef) {
+      refreshRef.current = fetchReports
+    }
+  }, [fetchReports, refreshRef])
+
   const getReportForDate = (date) => reports.find((r) => r.date === formatDate(date))
 
   const handleDelete = async (date) => {
@@ -68,7 +52,7 @@ function WeekListView({ onEditDate }) {
       await deleteDailyReport(date)
       toast.success('已删除')
       fetchReports()
-    } catch (_) {
+    } catch {
       toast.error('删除失败')
     } finally {
       setDeletingDate(null)
@@ -177,16 +161,17 @@ function WeekListView({ onEditDate }) {
 export default function DailyReport() {
   const isDesktop = useMediaQuery('(min-width: 769px)')
   const [modal, setModal] = useState({ open: false, date: null, content: '' })
-
-  // Shared: fetch reports after save to refresh whichever view is active
-  const [refreshKey, setRefreshKey] = useState(0)
+  const refreshRef = useRef(null)
 
   const handleSave = async (date, content) => {
     try {
       await saveDailyReport(date, content)
       toast.success('保存成功')
       setModal({ open: false, date: null, content: '' })
-      setRefreshKey((k) => k + 1)
+      // Trigger refresh without re-mounting components
+      if (refreshRef.current) {
+        refreshRef.current()
+      }
     } catch (err) {
       toast.error(err.response?.data?.detail || '保存失败')
     }
@@ -197,8 +182,15 @@ export default function DailyReport() {
   }
 
   const handleDelete = async (date) => {
-    await deleteDailyReport(date)
-    toast.success('已删除')
+    try {
+      await deleteDailyReport(date)
+      toast.success('已删除')
+      if (refreshRef.current) {
+        refreshRef.current()
+      }
+    } catch {
+      toast.error('删除失败')
+    }
   }
 
   return (
@@ -209,9 +201,9 @@ export default function DailyReport() {
       </div>
       <div className="page-body">
         {isDesktop ? (
-          <CalendarView key={refreshKey} onEditDate={openEdit} onDeleteDate={handleDelete} />
+          <CalendarView onEditDate={openEdit} onDeleteDate={handleDelete} refreshRef={refreshRef} />
         ) : (
-          <WeekListView key={refreshKey} onEditDate={openEdit} />
+          <WeekListView onEditDate={openEdit} refreshRef={refreshRef} />
         )}
       </div>
 

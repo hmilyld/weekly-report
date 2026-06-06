@@ -1,13 +1,28 @@
 """Application configuration using pydantic-settings."""
 
 import os
+import secrets
 
 from pydantic_settings import BaseSettings
 
 
+def _default_jwt_secret() -> str:
+    secret = os.getenv("JWT_SECRET_KEY")
+    if not secret:
+        env = os.getenv("ENV", os.getenv("ENVIRONMENT", "development"))
+        if env == "production":
+            raise ValueError(
+                "JWT_SECRET_KEY environment variable is required in production. "
+                "Generate one with: python -c \"import secrets; print(secrets.token_urlsafe(64))\""
+            )
+        secret = secrets.token_urlsafe(64)
+        print(f"⚠️  JWT_SECRET_KEY not set — using random key (tokens will be invalid on restart)")
+    return secret
+
+
 class Settings(BaseSettings):
     # JWT
-    jwt_secret_key: str = os.getenv("JWT_SECRET_KEY", "dev-secret-change-in-production")
+    jwt_secret_key: str = _default_jwt_secret()
     jwt_algorithm: str = "HS256"
     jwt_expire_minutes: int = 1440  # 24 hours
 

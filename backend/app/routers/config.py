@@ -1,5 +1,7 @@
 """App config router: LLM settings & test connection."""
 
+import re
+
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 
@@ -13,6 +15,13 @@ from ..schemas import AppConfigResponse, AppConfigUpdate
 router = APIRouter(prefix="/api/v1/config", tags=["config"])
 
 
+def _mask_api_key(key: str | None) -> str | None:
+    """Mask API key, showing only first 3 and last 4 characters."""
+    if not key or len(key) <= 8:
+        return key
+    return key[:3] + "*" * (len(key) - 7) + key[-4:]
+
+
 @router.get("", response_model=AppConfigResponse)
 def get_config(
     user: User = Depends(get_current_user),
@@ -20,10 +29,8 @@ def get_config(
 ):
     """Get current LLM configuration."""
     config = crud.get_app_config(db)
-    # Mask API key for display (only show last 4 chars if present)
     response = AppConfigResponse.model_validate(config)
-    if response.api_key and len(response.api_key) > 4:
-        response.api_key = response.api_key  # Return full key to frontend for editing
+    response.api_key = _mask_api_key(response.api_key)
     return response
 
 

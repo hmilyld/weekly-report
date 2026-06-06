@@ -1,7 +1,7 @@
 """API Token model for external integrations."""
 
 import secrets
-from datetime import datetime
+from datetime import UTC, datetime
 
 from sqlalchemy import Column, DateTime, ForeignKey, Integer, String
 from sqlalchemy.orm import relationship
@@ -21,7 +21,7 @@ class ApiToken(Base):
     user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
     name = Column(String(100), nullable=False, default="default")
     token = Column(String(64), unique=True, nullable=False, index=True)
-    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    created_at = Column(DateTime, default=lambda: datetime.now(UTC), nullable=False)
     last_used_at = Column(DateTime, nullable=True)
 
     user = relationship("User")

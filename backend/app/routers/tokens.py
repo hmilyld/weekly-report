@@ -3,7 +3,7 @@
 from datetime import datetime
 
 from fastapi import APIRouter, Depends, HTTPException
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
 from ..auth import get_current_user
@@ -18,7 +18,7 @@ router = APIRouter(prefix="/api/v1/tokens", tags=["tokens"])
 
 
 class TokenCreate(BaseModel):
-    name: str = "default"
+    name: str = Field(default="default", max_length=100)
 
 
 class TokenResponse(BaseModel):

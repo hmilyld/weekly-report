@@ -52,7 +52,21 @@ def get_current_user(
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token payload"
         )
-    user = db.query(User).filter(User.id == int(user_id)).first()
+    try:
+        uid = int(user_id)
+    except (ValueError, TypeError):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token payload"
+        )
+    user = db.query(User).filter(User.id == uid).first()
     if user is None:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="User not found")
+    # Check if password was changed after token was issued
+    token_pwd_ver = payload.get("pwd_ver", -1)
+    current_pwd_ver = getattr(user, "password_version", 0) or 0
+    if token_pwd_ver != -1 and token_pwd_ver < current_pwd_ver:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Password has been changed. Please log in again.",
+        )
     return user

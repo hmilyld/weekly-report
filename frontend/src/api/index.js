@@ -47,8 +47,6 @@ export const saveDailyReport = (date, content) => api.post('/daily', { date, con
 export const deleteDailyReport = (date) => api.delete(`/daily/${date}`)
 
 // ─── Weekly Reports ────────────────────────────────────
-export const getWeeklyReports = () => api.get('/weekly')
-
 export const getWeeklyReport = (weekStart) => api.get(`/weekly/${weekStart}`)
 
 export const generateWeeklyReport = (weekStart) => api.post(`/weekly/${weekStart}`)

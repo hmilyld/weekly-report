@@ -503,15 +503,6 @@ textarea.form-input {
   background: var(--color-surface-hover);
 }
 
-.btn-danger {
-  background: var(--color-danger);
-  color: white;
-}
-
-.btn-danger:hover:not(:disabled) {
-  background: var(--color-danger-hover);
-}
-
 .btn-ghost {
   background: transparent;
   color: var(--color-text-secondary);
@@ -826,7 +817,7 @@ textarea.form-input {
 
 /* ─── Mobile Menu Button ───────────────────────────────── */
 .mobile-menu-btn {
-  display: none;
+  display: flex;
   position: fixed;
   top: calc(var(--space-3) + var(--safe-top));
   right: calc(var(--space-3) + var(--safe-right));
@@ -892,10 +883,6 @@ textarea.form-input {
   .sidebar.open {
     transform: translateX(0);
     box-shadow: var(--shadow-lg);
-  }
-
-  .mobile-menu-btn {
-    display: flex !important;
   }
 
   /* Override sidebar margin on mobile */
@@ -1205,6 +1192,13 @@ textarea.form-input {
   transition: background var(--transition-fast);
   display: flex;
   flex-direction: column;
+  /* Button reset (calendar-day is now a <button> for a11y) */
+  border: 1px solid var(--color-border);
+  border-radius: 0;
+  font: inherit;
+  color: inherit;
+  text-align: left;
+  width: 100%;
 }
 
 .calendar-day:hover {
@@ -1360,6 +1354,10 @@ textarea.form-input {
 
 /* ─── Desktop Calendar (≥769px) ───────────────────────── */
 @media (min-width: 769px) {
+  .mobile-menu-btn {
+    display: none;
+  }
+
   .calendar-container {
     max-width: 100%;
   }
@@ -1384,8 +1382,8 @@ textarea.form-input {
 
   /* PC: taller edit textarea for weekly report */
   .weekly-edit-textarea {
-    min-height: 480px !important;
-    font-size: 15px !important;
+    min-height: 480px;
+    font-size: 15px;
   }
 }
 
@@ -1409,15 +1407,6 @@ textarea.form-input {
   border-top: 1px solid var(--color-border);
   background: var(--color-surface);
   flex-shrink: 0;
-}
-
-.app-footer a {
-  color: var(--color-text-secondary);
-  transition: color var(--transition-fast);
-}
-
-.app-footer a:hover {
-  color: var(--color-text);
 }
 
 /* ─── Print ────────────────────────────────────────────── */

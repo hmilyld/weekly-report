@@ -8,7 +8,7 @@ RUN corepack enable && corepack prepare pnpm@latest --activate
 
 # Copy package files and install
 COPY frontend/package.json frontend/pnpm-lock.yaml* ./
-RUN pnpm install --frozen-lockfile 2>/dev/null || pnpm install
+RUN pnpm install --frozen-lockfile
 
 # Copy source and build
 COPY frontend/ ./
@@ -29,16 +29,21 @@ COPY backend/ ./
 # Copy built frontend from stage 1
 COPY --from=frontend-build /build/frontend/dist ./frontend/dist
 
-# Create data directory for SQLite
-RUN mkdir -p /app/data
+# Create data directory and non-root user
+RUN mkdir -p /app/data && \
+    addgroup --system app && \
+    adduser --system --ingroup app app && \
+    chown -R app:app /app
+
+# Switch to non-root user
+USER app
 
 # Expose port
 EXPOSE 8000
 
-# Environment variables
+# Environment variables (secrets must be injected at runtime)
 ENV PYTHONUNBUFFERED=1
 ENV DATABASE_URL=sqlite:///./data/weekly_report.db
-ENV JWT_SECRET_KEY=change-this-in-production
 
 # Run with uvicorn
 CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
