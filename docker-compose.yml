@@ -1,0 +1,14 @@
+version: '3.8'
+
+services:
+  weekly-report:
+    build: .
+    container_name: weekly-report
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./data:/app/data
+    environment:
+      - JWT_SECRET_KEY=${JWT_SECRET_KEY:-super-secret-change-me}
+      - DATABASE_URL=sqlite:///./data/weekly_report.db
+    restart: unless-stopped
