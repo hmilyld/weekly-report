@@ -16,9 +16,39 @@ from app.routers import auth, daily, weekly, config
 from app.routers import tokens, external
 
 
+def _migrate_db():
+    """Add missing columns to existing tables (SQLite ALTER TABLE)."""
+    import logging
+
+    from sqlalchemy import inspect, text
+
+    logger = logging.getLogger(__name__)
+    inspector = inspect(engine)
+
+    # Add password_version to users table if missing
+    try:
+        columns = {col["name"] for col in inspector.get_columns("users")}
+        if "password_version" not in columns:
+            with engine.begin() as conn:
+                conn.execute(text("ALTER TABLE users ADD COLUMN password_version INTEGER NOT NULL DEFAULT 0"))
+            logger.info("Migration: added password_version column to users table")
+    except Exception as e:
+        logger.warning("Migration check failed (may be first run): %s", e)
+
+
 def _init_db():
     """Create tables and seed defaults on first run."""
-    Base.metadata.create_all(bind=engine)
+    import logging
+
+    logger = logging.getLogger(__name__)
+
+    try:
+        Base.metadata.create_all(bind=engine)
+        _migrate_db()
+    except Exception as e:
+        logger.error("Failed to create/migrate database tables: %s", e)
+        raise
+
     db = SessionLocal()
     try:
         # Seed default config only (users are created via /api/v1/auth/setup)
