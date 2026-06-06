@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" width="32" height="32">
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#2563eb"/>
+      <stop offset="100%" style="stop-color:#1d4ed8"/>
+    </linearGradient>
+  </defs>
+  <rect width="32" height="32" rx="7" fill="url(#bg)"/>
+  <!-- Calendar body -->
+  <rect x="6" y="9" width="20" height="17" rx="3" fill="#fff" opacity="0.95"/>
+  <!-- Calendar header -->
+  <rect x="6" y="9" width="20" height="5" rx="3" fill="#1e40af"/>
+  <rect x="6" y="12" width="20" height="2" fill="#1e40af"/>
+  <!-- Rings -->
+  <rect x="10" y="6" width="2" height="5" rx="1" fill="#fff" opacity="0.9"/>
+  <rect x="20" y="6" width="2" height="5" rx="1" fill="#fff" opacity="0.9"/>
+  <!-- Report lines -->
+  <rect x="9" y="18" width="14" height="1.5" rx="0.75" fill="#93c5fd"/>
+  <rect x="9" y="21.5" width="10" height="1.5" rx="0.75" fill="#93c5fd"/>
+  <rect x="9" y="25" width="7" height="1.5" rx="0.75" fill="#93c5fd"/>
+</svg>
