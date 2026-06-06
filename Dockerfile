@@ -3,8 +3,8 @@ FROM node:18-alpine AS frontend-build
 
 WORKDIR /build/frontend
 
-# Install pnpm
-RUN corepack enable && corepack prepare pnpm@latest --activate
+# Install pnpm (pin to v9, compatible with Node 18)
+RUN corepack enable && corepack prepare pnpm@9 --activate
 
 # Copy package files and install
 COPY frontend/package.json frontend/pnpm-lock.yaml* ./
