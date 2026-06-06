@@ -4,8 +4,10 @@ POST   /api/v1/external/daily          创建/更新日报
 GET    /api/v1/external/docs            获取所有接口文档
 GET    /api/v1/external/daily/current-week   获取当周日报
 GET    /api/v1/external/weekly/recent  获取当周+上周周报
+POST   /api/v1/external/weekly/generate  生成当周周报
 """
 
+import logging
 from datetime import UTC, date, datetime, timedelta
 
 from fastapi import APIRouter, Depends, Header, HTTPException
@@ -14,8 +16,11 @@ from sqlalchemy.orm import Session
 
 from .. import crud
 from ..database import get_db
+from ..llm_client import generate_weekly_report
 from ..models import User
 from ..models_token import ApiToken
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/v1/external", tags=["external"])
 
@@ -138,6 +143,19 @@ def get_api_docs(user: User = Depends(get_user_by_api_token)):
                 "description": "返回此列表，供 AI 自动发现可用接口。",
                 "params": {},
             },
+            {
+                "method": "POST",
+                "path": "/api/v1/external/weekly/generate",
+                "summary": "生成当周周报",
+                "description": "调用大模型生成本周周报。如已有周报，默认不覆盖。",
+                "params": {
+                    "force": {
+                        "type": "bool",
+                        "required": False,
+                        "description": "false=不覆盖已有周报（默认），true=强制重新生成",
+                    },
+                },
+            },
         ]
     }
 
@@ -200,4 +218,74 @@ def get_recent_weekly_reports(
     return {
         "this_week": _serialize(this_week),
         "last_week": _serialize(last_week),
+    }
+
+
+# ─── Endpoint 4: Generate current week weekly report ────
+
+
+class WeeklyGenerateRequest(BaseModel):
+    force: bool = False  # True = 覆盖已有周报，False = 如已有则提示
+
+
+@router.post("/weekly/generate")
+def generate_current_weekly(
+    body: WeeklyGenerateRequest = WeeklyGenerateRequest(),
+    user: User = Depends(get_user_by_api_token),
+    db: Session = Depends(get_db),
+):
+    """生成当周周报。
+
+    - force=false（默认）：如已有周报，返回提示信息，不覆盖。
+    - force=true：强制重新生成，覆盖已有内容。
+    """
+    monday = _get_monday(date.today())
+    week_end = monday + timedelta(days=6)
+
+    # Check if report already exists
+    existing = crud.get_weekly_report(db, user.id, monday)
+    if existing and not body.force:
+        return {
+            "generated": False,
+            "message": "本周周报已存在，如需重新生成请传入 force=true",
+            "week_start": str(monday),
+            "week_end": str(week_end),
+            "existing": {
+                "content": existing.content,
+                "model_name": existing.model_name,
+                "generated_at": existing.generated_at.isoformat(),
+            },
+        }
+
+    # Gather daily reports
+    dailies = crud.get_daily_reports_by_week(db, user.id, monday)
+    if not dailies:
+        raise HTTPException(status_code=400, detail="本周暂无日报，无法生成周报")
+
+    daily_entries = [(str(d.date), d.content) for d in dailies if d.content.strip()]
+    if not daily_entries:
+        raise HTTPException(status_code=400, detail="本周日报内容为空，无法生成周报")
+
+    # Call LLM
+    try:
+        content = generate_weekly_report(db, daily_entries)
+    except RuntimeError as e:
+        logger.error("LLM generation failed: %s", e)
+        raise HTTPException(
+            status_code=502, detail="周报生成失败，请检查大模型配置"
+        ) from e
+
+    app_config = crud.get_app_config(db)
+    report = crud.save_weekly_report(
+        db, user.id, monday, week_end, content, app_config.llm_model_name
+    )
+
+    return {
+        "generated": True,
+        "message": "周报生成成功",
+        "week_start": str(report.week_start),
+        "week_end": str(report.week_end),
+        "content": report.content,
+        "model_name": report.model_name,
+        "generated_at": report.generated_at.isoformat(),
     }
