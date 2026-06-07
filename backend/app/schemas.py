@@ -98,3 +98,29 @@ class AppConfigUpdate(BaseModel):
             if not parsed.hostname:
                 raise ValueError("URL must have a valid hostname")
         return v
+
+
+# ─── Task ───────────────────────────────────────────────
+
+
+class TaskCreate(BaseModel):
+    content: str = Field(max_length=5000)
+    deadline: date | None = None
+
+
+class TaskUpdate(BaseModel):
+    content: str | None = Field(default=None, max_length=5000)
+    deadline: date | None = None
+    is_completed: bool | None = None
+
+
+class TaskResponse(BaseModel):
+    id: int
+    user_id: int
+    content: str
+    deadline: date | None
+    is_completed: bool
+    created_at: datetime
+    updated_at: datetime
+
+    model_config = {"from_attributes": True}

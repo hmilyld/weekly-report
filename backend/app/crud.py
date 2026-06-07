@@ -1,6 +1,6 @@
 """CRUD operations."""
 
-from datetime import UTC, date, timedelta
+from datetime import UTC, date, datetime, timedelta
 
 from sqlalchemy.orm import Session
 
@@ -185,3 +185,120 @@ def update_app_config(
     db.commit()
     db.refresh(config)
     return config
+
+
+# ─── Task ───────────────────────────────────────────────
+
+
+def get_tasks(db: Session, user_id: int) -> list[models.Task]:
+    """Get all tasks for a user, ordered by deadline (nulls last), then by created_at desc."""
+    from sqlalchemy import case, nullslast
+
+    return (
+        db.query(models.Task)
+        .filter(models.Task.user_id == user_id)
+        .order_by(
+            nullslast(models.Task.deadline.asc()),
+            models.Task.created_at.desc(),
+        )
+        .all()
+    )
+
+
+def get_pending_tasks(db: Session, user_id: int) -> list[models.Task]:
+    """Get incomplete tasks for a user."""
+    from sqlalchemy import nullslast
+
+    return (
+        db.query(models.Task)
+        .filter(models.Task.user_id == user_id, models.Task.is_completed == False)
+        .order_by(
+            nullslast(models.Task.deadline.asc()),
+            models.Task.created_at.desc(),
+        )
+        .all()
+    )
+
+
+def get_completed_tasks(
+    db: Session, user_id: int, offset: int = 0, limit: int = 20
+) -> list[models.Task]:
+    """Get completed tasks for a user with pagination."""
+    from sqlalchemy import nullslast
+
+    return (
+        db.query(models.Task)
+        .filter(models.Task.user_id == user_id, models.Task.is_completed == True)
+        .order_by(
+            nullslast(models.Task.deadline.desc()),
+            models.Task.created_at.desc(),
+        )
+        .offset(offset)
+        .limit(limit)
+        .all()
+    )
+
+
+def get_completed_tasks_count(db: Session, user_id: int) -> int:
+    """Get total count of completed tasks for a user."""
+    return (
+        db.query(models.Task)
+        .filter(models.Task.user_id == user_id, models.Task.is_completed == True)
+        .count()
+    )
+
+
+def create_task(
+    db: Session, user_id: int, content: str, deadline: date | None = None
+) -> models.Task:
+    # Validate deadline is not in the past
+    if deadline and deadline < date.today():
+        raise ValueError("截止日期不能早于今天")
+    task = models.Task(user_id=user_id, content=content, deadline=deadline)
+    db.add(task)
+    db.commit()
+    db.refresh(task)
+    return task
+
+
+def update_task(
+    db: Session,
+    user_id: int,
+    task_id: int,
+    content: str | None = None,
+    deadline: date | None = None,
+    is_completed: bool | None = None,
+) -> models.Task | None:
+    # Validate deadline is not in the past
+    if deadline and deadline < date.today():
+        raise ValueError("截止日期不能早于今天")
+    task = (
+        db.query(models.Task)
+        .filter(models.Task.id == task_id, models.Task.user_id == user_id)
+        .first()
+    )
+    if not task:
+        return None
+    if content is not None:
+        task.content = content
+    if deadline is not None:
+        task.deadline = deadline
+    if is_completed is not None:
+        task.is_completed = is_completed
+    task.updated_at = datetime.now(UTC)
+    db.commit()
+    db.refresh(task)
+    return task
+
+
+def delete_task(db: Session, user_id: int, task_id: int) -> bool:
+    task = (
+        db.query(models.Task)
+        .filter(models.Task.id == task_id, models.Task.user_id == user_id)
+        .first()
+    )
+    if task:
+        db.delete(task)
+        db.commit()
+        return True
+    return False

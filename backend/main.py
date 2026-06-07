@@ -13,7 +13,7 @@ from app.database import engine, Base, SessionLocal
 from app.models import User, AppConfig
 from app.models_token import ApiToken  # noqa: F401 — ensure table is created
 from app.routers import auth, daily, weekly, config
-from app.routers import tokens, external
+from app.routers import tokens, external, tasks
 
 
 def _migrate_db():
@@ -114,6 +114,7 @@ app.include_router(weekly.router)
 app.include_router(config.router)
 app.include_router(tokens.router)
 app.include_router(external.router)
+app.include_router(tasks.router)
 
 
 # ─── Health check endpoint ───────────────────────────────

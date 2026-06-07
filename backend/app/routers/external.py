@@ -5,6 +5,8 @@ GET    /api/v1/external/docs            获取所有接口文档
 GET    /api/v1/external/daily/current-week   获取当周日报
 GET    /api/v1/external/weekly/recent  获取当周+上周周报
 POST   /api/v1/external/weekly/generate  生成当周周报
+GET    /api/v1/external/tasks/pending   获取未完成待办
+POST   /api/v1/external/tasks           创建待办
 """
 
 import logging
@@ -156,6 +158,27 @@ def get_api_docs(user: User = Depends(get_user_by_api_token)):
                     },
                 },
             },
+            {
+                "method": "GET",
+                "path": "/api/v1/external/tasks/pending",
+                "summary": "获取未完成待办",
+                "description": "返回所有未完成的待办列表，按截止时间升序排列。",
+                "params": {},
+            },
+            {
+                "method": "POST",
+                "path": "/api/v1/external/tasks",
+                "summary": "创建待办",
+                "description": "创建一条新的工作待办。",
+                "params": {
+                    "content": {"type": "string", "required": True, "description": "待办内容"},
+                    "deadline": {
+                        "type": "string",
+                        "required": False,
+                        "description": "截止日期，格式 yyyy-mm-dd",
+                    },
+                },
+            },
         ]
     }
 
@@ -288,4 +311,64 @@ def generate_current_weekly(
         "content": report.content,
         "model_name": report.model_name,
         "generated_at": report.generated_at.isoformat(),
+    }
+
+
+# ─── Endpoint 5: Pending tasks ─────────────────────────
+
+
+@router.get("/tasks/pending")
+def get_pending_tasks(
+    user: User = Depends(get_user_by_api_token),
+    db: Session = Depends(get_db),
+):
+    """获取未完成的待办列表。"""
+    tasks = crud.get_pending_tasks(db, user.id)
+    return {
+        "tasks": [
+            {
+                "id": t.id,
+                "content": t.content,
+                "deadline": t.deadline.isoformat() if t.deadline else None,
+                "created_at": t.created_at.isoformat(),
+            }
+            for t in tasks
+        ]
+    }
+
+
+# ─── Endpoint 6: Create task ───────────────────────────
+
+
+class ExternalTaskCreate(BaseModel):
+    content: str = Field(max_length=5000)
+    deadline: str | None = None  # yyyy-mm-dd
+
+
+@router.post("/tasks", status_code=201)
+def create_external_task(
+    body: ExternalTaskCreate,
+    user: User = Depends(get_user_by_api_token),
+    db: Session = Depends(get_db),
+):
+    """创建待办。"""
+    deadline_date = None
+    if body.deadline:
+        try:
+            deadline_date = date.fromisoformat(body.deadline)
+        except ValueError as err:
+            raise HTTPException(
+                status_code=400, detail="Invalid deadline format, use yyyy-mm-dd"
+            ) from err
+
+    try:
+        task = crud.create_task(db, user.id, body.content, deadline_date)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    return {
+        "message": "ok",
+        "id": task.id,
+        "content": task.content,
+        "deadline": str(task.deadline) if task.deadline else None,
+        "created_at": task.created_at.isoformat(),
     }

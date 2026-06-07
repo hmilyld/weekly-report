@@ -68,4 +68,17 @@ export const createToken = (name = 'default') => api.post('/tokens', { name })
 
 export const deleteToken = (tokenId) => api.delete(`/tokens/${tokenId}`)
 
+// ─── Tasks ─────────────────────────────────────────────
+export const getTasks = () => api.get('/tasks')
+
+export const getCompletedTasks = (offset = 0, limit = 20) =>
+  api.get(`/tasks/completed?offset=${offset}&limit=${limit}`)
+
+export const createTask = (content, deadline = null) =>
+  api.post('/tasks', { content, deadline })
+
+export const updateTask = (taskId, data) => api.put(`/tasks/${taskId}`, data)
+
+export const deleteTask = (taskId) => api.delete(`/tasks/${taskId}`)
+
 export default api

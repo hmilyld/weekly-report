@@ -3,6 +3,7 @@
 from datetime import UTC, datetime
 
 from sqlalchemy import (
+    Boolean,
     Column,
     Date,
     DateTime,
@@ -74,4 +75,16 @@ class AppConfig(Base):
     )
     llm_model_name = Column(String(100), nullable=False, default="llama2")
     api_key = Column(String(500), nullable=True, default="")
+    updated_at = Column(DateTime, default=_utcnow, onupdate=_utcnow, nullable=False)
+
+
+class Task(Base):
+    __tablename__ = "tasks"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    content = Column(Text, nullable=False)
+    deadline = Column(Date, nullable=True)
+    is_completed = Column(Boolean, default=False, nullable=False)
+    created_at = Column(DateTime, default=_utcnow, nullable=False)
     updated_at = Column(DateTime, default=_utcnow, onupdate=_utcnow, nullable=False)

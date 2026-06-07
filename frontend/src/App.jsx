@@ -9,13 +9,14 @@ import {
   useLocation,
 } from 'react-router-dom'
 import { Toaster } from 'react-hot-toast'
-import { FileText, Calendar, Settings, LogOut, Menu, X, Sun, Moon, Monitor } from 'lucide-react'
+import { FileText, Calendar, Settings, LogOut, Menu, X, Sun, Moon, Monitor, CheckSquare } from 'lucide-react'
 import { getAuthStatus } from './api'
 import { ThemeProvider, useTheme } from './contexts/ThemeContext'
 import Login from './pages/Login'
 import Setup from './pages/Setup'
 import DailyReport from './pages/DailyReport'
 import WeeklyReport from './pages/WeeklyReport'
+import Tasks from './pages/Tasks'
 import SettingsPage from './pages/Settings'
 import useMediaQuery from './hooks/useMediaQuery'
 
@@ -59,6 +60,7 @@ function TopNav() {
   const links = [
     { to: '/', icon: Calendar, label: '日报管理' },
     { to: '/weekly', icon: FileText, label: '周报管理' },
+    { to: '/tasks', icon: CheckSquare, label: '工作待办' },
     { to: '/settings', icon: Settings, label: '系统配置' },
   ]
 
@@ -107,6 +109,7 @@ function Sidebar({ open, onClose }) {
   const links = [
     { to: '/', icon: Calendar, label: '日报管理' },
     { to: '/weekly', icon: FileText, label: '周报管理' },
+    { to: '/tasks', icon: CheckSquare, label: '工作待办' },
     { to: '/settings', icon: Settings, label: '系统配置' },
   ]
 
@@ -194,6 +197,7 @@ function AppLayout() {
           <Routes>
             <Route path="/" element={<DailyReport />} />
             <Route path="/weekly" element={<WeeklyReport />} />
+            <Route path="/tasks" element={<Tasks />} />
             <Route path="/settings" element={<SettingsPage />} />
           </Routes>
         </main>
@@ -238,7 +242,7 @@ export default function App() {
     <ThemeProvider>
       <BrowserRouter>
         <Toaster
-          position="top-right"
+          position={window.innerWidth < 769 ? 'bottom-center' : 'top-right'}
           toastOptions={{
             duration: 3000,
             style: {
@@ -247,7 +251,7 @@ export default function App() {
               borderRadius: '8px',
             },
           }}
-          containerStyle={{ top: 20 }}
+          containerStyle={window.innerWidth < 769 ? { bottom: 80 } : { top: 20 }}
         />
         <Routes>
           <Route
