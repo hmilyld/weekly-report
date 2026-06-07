@@ -6,10 +6,7 @@ import useMediaQuery from '../hooks/useMediaQuery'
 
 /* ─── Helpers ──────────────────────────────────────────── */
 
-function formatDeadline(dt) {
-  if (!dt) return null
-  return dt
-}
+const PAGE_SIZE = 20
 
 function isOverdue(deadline) {
   if (!deadline) return false
@@ -26,6 +23,116 @@ function isUrgent(deadline) {
   const deadlineDate = new Date(deadline + 'T00:00:00')
   const diffDays = Math.ceil((deadlineDate - today) / (1000 * 60 * 60 * 24))
   return diffDays >= 0 && diffDays < 3
+}
+
+/* ─── useTaskList Hook ──────────────────────────────────── */
+
+function useTaskList() {
+  const [pendingTasks, setPendingTasks] = useState([])
+  const [completedTasks, setCompletedTasks] = useState([])
+  const [completedTotal, setCompletedTotal] = useState(0)
+  const [completedPage, setCompletedPage] = useState(1)
+  const [completedLoading, setCompletedLoading] = useState(false)
+
+  const fetchPendingTasks = useCallback(async () => {
+    try {
+      const { data } = await getTasks()
+      setPendingTasks(data.filter((t) => !t.is_completed))
+    } catch {
+      toast.error('加载待办失败')
+    }
+  }, [])
+
+  const fetchCompletedTasks = useCallback(async (page) => {
+    setCompletedLoading(true)
+    try {
+      const offset = (page - 1) * PAGE_SIZE
+      const { data } = await getCompletedTasks(offset, PAGE_SIZE)
+      setCompletedTasks(data.tasks)
+      setCompletedTotal(data.total)
+    } catch {
+      toast.error('加载已完成待办失败')
+    } finally {
+      setCompletedLoading(false)
+    }
+  }, [])
+
+  const fetchCompletedCount = useCallback(async () => {
+    try {
+      const { data } = await getCompletedTasks(0, 1)
+      setCompletedTotal(data.total)
+    } catch {
+      // ignore
+    }
+  }, [])
+
+  useEffect(() => {
+    fetchPendingTasks()
+    fetchCompletedCount()
+  }, [fetchPendingTasks, fetchCompletedCount])
+
+  const handleToggle = async (taskId, isCompleted) => {
+    try {
+      await updateTask(taskId, { is_completed: isCompleted })
+      toast.success(isCompleted ? '已完成' : '已恢复')
+      if (isCompleted) {
+        const task = pendingTasks.find((t) => t.id === taskId)
+        setPendingTasks((prev) => prev.filter((t) => t.id !== taskId))
+        setCompletedTotal((prev) => prev + 1)
+        if (task) setCompletedTasks((prev) => [task, ...prev])
+      } else {
+        const task = completedTasks.find((t) => t.id === taskId)
+        setCompletedTasks((prev) => prev.filter((t) => t.id !== taskId))
+        setCompletedTotal((prev) => prev - 1)
+        if (task) setPendingTasks((prev) => [task, ...prev])
+      }
+    } catch {
+      toast.error('操作失败')
+    }
+  }
+
+  const handleEdit = async (taskId, content, deadline, currentTab) => {
+    try {
+      const { data } = await updateTask(taskId, { content, deadline })
+      toast.success('已更新')
+      if (currentTab === 'pending') {
+        setPendingTasks((prev) => prev.map((t) => (t.id === taskId ? data : t)))
+      } else {
+        setCompletedTasks((prev) => prev.map((t) => (t.id === taskId ? data : t)))
+      }
+    } catch (err) {
+      toast.error(err.response?.data?.detail || '更新失败')
+    }
+  }
+
+  const handleDelete = (taskId, currentTab) => {
+    if (currentTab === 'pending') {
+      setPendingTasks((prev) => prev.filter((t) => t.id !== taskId))
+    } else {
+      setCompletedTasks((prev) => prev.filter((t) => t.id !== taskId))
+      setCompletedTotal((prev) => prev - 1)
+    }
+  }
+
+  const handleAdd = (newTask) => {
+    setPendingTasks((prev) => [newTask, ...prev])
+  }
+
+  return {
+    pendingTasks,
+    completedTasks,
+    completedTotal,
+    completedPage,
+    setCompletedPage,
+    completedLoading,
+    fetchPendingTasks,
+    fetchCompletedTasks,
+    handleToggle,
+    handleEdit,
+    handleDelete,
+    handleAdd,
+    totalPages: Math.ceil(completedTotal / PAGE_SIZE),
+  }
 }
 
 /* ─── Inline Edit Row ──────────────────────────────────── */
@@ -118,7 +225,6 @@ function TaskItem({ task, onToggle, onDelete, onEdit }) {
 
   const overdue = !task.is_completed && isOverdue(task.deadline)
   const urgent = !task.is_completed && !overdue && isUrgent(task.deadline)
-  const deadlineStr = formatDeadline(task.deadline)
 
   return (
     <div className={`task-item ${task.is_completed ? 'completed' : ''} ${overdue ? 'overdue' : ''} ${urgent ? 'urgent' : ''} ${animatingOut ? 'task-removing' : ''}`}>
@@ -134,9 +240,9 @@ function TaskItem({ task, onToggle, onDelete, onEdit }) {
           {urgent && <span className="task-urgent-star">*</span>}
           {task.content}
         </span>
-        {deadlineStr && (
+        {task.deadline && (
           <span className={`task-deadline ${overdue ? 'overdue' : ''} ${urgent ? 'urgent' : ''}`}>
-            截止: {deadlineStr}
+            截止: {task.deadline}
           </span>
         )}
       </div>
@@ -245,134 +351,80 @@ function Pagination({ page, totalPages, onChange }) {
   )
 }
 
+/* ─── Task List Component ─────────────────────────────── */
+
+function TaskList({ tasks, loading, onToggle, onDelete, onEdit }) {
+  if (loading) {
+    return (
+      <div className="loading-center">
+        <span className="spinner spinner-lg" />
+      </div>
+    )
+  }
+
+  if (tasks.length === 0) {
+    return (
+      <div className="empty-state">
+        <ListFilter />
+        <p>暂无待办</p>
+      </div>
+    )
+  }
+
+  return (
+    <div className="task-list">
+      {tasks.map((task) => (
+        <TaskItem
+          key={task.id}
+          task={task}
+          onToggle={onToggle}
+          onDelete={onDelete}
+          onEdit={onEdit}
+        />
+      ))}
+    </div>
+  )
+}
+
 /* ─── Desktop Tabs View ────────────────────────────────── */
 
 function DesktopTabsView() {
   const [tab, setTab] = useState('pending')
-  const [pendingTasks, setPendingTasks] = useState([])
-  const [completedTasks, setCompletedTasks] = useState([])
-  const [completedTotal, setCompletedTotal] = useState(0)
-  const [completedPage, setCompletedPage] = useState(1)
-  const [completedLoading, setCompletedLoading] = useState(false)
-  const PAGE_SIZE = 20
+  const store = useTaskList()
 
-  // Fetch pending tasks
-  const fetchPendingTasks = useCallback(async () => {
-    try {
-      const { data } = await getTasks()
-      setPendingTasks(data.filter((t) => !t.is_completed))
-    } catch {
-      toast.error('加载待办失败')
-    }
-  }, [])
-
-  // Fetch completed tasks count on mount
-  useEffect(() => {
-    fetchPendingTasks()
-    getCompletedTasks(0, 1).then(({ data }) => {
-      setCompletedTotal(data.total)
-    }).catch(() => {})
-  }, [fetchPendingTasks])
-
-  // Fetch completed tasks list
-  const fetchCompletedTasks = useCallback(async (page) => {
-    setCompletedLoading(true)
-    try {
-      const offset = (page - 1) * PAGE_SIZE
-      const { data } = await getCompletedTasks(offset, PAGE_SIZE)
-      setCompletedTasks(data.tasks)
-      setCompletedTotal(data.total)
-    } catch {
-      toast.error('加载已完成待办失败')
-    } finally {
-      setCompletedLoading(false)
-    }
-  }, [])
-
-  // Load data when switching tabs
   useEffect(() => {
     if (tab === 'completed') {
-      fetchCompletedTasks(completedPage)
+      store.fetchCompletedTasks(store.completedPage)
     } else {
-      fetchPendingTasks()
+      store.fetchPendingTasks()
     }
-  }, [tab, completedPage, fetchCompletedTasks, fetchPendingTasks])
+  }, [tab, store.completedPage, store.fetchCompletedTasks, store.fetchPendingTasks])
 
-  // Handle toggle status
-  const handleToggle = async (taskId, isCompleted) => {
-    try {
-      await updateTask(taskId, { is_completed: isCompleted })
-      toast.success(isCompleted ? '已完成' : '已恢复')
-      if (isCompleted) {
-        // Pending -> Completed: move task
-        const task = pendingTasks.find((t) => t.id === taskId)
-        setPendingTasks((prev) => prev.filter((t) => t.id !== taskId))
-        setCompletedTotal((prev) => prev + 1)
-        if (task) {
-          setCompletedTasks((prev) => [task, ...prev])
-        }
-      } else {
-        // Completed -> Pending: move task
-        const task = completedTasks.find((t) => t.id === taskId)
-        setCompletedTasks((prev) => prev.filter((t) => t.id !== taskId))
-        setCompletedTotal((prev) => prev - 1)
-        if (task) {
-          setPendingTasks((prev) => [task, ...prev])
-        }
-      }
-    } catch {
-      toast.error('操作失败')
-    }
+  const handleEdit = (taskId, content, deadline) => {
+    store.handleEdit(taskId, content, deadline, tab)
   }
 
-  // Handle edit
-  const handleEdit = async (taskId, content, deadline) => {
-    try {
-      const { data } = await updateTask(taskId, { content, deadline })
-      toast.success('已更新')
-      if (tab === 'pending') {
-        setPendingTasks((prev) => prev.map((t) => (t.id === taskId ? data : t)))
-      } else {
-        setCompletedTasks((prev) => prev.map((t) => (t.id === taskId ? data : t)))
-      }
-    } catch (err) {
-      toast.error(err.response?.data?.detail || '更新失败')
-    }
-  }
-
-  // Handle delete
   const handleDelete = (taskId) => {
-    if (tab === 'pending') {
-      setPendingTasks((prev) => prev.filter((t) => t.id !== taskId))
-    } else {
-      setCompletedTasks((prev) => prev.filter((t) => t.id !== taskId))
-      setCompletedTotal((prev) => prev - 1)
-    }
+    store.handleDelete(taskId, tab)
   }
 
-  // Handle add
-  const handleAdd = (newTask) => {
-    setPendingTasks((prev) => [newTask, ...prev])
-  }
-
-  const totalPages = Math.ceil(completedTotal / PAGE_SIZE)
-  const activeTasks = tab === 'pending' ? pendingTasks : completedTasks
+  const activeTasks = tab === 'pending' ? store.pendingTasks : store.completedTasks
 
   return (
     <div className="task-container">
-      <AddTaskRow onAdd={handleAdd} />
+      <AddTaskRow onAdd={store.handleAdd} />
       <div className="task-tabs">
         <button
           className={`task-tab ${tab === 'pending' ? 'active' : ''}`}
           onClick={() => setTab('pending')}
         >
-          未完成 ({pendingTasks.length})
+          未完成 ({store.pendingTasks.length})
         </button>
         <button
           className={`task-tab ${tab === 'completed' ? 'active' : ''}`}
           onClick={() => setTab('completed')}
         >
-          已完成 ({completedTotal})
+          已完成 ({store.completedTotal})
         </button>
       </div>
       {activeTasks.length === 0 ? (
@@ -382,37 +434,27 @@ function DesktopTabsView() {
         </div>
       ) : tab === 'completed' ? (
         <>
-          <div className="task-list">
-            {completedLoading ? (
-              <div className="loading-center">
-                <span className="spinner spinner-lg" />
-              </div>
-            ) : (
-              completedTasks.map((task) => (
-                <TaskItem
-                  key={task.id}
-                  task={task}
-                  onToggle={handleToggle}
-                  onDelete={handleDelete}
-                  onEdit={handleEdit}
-                />
-              ))
-            )}
-          </div>
-          <Pagination page={completedPage} totalPages={totalPages} onChange={setCompletedPage} />
+          <TaskList
+            tasks={store.completedTasks}
+            loading={store.completedLoading}
+            onToggle={store.handleToggle}
+            onDelete={handleDelete}
+            onEdit={handleEdit}
+          />
+          <Pagination
+            page={store.completedPage}
+            totalPages={store.totalPages}
+            onChange={store.setCompletedPage}
+          />
         </>
       ) : (
-        <div className="task-list">
-          {pendingTasks.map((task) => (
-            <TaskItem
-              key={task.id}
-              task={task}
-              onToggle={handleToggle}
-              onDelete={handleDelete}
-              onEdit={handleEdit}
-            />
-          ))}
-        </div>
+        <TaskList
+          tasks={store.pendingTasks}
+          loading={false}
+          onToggle={store.handleToggle}
+          onDelete={handleDelete}
+          onEdit={handleEdit}
+        />
       )}
     </div>
   )
@@ -422,167 +464,71 @@ function DesktopTabsView() {
 
 function MobileFilterView() {
   const [filter, setFilter] = useState('pending')
-  const [pendingTasks, setPendingTasks] = useState([])
-  const [completedTasks, setCompletedTasks] = useState([])
-  const [completedTotal, setCompletedTotal] = useState(0)
-  const [completedPage, setCompletedPage] = useState(1)
-  const [completedLoading, setCompletedLoading] = useState(false)
-  const PAGE_SIZE = 20
+  const store = useTaskList()
 
-  // Fetch pending tasks
-  const fetchPendingTasks = useCallback(async () => {
-    try {
-      const { data } = await getTasks()
-      setPendingTasks(data.filter((t) => !t.is_completed))
-    } catch {
-      toast.error('加载待办失败')
-    }
-  }, [])
-
-  // Fetch completed tasks count on mount
-  useEffect(() => {
-    fetchPendingTasks()
-    getCompletedTasks(0, 1).then(({ data }) => {
-      setCompletedTotal(data.total)
-    }).catch(() => {})
-  }, [fetchPendingTasks])
-
-  // Fetch completed tasks list
-  const fetchCompletedTasks = useCallback(async (page) => {
-    setCompletedLoading(true)
-    try {
-      const offset = (page - 1) * PAGE_SIZE
-      const { data } = await getCompletedTasks(offset, PAGE_SIZE)
-      setCompletedTasks(data.tasks)
-      setCompletedTotal(data.total)
-    } catch {
-      toast.error('加载已完成待办失败')
-    } finally {
-      setCompletedLoading(false)
-    }
-  }, [])
-
-  // Load data when switching filters
   useEffect(() => {
     if (filter === 'completed') {
-      fetchCompletedTasks(completedPage)
+      store.fetchCompletedTasks(store.completedPage)
     } else {
-      fetchPendingTasks()
+      store.fetchPendingTasks()
     }
-  }, [filter, completedPage, fetchCompletedTasks, fetchPendingTasks])
+  }, [filter, store.completedPage, store.fetchCompletedTasks, store.fetchPendingTasks])
 
-  // Handle toggle status
-  const handleToggle = async (taskId, isCompleted) => {
-    try {
-      await updateTask(taskId, { is_completed: isCompleted })
-      toast.success(isCompleted ? '已完成' : '已恢复')
-      if (isCompleted) {
-        const task = pendingTasks.find((t) => t.id === taskId)
-        setPendingTasks((prev) => prev.filter((t) => t.id !== taskId))
-        setCompletedTotal((prev) => prev + 1)
-        if (task) {
-          setCompletedTasks((prev) => [task, ...prev])
-        }
-      } else {
-        const task = completedTasks.find((t) => t.id === taskId)
-        setCompletedTasks((prev) => prev.filter((t) => t.id !== taskId))
-        setCompletedTotal((prev) => prev - 1)
-        if (task) {
-          setPendingTasks((prev) => [task, ...prev])
-        }
-      }
-    } catch {
-      toast.error('操作失败')
-    }
+  const handleEdit = (taskId, content, deadline) => {
+    store.handleEdit(taskId, content, deadline, filter)
   }
 
-  // Handle edit
-  const handleEdit = async (taskId, content, deadline) => {
-    try {
-      const { data } = await updateTask(taskId, { content, deadline })
-      toast.success('已更新')
-      if (filter === 'pending') {
-        setPendingTasks((prev) => prev.map((t) => (t.id === taskId ? data : t)))
-      } else {
-        setCompletedTasks((prev) => prev.map((t) => (t.id === taskId ? data : t)))
-      }
-    } catch (err) {
-      toast.error(err.response?.data?.detail || '更新失败')
-    }
-  }
-
-  // Handle delete
   const handleDelete = (taskId) => {
-    if (filter === 'pending') {
-      setPendingTasks((prev) => prev.filter((t) => t.id !== taskId))
-    } else {
-      setCompletedTasks((prev) => prev.filter((t) => t.id !== taskId))
-      setCompletedTotal((prev) => prev - 1)
-    }
+    store.handleDelete(taskId, filter)
   }
 
-  // Handle add
-  const handleAdd = (newTask) => {
-    setPendingTasks((prev) => [newTask, ...prev])
-  }
-
-  const totalPages = Math.ceil(completedTotal / PAGE_SIZE)
+  const activeTasks = filter === 'pending' ? store.pendingTasks : store.completedTasks
 
   return (
     <div className="task-container">
-      <AddTaskRow onAdd={handleAdd} />
+      <AddTaskRow onAdd={store.handleAdd} />
       <div className="task-filter-bar">
         <button
           className={`task-filter-btn ${filter === 'pending' ? 'active' : ''}`}
           onClick={() => setFilter('pending')}
         >
-          进行中 ({pendingTasks.length})
+          进行中 ({store.pendingTasks.length})
         </button>
         <button
           className={`task-filter-btn ${filter === 'completed' ? 'active' : ''}`}
           onClick={() => setFilter('completed')}
         >
-          已完成 ({completedTotal})
+          已完成 ({store.completedTotal})
         </button>
       </div>
-      {(filter === 'pending' ? pendingTasks : completedTasks).length === 0 ? (
+      {activeTasks.length === 0 ? (
         <div className="empty-state">
           <ListFilter />
           <p>暂无待办</p>
         </div>
       ) : filter === 'completed' ? (
         <>
-          <div className="task-list">
-            {completedLoading ? (
-              <div className="loading-center">
-                <span className="spinner spinner-lg" />
-              </div>
-            ) : (
-              completedTasks.map((task) => (
-                <TaskItem
-                  key={task.id}
-                  task={task}
-                  onToggle={handleToggle}
-                  onDelete={handleDelete}
-                  onEdit={handleEdit}
-                />
-              ))
-            )}
-          </div>
-          <Pagination page={completedPage} totalPages={totalPages} onChange={setCompletedPage} />
+          <TaskList
+            tasks={store.completedTasks}
+            loading={store.completedLoading}
+            onToggle={store.handleToggle}
+            onDelete={handleDelete}
+            onEdit={handleEdit}
+          />
+          <Pagination
+            page={store.completedPage}
+            totalPages={store.totalPages}
+            onChange={store.setCompletedPage}
+          />
         </>
       ) : (
-        <div className="task-list">
-          {pendingTasks.map((task) => (
-            <TaskItem
-              key={task.id}
-              task={task}
-              onToggle={handleToggle}
-              onDelete={handleDelete}
-              onEdit={handleEdit}
-            />
-          ))}
-        </div>
+        <TaskList
+          tasks={store.pendingTasks}
+          loading={false}
+          onToggle={store.handleToggle}
+          onDelete={handleDelete}
+          onEdit={handleEdit}
+        />
       )}
     </div>
   )

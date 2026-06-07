@@ -192,7 +192,7 @@ def update_app_config(
 
 def get_tasks(db: Session, user_id: int) -> list[models.Task]:
     """Get all tasks for a user, ordered by deadline (nulls last), then by created_at desc."""
-    from sqlalchemy import case, nullslast
+    from sqlalchemy import nullslast
 
     return (
         db.query(models.Task)
@@ -211,7 +211,7 @@ def get_pending_tasks(db: Session, user_id: int) -> list[models.Task]:
 
     return (
         db.query(models.Task)
-        .filter(models.Task.user_id == user_id, models.Task.is_completed == False)
+        .filter(models.Task.user_id == user_id, models.Task.is_completed.is_(False))
         .order_by(
             nullslast(models.Task.deadline.asc()),
             models.Task.created_at.desc(),
