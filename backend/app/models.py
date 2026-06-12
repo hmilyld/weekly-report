@@ -29,6 +29,7 @@ class User(Base):
     username = Column(String(50), unique=True, nullable=False, index=True)
     password_hash = Column(String(255), nullable=False)
     password_version = Column(Integer, default=0, nullable=False)
+    role = Column(String(20), nullable=False, default="user")
     created_at = Column(DateTime, default=_utcnow, nullable=False)
 
     daily_reports = relationship("DailyReport", back_populates="user")

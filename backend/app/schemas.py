@@ -22,6 +22,32 @@ class PasswordChange(BaseModel):
     new_password: str = Field(min_length=8, max_length=100)
 
 
+# ─── User Management ────────────────────────────────────
+
+
+class UserCreate(BaseModel):
+    username: str = Field(min_length=2, max_length=50)
+    password: str = Field(min_length=8, max_length=100)
+    role: str = Field(default="user", pattern=r"^(admin|user)$")
+
+
+class UserResponse(BaseModel):
+    id: int
+    username: str
+    role: str
+    created_at: datetime
+
+    model_config = {"from_attributes": True}
+
+
+class UserListResponse(BaseModel):
+    users: list[UserResponse]
+
+
+class ChangeRoleRequest(BaseModel):
+    role: str = Field(pattern=r"^(admin|user)$")
+
+
 # ─── Daily Report ───────────────────────────────────────
 
 

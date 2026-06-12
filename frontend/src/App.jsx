@@ -9,15 +9,17 @@ import {
   useLocation,
 } from 'react-router-dom'
 import { Toaster } from 'react-hot-toast'
-import { FileText, Calendar, Settings, LogOut, Menu, X, Sun, Moon, Monitor, CheckSquare } from 'lucide-react'
+import { FileText, Calendar, Settings, LogOut, Menu, X, Sun, Moon, Monitor, CheckSquare, Users } from 'lucide-react'
 import { getAuthStatus } from './api'
 import { ThemeProvider, useTheme } from './contexts/ThemeContext'
+import { AuthProvider, useAuth } from './contexts/AuthContext'
 import Login from './pages/Login'
 import Setup from './pages/Setup'
 import DailyReport from './pages/DailyReport'
 import WeeklyReport from './pages/WeeklyReport'
 import Tasks from './pages/Tasks'
 import SettingsPage from './pages/Settings'
+import UserManagement from './pages/UserManagement'
 import useMediaQuery from './hooks/useMediaQuery'
 
 /* ─── Route Guards ─────────────────────────────────────── */
@@ -56,6 +58,7 @@ function ThemeToggle({ className }) {
 
 function TopNav() {
   const navigate = useNavigate()
+  const { user, isAdmin, logout } = useAuth()
 
   const links = [
     { to: '/', icon: Calendar, label: '日报管理' },
@@ -64,8 +67,12 @@ function TopNav() {
     { to: '/settings', icon: Settings, label: '系统配置' },
   ]
 
+  if (isAdmin) {
+    links.push({ to: '/users', icon: Users, label: '用户管理' })
+  }
+
   const handleLogout = () => {
-    localStorage.removeItem('token')
+    logout()
     navigate('/login')
   }
 
@@ -87,6 +94,11 @@ function TopNav() {
           </NavLink>
         ))}
       </nav>
+      {user && (
+        <span className="top-nav-username" title={user.role === 'admin' ? '管理员' : '普通用户'}>
+          {user.username}
+        </span>
+      )}
       <ThemeToggle />
       <button className="top-nav-logout" onClick={handleLogout}>
         <LogOut size={16} />
@@ -100,9 +112,10 @@ function TopNav() {
 
 function Sidebar({ open, onClose }) {
   const navigate = useNavigate()
+  const { user, isAdmin, logout } = useAuth()
 
   const handleLogout = () => {
-    localStorage.removeItem('token')
+    logout()
     navigate('/login')
   }
 
@@ -113,12 +126,21 @@ function Sidebar({ open, onClose }) {
     { to: '/settings', icon: Settings, label: '系统配置' },
   ]
 
+  if (isAdmin) {
+    links.push({ to: '/users', icon: Users, label: '用户管理' })
+  }
+
   return (
     <>
       {open && <div className="mobile-overlay" onClick={onClose} />}
       <aside className={`sidebar ${open ? 'open' : ''}`}>
         <div className="sidebar-header">
           <h1>📋 日周报管理系统</h1>
+          {user && (
+            <span className="sidebar-username" title={user.role === 'admin' ? '管理员' : '普通用户'}>
+              {user.username}
+            </span>
+          )}
         </div>
         <nav className="sidebar-nav">
           {links.map(({ to, icon: Icon, label }) => (
@@ -149,6 +171,7 @@ function Sidebar({ open, onClose }) {
 /* ─── App Layout ───────────────────────────────────────── */
 
 function AppLayout() {
+  const { isAdmin } = useAuth()
   const isDesktop = useMediaQuery('(min-width: 769px)')
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const location = useLocation()
@@ -199,6 +222,7 @@ function AppLayout() {
             <Route path="/weekly" element={<WeeklyReport />} />
             <Route path="/tasks" element={<Tasks />} />
             <Route path="/settings" element={<SettingsPage />} />
+            {isAdmin && <Route path="/users" element={<UserManagement />} />}
           </Routes>
         </main>
         <footer className="app-footer">
@@ -240,7 +264,8 @@ export default function App() {
 
   return (
     <ThemeProvider>
-      <BrowserRouter>
+      <AuthProvider>
+        <BrowserRouter>
         <Toaster
           position={window.innerWidth < 769 ? 'bottom-center' : 'top-right'}
           toastOptions={{
@@ -284,6 +309,7 @@ export default function App() {
           />
         </Routes>
       </BrowserRouter>
+      </AuthProvider>
     </ThemeProvider>
   )
 }

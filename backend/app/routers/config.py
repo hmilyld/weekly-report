@@ -6,7 +6,7 @@ from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 
 from .. import crud
-from ..auth import get_current_user
+from ..auth import get_current_user, require_admin
 from ..database import get_db
 from ..llm_client import test_connection
 from ..models import User
@@ -24,10 +24,10 @@ def _mask_api_key(key: str | None) -> str | None:
 
 @router.get("", response_model=AppConfigResponse)
 def get_config(
-    user: User = Depends(get_current_user),
+    admin: User = Depends(require_admin),
     db: Session = Depends(get_db),
 ):
-    """Get current LLM configuration."""
+    """Get current LLM configuration (admin only)."""
     config = crud.get_app_config(db)
     response = AppConfigResponse.model_validate(config)
     response.api_key = _mask_api_key(response.api_key)
@@ -37,10 +37,10 @@ def get_config(
 @router.put("", response_model=AppConfigResponse)
 def update_config(
     body: AppConfigUpdate,
-    user: User = Depends(get_current_user),
+    admin: User = Depends(require_admin),
     db: Session = Depends(get_db),
 ):
-    """Update LLM configuration."""
+    """Update LLM configuration (admin only)."""
     config = crud.update_app_config(
         db,
         llm_api_url=body.llm_api_url,
@@ -52,10 +52,10 @@ def update_config(
 
 @router.post("/test")
 def test_llm_connection(
-    user: User = Depends(get_current_user),
+    admin: User = Depends(require_admin),
     db: Session = Depends(get_db),
 ):
-    """Test the configured LLM endpoint."""
+    """Test the configured LLM endpoint (admin only)."""
     config = crud.get_app_config(db)
     result = test_connection(config.llm_api_url, config.llm_model_name, config.api_key or "")
     return result

@@ -13,7 +13,7 @@ from app.database import engine, Base, SessionLocal
 from app.models import User, AppConfig
 from app.models_token import ApiToken  # noqa: F401 — ensure table is created
 from app.routers import auth, daily, weekly, config
-from app.routers import tokens, external, tasks
+from app.routers import tokens, external, tasks, users
 
 
 def _migrate_db():
@@ -33,6 +33,16 @@ def _migrate_db():
                 print("✅ Migration: added password_version column to users table")
             else:
                 print("✅ users.password_version column already exists")
+
+            # Add role to users table if missing
+            if "role" not in columns:
+                with engine.begin() as conn:
+                    conn.execute(text("ALTER TABLE users ADD COLUMN role VARCHAR(20) NOT NULL DEFAULT 'user'"))
+                    # Promote existing user to admin
+                    conn.execute(text("UPDATE users SET role = 'admin' WHERE id = 1"))
+                print("✅ Migration: added role column to users table, promoted user id=1 to admin")
+            else:
+                print("✅ users.role column already exists")
         else:
             print("ℹ️  users table does not exist yet (first run)")
     except Exception as e:
@@ -115,6 +125,7 @@ app.include_router(config.router)
 app.include_router(tokens.router)
 app.include_router(external.router)
 app.include_router(tasks.router)
+app.include_router(users.router)
 
 
 # ─── Health check endpoint ───────────────────────────────

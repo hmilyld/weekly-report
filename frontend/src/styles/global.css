@@ -199,6 +199,16 @@ a {
   color: var(--color-text);
 }
 
+.top-nav-username {
+  display: flex;
+  align-items: center;
+  padding: var(--space-2) var(--space-3);
+  font-size: 0.8125rem;
+  font-weight: 500;
+  color: var(--color-text-secondary);
+  cursor: default;
+}
+
 /* ─── Sidebar ──────────────────────────────────────────── */
 .sidebar {
   width: var(--sidebar-width);
@@ -225,6 +235,14 @@ a {
   font-weight: 700;
   letter-spacing: -0.02em;
   color: var(--color-text);
+}
+
+.sidebar-username {
+  display: block;
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: var(--color-text-muted);
+  margin-top: 4px;
 }
 
 .sidebar-nav {

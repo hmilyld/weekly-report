@@ -1,6 +1,5 @@
 """Auth router: login, setup, password change."""
 
-import re
 import time
 from collections import defaultdict
 from threading import Lock
@@ -10,7 +9,13 @@ from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
 from .. import crud
-from ..auth import create_access_token, get_current_user, hash_password, verify_password
+from ..auth import (
+    create_access_token,
+    get_current_user,
+    hash_password,
+    validate_password,
+    verify_password,
+)
 from ..database import get_db
 from ..models import User
 from ..schemas import LoginRequest, PasswordChange, TokenResponse
@@ -53,33 +58,6 @@ class SetupStatus(BaseModel):
     needs_setup: bool
 
 
-# ─── Password validation ────────────────────────────────
-
-_WEAK_PASSWORDS = {
-    "11111111", "12345678", "password", "qwerty123", "abc12345",
-    "123456789", "1234567890", "admin123", "letmein1",
-}
-
-
-def _validate_password(password: str) -> None:
-    """Enforce minimum password complexity."""
-    if password.lower() in _WEAK_PASSWORDS:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Password is too common. Please choose a stronger password.",
-        )
-    if not re.search(r"[A-Za-z]", password):
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Password must contain at least one letter.",
-        )
-    if not re.search(r"\d", password):
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Password must contain at least one digit.",
-        )
-
-
 # ─── Endpoints ──────────────────────────────────────────
 
 
@@ -107,9 +85,9 @@ def initial_setup(body: SetupRequest, db: Session = Depends(get_db)):
             detail="Username cannot be empty",
         )
 
-    _validate_password(body.password)
+    validate_password(body.password)
 
-    user = crud.create_user(db, body.username.strip(), hash_password(body.password))
+    user = crud.create_user(db, body.username.strip(), hash_password(body.password), role="admin")
     token = create_access_token(
         {"sub": str(user.id), "username": user.username, "pwd_ver": 0}
     )
@@ -142,7 +120,7 @@ def change_password(
     user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    _validate_password(body.new_password)
+    validate_password(body.new_password)
     new_hash = hash_password(body.new_password)
     crud.change_password(db, user, new_hash)
     return {"message": "Password changed successfully"}

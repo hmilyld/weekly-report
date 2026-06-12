@@ -1,5 +1,6 @@
 """JWT authentication helpers."""
 
+import re
 from datetime import UTC, datetime, timedelta
 
 from fastapi import Depends, HTTPException, status
@@ -14,6 +15,32 @@ from .models import User
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 security = HTTPBearer()
+
+# ─── Password validation ────────────────────────────────
+
+_WEAK_PASSWORDS = {
+    "11111111", "12345678", "password", "qwerty123", "abc12345",
+    "123456789", "1234567890", "admin123", "letmein1",
+}
+
+
+def validate_password(password: str) -> None:
+    """Enforce minimum password complexity."""
+    if password.lower() in _WEAK_PASSWORDS:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Password is too common. Please choose a stronger password.",
+        )
+    if not re.search(r"[A-Za-z]", password):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Password must contain at least one letter.",
+        )
+    if not re.search(r"\d", password):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Password must contain at least one digit.",
+        )
 
 
 def hash_password(password: str) -> str:
@@ -68,5 +95,15 @@ def get_current_user(
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Password has been changed. Please log in again.",
+        )
+    return user
+
+
+def require_admin(user: User = Depends(get_current_user)) -> User:
+    """Require the current user to have admin role."""
+    if user.role != "admin":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Admin access required",
         )
     return user

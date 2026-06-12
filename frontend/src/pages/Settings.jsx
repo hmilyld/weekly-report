@@ -22,8 +22,10 @@ import {
   createToken,
   deleteToken,
 } from '../api'
+import { useAuth } from '../contexts/AuthContext'
 
 export default function SettingsPage() {
+  const { isAdmin } = useAuth()
   // ─── LLM Config ─────────────────────────────────────
   const [config, setConfig] = useState({
     llm_api_url: '',
@@ -49,9 +51,11 @@ export default function SettingsPage() {
   const [copiedId, setCopiedId] = useState(null)
 
   useEffect(() => {
-    loadConfig()
+    if (isAdmin) {
+      loadConfig()
+    }
     loadTokens()
-  }, [])
+  }, [isAdmin])
 
   const loadConfig = async () => {
     setLoading(true)
@@ -194,7 +198,7 @@ export default function SettingsPage() {
     setTimeout(() => setCopiedId(null), 2000)
   }
 
-  if (loading) {
+  if (loading && isAdmin) {
     return (
       <>
         <div className="page-header">
@@ -219,7 +223,8 @@ export default function SettingsPage() {
         <p>配置大模型接口、账户设置和 API Token</p>
       </div>
       <div className="page-body">
-        {/* ─── LLM Config Card ─────────────────── */}
+        {/* ─── LLM Config Card (admin only) ─────── */}
+        {isAdmin && (
         <div className="settings-section">
           <div className="card">
             <div className="card-header">
@@ -300,6 +305,7 @@ export default function SettingsPage() {
             </div>
           </div>
         </div>
+        )}
 
         {/* ─── Password Change Card ────────────── */}
         <div className="settings-section">

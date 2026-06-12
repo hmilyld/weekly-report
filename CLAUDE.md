@@ -4,13 +4,13 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-A weekly report auto-generation system (周报自动生成系统). Users maintain daily work logs via a calendar UI, then an LLM generates a weekly report summary. The UI is entirely in Chinese.
+A weekly report auto-generation system (周报自动生成系统). Users maintain daily work logs via a calendar UI, then an LLM generates a weekly report summary. The UI is entirely in Chinese. Supports multiple users with admin/user roles.
 
 ## Tech Stack
 
 - **Frontend:** React 18, Vite 5, React Router 6, Axios, Lucide React icons — custom CSS (no Tailwind)
 - **Backend:** Python 3.11, FastAPI, SQLAlchemy, SQLite, httpx (LLM client)
-- **Auth:** JWT (python-jose + passlib/bcrypt), 24-hour expiry
+- **Auth:** JWT (python-jose + passlib/bcrypt), 24-hour expiry, multi-user with admin/user roles
 - **LLM:** OpenAI-compatible Chat Completion API (configurable at runtime via Settings page)
 
 ## Development Commands
@@ -49,20 +49,21 @@ docker compose up --build   # multi-stage build, serves on :8000
 - `main.py` — FastAPI app entry, lifespan events, static file serving for SPA
 - `app/config.py` — pydantic-settings (JWT, DB, LLM defaults via environment)
 - `app/database.py` — SQLAlchemy engine, session factory, Base
-- `app/models.py` — ORM models: `User`, `DailyReport`, `WeeklyReport`, `AppConfig`
+- `app/models.py` — ORM models: `User` (with role), `DailyReport`, `WeeklyReport`, `AppConfig`, `Task`
 - `app/models_token.py` — `ApiToken` model (64-char hex tokens for external API access)
-- `app/auth.py` — JWT creation/decoding, `get_current_user` dependency
+- `app/auth.py` — JWT creation/decoding, `get_current_user` dependency, `require_admin` dependency
 - `app/crud.py` — all database operations (centralized CRUD layer)
 - `app/llm_client.py` — httpx-based OpenAI-compatible client + system prompt for report generation
-- `app/routers/` — route modules: `auth`, `daily`, `weekly`, `config`, `tokens`, `external`
+- `app/routers/` — route modules: `auth`, `daily`, `weekly`, `config`, `tokens`, `external`, `users`
 
 All API routes are under `/api/v1/`. The backend serves the SPA as a catch-all for non-API paths.
 
 ### Frontend (`frontend/src/`)
 - `App.jsx` — Router, auth gates, responsive layout (TopNav desktop / Sidebar mobile)
 - `api/index.js` — Axios instance + all API wrapper functions
-- `pages/` — Login, Setup (first-run), DailyReport (calendar view), WeeklyReport, Settings
+- `pages/` — Login, Setup (first-run), DailyReport (calendar view), WeeklyReport, Settings, UserManagement (admin)
 - `components/` — CalendarView (monthly grid), DailyEditModal
+- `contexts/AuthContext.jsx` — Current user state, `isAdmin` flag, `logout`, `refreshUser`
 - `contexts/ThemeContext.jsx` — System/Light/Dark theme cycling
 - `styles/global.css` — all styles, uses CSS custom properties for theming
 
@@ -73,11 +74,12 @@ All API routes are under `/api/v1/`. The backend serves the SPA as a catch-all f
 - Service worker precaches app shell; API calls use NetworkFirst strategy
 
 ### Database
-- **User** — single-user auth system (id, username, password_hash, password_version)
+- **User** — multi-user auth system (id, username, password_hash, password_version, role)
 - **DailyReport** — one per user per date (unique: user_id + date)
 - **WeeklyReport** — one per user per week_start (unique: user_id + week_start)
-- **AppConfig** — singleton (id=1) holding LLM API URL, model, API key
+- **AppConfig** — singleton (id=1) holding LLM API URL, model, API key (admin-only)
 - **ApiToken** — tokens for external API authentication
+- **Task** — todo items per user (id, user_id, content, deadline, is_completed)
 
 ## Code Style
 
@@ -87,7 +89,12 @@ All API routes are under `/api/v1/`. The backend serves the SPA as a catch-all f
 
 ## Key Patterns
 
-- LLM config is stored in DB (`AppConfig` table) and editable via the Settings page — no env vars needed at runtime
+- LLM config is stored in DB (`AppConfig` table) and editable via the Settings page (admin only) — no env vars needed at runtime
 - The weekly report generation calls the LLM with all daily reports for that week as context
 - The frontend `app/` directory contains a pre-built dist committed to the repo (used by Docker)
 - External API endpoints (`/api/v1/external/`) use `ApiToken` auth instead of JWT
+- First user created via `/api/v1/auth/setup` gets admin role; subsequent users created by admin via `/api/v1/users`
+- `require_admin` dependency protects admin-only endpoints; `get_current_user` for user-scoped endpoints
+- `AuthContext` provides `user`, `isAdmin`, `logout`, `refreshUser` to the frontend
+- `scripts/migrate_to_multiuser.py` adds `role` column and promotes existing user to admin
+- `_migrate_db()` in `main.py` runs automatically on startup for the same migration

@@ -81,4 +81,16 @@ export const updateTask = (taskId, data) => api.put(`/tasks/${taskId}`, data)
 
 export const deleteTask = (taskId) => api.delete(`/tasks/${taskId}`)
 
+// ─── Users (admin) ─────────────────────────────────────
+export const getCurrentUser = () => api.get('/users/me')
+
+export const getUsers = () => api.get('/users')
+
+export const createUser = (username, password, role = 'user') =>
+  api.post('/users', { username, password, role })
+
+export const deleteUser = (userId) => api.delete(`/users/${userId}`)
+
+export const updateUserRole = (userId, role) => api.put(`/users/${userId}/role`, { role })
+
 export default api

@@ -13,8 +13,8 @@ def get_user_by_username(db: Session, username: str) -> models.User | None:
     return db.query(models.User).filter(models.User.username == username).first()
 
 
-def create_user(db: Session, username: str, password_hash: str) -> models.User:
-    user = models.User(username=username, password_hash=password_hash)
+def create_user(db: Session, username: str, password_hash: str, role: str = "user") -> models.User:
+    user = models.User(username=username, password_hash=password_hash, role=role)
     db.add(user)
     db.commit()
     db.refresh(user)
@@ -25,6 +25,37 @@ def change_password(db: Session, user: models.User, new_hash: str) -> None:
     user.password_hash = new_hash
     user.password_version = (user.password_version or 0) + 1
     db.commit()
+
+
+def get_all_users(db: Session) -> list[models.User]:
+    return db.query(models.User).order_by(models.User.id).all()
+
+
+def delete_user(db: Session, user_id: int) -> bool:
+    user = db.query(models.User).filter(models.User.id == user_id).first()
+    if not user:
+        return False
+    # Cascade delete related records
+    db.query(models.DailyReport).filter(models.DailyReport.user_id == user_id).delete()
+    db.query(models.WeeklyReport).filter(models.WeeklyReport.user_id == user_id).delete()
+    db.query(models.Task).filter(models.Task.user_id == user_id).delete()
+    # Delete API tokens (import here to avoid circular import)
+    from .models_token import ApiToken
+
+    db.query(ApiToken).filter(ApiToken.user_id == user_id).delete()
+    db.delete(user)
+    db.commit()
+    return True
+
+
+def update_user_role(db: Session, user_id: int, role: str) -> models.User | None:
+    user = db.query(models.User).filter(models.User.id == user_id).first()
+    if not user:
+        return None
+    user.role = role
+    db.commit()
+    db.refresh(user)
+    return user
 
 
 # ─── Daily Report ───────────────────────────────────────

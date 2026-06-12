@@ -1,16 +1,27 @@
 # 周报自动生成系统
 
-基于日报自动生成周报的全栈应用。前端 React + Vite，后端 Python FastAPI，SQLite 数据库。
+基于日报自动生成周报的全栈应用。前端 React + Vite，后端 Python FastAPI，SQLite 数据库。支持多用户，区分管理员和普通用户角色。
 
 ## 功能
 
+- **多用户系统** — 支持管理员创建/删除用户、切换角色，每个用户独立管理自己的数据
 - **日报管理** — 日历视图 + 周列表视图，支持增删改查
 - **周报生成** — 基于日报调用大模型 API 自动生成周报，支持手动编辑
-- **系统配置** — 在线修改大模型地址、模型名称、API Key，支持连接测试
+- **系统配置** — 管理员可在线修改大模型地址、模型名称、API Key，支持连接测试
 - **API Token** — 创建 Token 后可通过外部 API 提交日报，无需登录
-- **认证** — JWT 单用户登录保护，密码修改后旧 token 自动失效
+- **认证** — JWT 登录保护，密码修改后旧 token 自动失效
 - **PWA** — 支持安装为桌面/移动应用，离线访问应用外壳
 - **主题** — 支持跟随系统 / 亮色 / 暗色三种主题模式
+
+### 角色权限
+
+| 功能 | 管理员 (admin) | 普通用户 (user) |
+|------|:-:|:-:|
+| 日报/周报/待办管理 | ✓ | ✓ |
+| 修改自己的密码 | ✓ | ✓ |
+| 管理 API Token | ✓ | ✓ |
+| 管理大模型配置 | ✓ | ✗ |
+| 用户管理（创建/删除/改角色） | ✓ | ✗ |
 
 ---
 
@@ -38,6 +49,14 @@ pnpm dev
 ### 首次使用
 
 首次访问时系统会自动跳转到初始化页面，设置管理员用户名和密码。没有默认账号。
+
+### 数据迁移（从旧版单用户升级）
+
+如果已有旧版数据库，升级后启动后端会自动迁移：添加 `role` 字段并将现有用户提升为管理员。也可手动执行：
+
+```bash
+cd backend && uv run python ../scripts/migrate_to_multiuser.py
+```
 
 ---
 
@@ -114,9 +133,19 @@ docker run -d \
 
 | 方法 | 路径 | 说明 | 认证 |
 |------|------|------|------|
-| GET | `/api/v1/config` | 获取配置（API Key 脱敏） | ✓ |
-| PUT | `/api/v1/config` | 更新配置 | ✓ |
-| POST | `/api/v1/config/test` | 测试大模型连接 | ✓ |
+| GET | `/api/v1/config` | 获取配置（API Key 脱敏） | admin |
+| PUT | `/api/v1/config` | 更新配置 | admin |
+| POST | `/api/v1/config/test` | 测试大模型连接 | admin |
+
+### 用户管理接口
+
+| 方法 | 路径 | 说明 | 认证 |
+|------|------|------|------|
+| GET | `/api/v1/users/me` | 获取当前用户信息 | ✓ |
+| GET | `/api/v1/users` | 列出所有用户 | admin |
+| POST | `/api/v1/users` | 创建新用户 | admin |
+| DELETE | `/api/v1/users/{id}` | 删除用户 | admin |
+| PUT | `/api/v1/users/{id}/role` | 修改用户角色 | admin |
 
 ### Token 管理接口
 
@@ -159,6 +188,6 @@ docker run -d \
 - **前端**: React 18 + Vite 5 + React Router 6 + Axios + Lucide Icons + vite-plugin-pwa
 - **后端**: Python 3.11 + FastAPI + SQLAlchemy + python-jose + passlib
 - **数据库**: SQLite
-- **认证**: JWT (24h 有效期，密码修改后自动失效)
+- **认证**: JWT (24h 有效期，密码修改后自动失效)，支持多用户角色 (admin/user)
 - **容器**: Docker 多阶段构建 (Node 18 + Python 3.11)
 - **包管理**: pnpm (前端) + uv (后端)
