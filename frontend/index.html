@@ -11,6 +11,19 @@
     <meta name="apple-mobile-web-app-title" content="周报系统" />
     <link rel="apple-touch-icon" href="/pwa-192x192.svg" />
     <title>日周报管理系统 - By hmilyld</title>
+    <script>
+      // 同步设置 data-theme，避免首次渲染时暗色主题未生效
+      (function () {
+        try {
+          var mode = localStorage.getItem('theme_mode');
+          if (mode === 'dark') {
+            document.documentElement.setAttribute('data-theme', 'dark');
+          } else if (mode === 'light') {
+            document.documentElement.setAttribute('data-theme', 'light');
+          }
+        } catch (e) {}
+      })();
+    </script>
     <link rel="preconnect" href="https://fonts.loli.net">
     <link rel="preconnect" href="https://gstatic.loli.net" crossorigin>
     <link href="https://fonts.loli.net/css2?family=Inter:wght@400;500;600;700&family=Noto+Sans+SC:wght@400;500;600;700&display=swap" rel="stylesheet">

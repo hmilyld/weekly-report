@@ -29,6 +29,21 @@ export default function UserManagement() {
     }
   }
 
+  const resetForm = () => {
+    setForm({ username: '', password: '', role: 'user' })
+    setShowCreate(false)
+  }
+
+  // 锁定 body 滚动（弹窗打开时）
+  useEffect(() => {
+    if (showCreate) {
+      document.body.style.overflow = 'hidden'
+    }
+    return () => {
+      document.body.style.overflow = ''
+    }
+  }, [showCreate])
+
   const handleCreate = async () => {
     if (!form.username.trim()) {
       toast.error('请输入用户名')
@@ -50,8 +65,7 @@ export default function UserManagement() {
     try {
       await createUser(form.username.trim(), form.password, form.role)
       toast.success('用户创建成功')
-      setForm({ username: '', password: '', role: 'user' })
-      setShowCreate(false)
+      resetForm()
       loadUsers()
     } catch (err) {
       toast.error(err.response?.data?.detail || '创建失败')
@@ -80,7 +94,6 @@ export default function UserManagement() {
 
   const handleToggleRole = async (u) => {
     const newRole = u.role === 'admin' ? 'user' : 'admin'
-    // Prevent demoting the last admin
     if (u.role === 'admin' && newRole === 'user') {
       const adminCount = users.filter((usr) => usr.role === 'admin').length
       if (adminCount <= 1) {
@@ -96,6 +109,51 @@ export default function UserManagement() {
       toast.error(err.response?.data?.detail || '修改失败')
     }
   }
+
+  /* ─── Create User Form ─────────────────────────────── */
+  const CreateUserForm = ({ form, setForm, creating, onSubmit, onCancel }) => (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-3)' }}>
+      <div className="form-group" style={{ marginBottom: 0 }}>
+        <label className="form-label">用户名</label>
+        <input
+          type="text"
+          className="form-input"
+          placeholder="至少 2 个字符"
+          value={form.username}
+          onChange={(e) => setForm({ ...form, username: e.target.value })}
+        />
+      </div>
+      <div className="form-group" style={{ marginBottom: 0 }}>
+        <label className="form-label">密码</label>
+        <input
+          type="password"
+          className="form-input"
+          placeholder="至少 8 位"
+          value={form.password}
+          onChange={(e) => setForm({ ...form, password: e.target.value })}
+        />
+      </div>
+      <div className="form-group" style={{ marginBottom: 0 }}>
+        <label className="form-label">角色</label>
+        <select
+          className="form-input"
+          value={form.role}
+          onChange={(e) => setForm({ ...form, role: e.target.value })}
+        >
+          <option value="user">普通用户</option>
+          <option value="admin">管理员</option>
+        </select>
+      </div>
+      <div style={{ display: 'flex', gap: 'var(--space-3)', justifyContent: 'flex-end', marginTop: 'var(--space-2)' }}>
+        <button className="btn btn-outline btn-sm" onClick={onCancel}>
+          取消
+        </button>
+        <button className="btn btn-primary btn-sm" onClick={onSubmit} disabled={creating}>
+          {creating ? <span className="spinner" /> : '创建'}
+        </button>
+      </div>
+    </div>
+  )
 
   return (
     <>
@@ -113,74 +171,12 @@ export default function UserManagement() {
               <h3>用户列表</h3>
               <button
                 className="btn btn-primary btn-sm"
-                onClick={() => setShowCreate(!showCreate)}
+                onClick={() => setShowCreate(true)}
               >
                 <Plus size={14} /> 创建用户
               </button>
             </div>
             <div className="card-body">
-              {/* Create user form */}
-              {showCreate && (
-                <div
-                  style={{
-                    padding: 'var(--space-4)',
-                    background: 'var(--color-bg)',
-                    borderRadius: 'var(--radius-md)',
-                    border: '1px solid var(--color-border)',
-                    marginBottom: 'var(--space-4)',
-                  }}
-                >
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-3)' }}>
-                    <div style={{ display: 'flex', gap: 'var(--space-3)' }}>
-                      <input
-                        type="text"
-                        className="form-input"
-                        placeholder="用户名（至少 2 位）"
-                        value={form.username}
-                        onChange={(e) => setForm({ ...form, username: e.target.value })}
-                        style={{ flex: 1 }}
-                      />
-                      <input
-                        type="password"
-                        className="form-input"
-                        placeholder="密码（至少 8 位）"
-                        value={form.password}
-                        onChange={(e) => setForm({ ...form, password: e.target.value })}
-                        style={{ flex: 1 }}
-                      />
-                      <select
-                        className="form-input"
-                        value={form.role}
-                        onChange={(e) => setForm({ ...form, role: e.target.value })}
-                        style={{ width: '120px' }}
-                      >
-                        <option value="user">普通用户</option>
-                        <option value="admin">管理员</option>
-                      </select>
-                    </div>
-                    <div style={{ display: 'flex', gap: 'var(--space-3)', justifyContent: 'flex-end' }}>
-                      <button
-                        className="btn btn-outline btn-sm"
-                        onClick={() => {
-                          setShowCreate(false)
-                          setForm({ username: '', password: '', role: 'user' })
-                        }}
-                      >
-                        取消
-                      </button>
-                      <button
-                        className="btn btn-primary btn-sm"
-                        onClick={handleCreate}
-                        disabled={creating}
-                      >
-                        {creating ? <span className="spinner" /> : '创建'}
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {/* User list */}
               {loading ? (
                 <div className="loading-center" style={{ padding: 'var(--space-6)' }}>
                   <span className="spinner" />
@@ -278,6 +274,41 @@ export default function UserManagement() {
           </div>
         </div>
       </div>
+
+      {/* ─── Create User Modal ──────────────────────── */}
+      {showCreate && (
+        <div className="modal-overlay" onClick={creating ? undefined : resetForm}>
+          <div
+            className="modal"
+            role="dialog"
+            aria-modal="true"
+            aria-label="创建用户"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="modal-header">
+              <h3>创建用户</h3>
+              <button
+                className="btn btn-ghost btn-sm"
+                onClick={resetForm}
+                disabled={creating}
+                aria-label="关闭"
+                style={{ minWidth: '44px', minHeight: '44px' }}
+              >
+                ✕
+              </button>
+            </div>
+            <div className="modal-body">
+              <CreateUserForm
+                form={form}
+                setForm={setForm}
+                creating={creating}
+                onSubmit={handleCreate}
+                onCancel={resetForm}
+              />
+            </div>
+          </div>
+        </div>
+      )}
     </>
   )
 }

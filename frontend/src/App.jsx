@@ -6,10 +6,9 @@ import {
   Navigate,
   NavLink,
   useNavigate,
-  useLocation,
 } from 'react-router-dom'
 import { Toaster } from 'react-hot-toast'
-import { FileText, Calendar, Settings, LogOut, Menu, X, Sun, Moon, Monitor, CheckSquare, Users } from 'lucide-react'
+import { FileText, Calendar, Settings, LogOut, Sun, Moon, Monitor, CheckSquare, Users } from 'lucide-react'
 import { getAuthStatus } from './api'
 import { ThemeProvider, useTheme } from './contexts/ThemeContext'
 import { AuthProvider, useAuth } from './contexts/AuthContext'
@@ -108,63 +107,65 @@ function TopNav() {
   )
 }
 
-/* ─── Sidebar (Mobile < 769px) ──────────────────────── */
+/* ─── Mobile Top Bar (< 769px) ─────────────────────── */
 
-function Sidebar({ open, onClose }) {
+function MobileTopBar() {
   const navigate = useNavigate()
-  const { user, isAdmin, logout } = useAuth()
+  const { user, logout } = useAuth()
 
   const handleLogout = () => {
     logout()
     navigate('/login')
   }
 
+  return (
+    <header className="mobile-topbar">
+      <span className="mobile-topbar-logo">📋 日周报</span>
+      <div className="mobile-topbar-actions">
+        {user && (
+          <span className="mobile-topbar-username">
+            {user.username}
+          </span>
+        )}
+        <ThemeToggle />
+        <button className="mobile-topbar-btn" onClick={handleLogout} aria-label="退出登录">
+          <LogOut size={18} />
+        </button>
+      </div>
+    </header>
+  )
+}
+
+/* ─── Bottom Nav (Mobile < 769px) ────────────────────── */
+
+function BottomNav() {
+  const { isAdmin } = useAuth()
+
   const links = [
-    { to: '/', icon: Calendar, label: '日报管理' },
-    { to: '/weekly', icon: FileText, label: '周报管理' },
-    { to: '/tasks', icon: CheckSquare, label: '工作待办' },
-    { to: '/settings', icon: Settings, label: '系统配置' },
+    { to: '/', icon: Calendar, label: '日报' },
+    { to: '/weekly', icon: FileText, label: '周报' },
+    { to: '/tasks', icon: CheckSquare, label: '待办' },
+    { to: '/settings', icon: Settings, label: '设置' },
   ]
 
   if (isAdmin) {
-    links.push({ to: '/users', icon: Users, label: '用户管理' })
+    links.push({ to: '/users', icon: Users, label: '管理' })
   }
 
   return (
-    <>
-      {open && <div className="mobile-overlay" onClick={onClose} />}
-      <aside className={`sidebar ${open ? 'open' : ''}`}>
-        <div className="sidebar-header">
-          <h1>📋 日周报管理系统</h1>
-          {user && (
-            <span className="sidebar-username" title={user.role === 'admin' ? '管理员' : '普通用户'}>
-              {user.username}
-            </span>
-          )}
-        </div>
-        <nav className="sidebar-nav">
-          {links.map(({ to, icon: Icon, label }) => (
-            <NavLink
-              key={to}
-              to={to}
-              end={to === '/'}
-              className={({ isActive }) => (isActive ? 'active' : '')}
-              onClick={onClose}
-            >
-              <Icon />
-              {label}
-            </NavLink>
-          ))}
-        </nav>
-        <div className="sidebar-footer">
-          <ThemeToggle />
-          <button onClick={handleLogout}>
-            <LogOut size={16} />
-            退出登录
-          </button>
-        </div>
-      </aside>
-    </>
+    <nav className="bottom-nav">
+      {links.map(({ to, icon: Icon, label }) => (
+        <NavLink
+          key={to}
+          to={to}
+          end={to === '/'}
+          className={({ isActive }) => `bottom-nav-item ${isActive ? 'active' : ''}`}
+        >
+          <Icon size={20} />
+          <span>{label}</span>
+        </NavLink>
+      ))}
+    </nav>
   )
 }
 
@@ -173,46 +174,15 @@ function Sidebar({ open, onClose }) {
 function AppLayout() {
   const { isAdmin } = useAuth()
   const isDesktop = useMediaQuery('(min-width: 769px)')
-  const [sidebarOpen, setSidebarOpen] = useState(false)
-  const location = useLocation()
-
-  useEffect(() => {
-    setSidebarOpen(false)
-  }, [location.pathname])
-
-  useEffect(() => {
-    const handleResize = () => {
-      if (window.innerWidth > 768) setSidebarOpen(false)
-    }
-    window.addEventListener('resize', handleResize)
-    return () => window.removeEventListener('resize', handleResize)
-  }, [])
-
-  useEffect(() => {
-    if (sidebarOpen) {
-      document.body.style.overflow = 'hidden'
-    } else {
-      document.body.style.overflow = ''
-    }
-    return () => {
-      document.body.style.overflow = ''
-    }
-  }, [sidebarOpen])
 
   return (
-    <div className={`app-layout ${isDesktop ? 'has-topnav' : 'has-sidebar'}`}>
+    <div className={`app-layout ${isDesktop ? 'has-topnav' : 'has-bottomnav'}`}>
       {isDesktop ? (
         <TopNav />
       ) : (
         <>
-          <button
-            className="mobile-menu-btn"
-            onClick={() => setSidebarOpen(!sidebarOpen)}
-            aria-label="Toggle menu"
-          >
-            {sidebarOpen ? <X size={20} /> : <Menu size={20} />}
-          </button>
-          <Sidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} />
+          <MobileTopBar />
+          <BottomNav />
         </>
       )}
       <div className="app-content">
