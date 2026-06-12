@@ -496,6 +496,7 @@ textarea.form-input {
 .btn-primary {
   background: var(--color-primary);
   color: white;
+  border-color: var(--color-border);
 }
 
 .btn-primary:hover:not(:disabled) {
