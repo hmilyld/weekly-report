@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import toast from 'react-hot-toast'
 import { Check, Pencil, Trash2, Plus, X, CheckCircle, Circle, ListFilter } from 'lucide-react'
 import { getTasks, getCompletedTasks, createTask, updateTask, deleteTask } from '../api'
@@ -29,6 +29,7 @@ function isUrgent(deadline) {
 
 function useTaskList() {
   const [pendingTasks, setPendingTasks] = useState([])
+  const [initialLoaded, setInitialLoaded] = useState(false)
   const [completedTasks, setCompletedTasks] = useState([])
   const [completedTotal, setCompletedTotal] = useState(0)
   const [completedPage, setCompletedPage] = useState(1)
@@ -40,6 +41,8 @@ function useTaskList() {
       setPendingTasks(data.filter((t) => !t.is_completed))
     } catch {
       toast.error('加载待办失败')
+    } finally {
+      setInitialLoaded(true)
     }
   }, [])
 
@@ -71,17 +74,22 @@ function useTaskList() {
     fetchCompletedCount()
   }, [fetchPendingTasks, fetchCompletedCount])
 
-  const handleToggle = async (taskId, isCompleted) => {
+  const pendingRef = useRef(pendingTasks)
+  pendingRef.current = pendingTasks
+  const completedRef = useRef(completedTasks)
+  completedRef.current = completedTasks
+
+  const handleToggle = useCallback(async (taskId, isCompleted) => {
     try {
       await updateTask(taskId, { is_completed: isCompleted })
       toast.success(isCompleted ? '已完成' : '已恢复')
       if (isCompleted) {
-        const task = pendingTasks.find((t) => t.id === taskId)
+        const task = pendingRef.current.find((t) => t.id === taskId)
         setPendingTasks((prev) => prev.filter((t) => t.id !== taskId))
         setCompletedTotal((prev) => prev + 1)
         if (task) setCompletedTasks((prev) => [task, ...prev])
       } else {
-        const task = completedTasks.find((t) => t.id === taskId)
+        const task = completedRef.current.find((t) => t.id === taskId)
         setCompletedTasks((prev) => prev.filter((t) => t.id !== taskId))
         setCompletedTotal((prev) => prev - 1)
         if (task) setPendingTasks((prev) => [task, ...prev])
@@ -89,9 +97,9 @@ function useTaskList() {
     } catch {
       toast.error('操作失败')
     }
-  }
+  }, [])
 
-  const handleEdit = async (taskId, content, deadline, currentTab) => {
+  const handleEdit = useCallback(async (taskId, content, deadline, currentTab) => {
     try {
       const { data } = await updateTask(taskId, { content, deadline })
       toast.success('已更新')
@@ -103,30 +111,39 @@ function useTaskList() {
     } catch (err) {
       toast.error(err.response?.data?.detail || '更新失败')
     }
-  }
+  }, [])
 
-  const handleDelete = (taskId, currentTab) => {
+  const handleDelete = useCallback((taskId, currentTab) => {
     if (currentTab === 'pending') {
       setPendingTasks((prev) => prev.filter((t) => t.id !== taskId))
     } else {
       setCompletedTasks((prev) => prev.filter((t) => t.id !== taskId))
       setCompletedTotal((prev) => prev - 1)
     }
-  }
+  }, [])
 
-  const handleAdd = (newTask) => {
+  const handleAdd = useCallback((newTask) => {
     setPendingTasks((prev) => [newTask, ...prev])
-  }
+  }, [])
+
+  const fetchPendingRef = useRef(fetchPendingTasks)
+  fetchPendingRef.current = fetchPendingTasks
+  const fetchCompletedRef = useRef(fetchCompletedTasks)
+  fetchCompletedRef.current = fetchCompletedTasks
+  const completedPageRef = useRef(completedPage)
+  completedPageRef.current = completedPage
 
   return {
     pendingTasks,
+    initialLoaded,
     completedTasks,
     completedTotal,
     completedPage,
     setCompletedPage,
     completedLoading,
-    fetchPendingTasks,
-    fetchCompletedTasks,
+    fetchPendingRef,
+    fetchCompletedRef,
+    completedPageRef,
     handleToggle,
     handleEdit,
     handleDelete,
@@ -392,11 +409,11 @@ function DesktopTabsView() {
 
   useEffect(() => {
     if (tab === 'completed') {
-      store.fetchCompletedTasks(store.completedPage)
+      store.fetchCompletedRef.current(store.completedPageRef.current)
     } else {
-      store.fetchPendingTasks()
+      store.fetchPendingRef.current()
     }
-  }, [tab, store])
+  }, [tab])
 
   const handleEdit = (taskId, content, deadline) => {
     store.handleEdit(taskId, content, deadline, tab)
@@ -425,7 +442,12 @@ function DesktopTabsView() {
           已完成 ({store.completedTotal})
         </button>
       </div>
-      {activeTasks.length === 0 ? (
+      {!store.initialLoaded ? (
+        <div className="empty-state">
+          <span className="spinner spinner-lg" />
+          <p>加载中...</p>
+        </div>
+      ) : activeTasks.length === 0 ? (
         <div className="empty-state">
           <ListFilter />
           <p>{tab === 'pending' ? '暂无未完成的待办' : '暂无已完成的待办'}</p>
@@ -466,11 +488,11 @@ function MobileFilterView() {
 
   useEffect(() => {
     if (filter === 'completed') {
-      store.fetchCompletedTasks(store.completedPage)
+      store.fetchCompletedRef.current(store.completedPageRef.current)
     } else {
-      store.fetchPendingTasks()
+      store.fetchPendingRef.current()
     }
-  }, [filter, store])
+  }, [filter])
 
   const handleEdit = (taskId, content, deadline) => {
     store.handleEdit(taskId, content, deadline, filter)
@@ -499,7 +521,12 @@ function MobileFilterView() {
           已完成 ({store.completedTotal})
         </button>
       </div>
-      {activeTasks.length === 0 ? (
+      {!store.initialLoaded ? (
+        <div className="empty-state">
+          <span className="spinner spinner-lg" />
+          <p>加载中...</p>
+        </div>
+      ) : activeTasks.length === 0 ? (
         <div className="empty-state">
           <ListFilter />
           <p>暂无待办</p>
