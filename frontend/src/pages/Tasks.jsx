@@ -227,7 +227,9 @@ function TaskItem({ task, onToggle, onDelete, onEdit }) {
   const urgent = !task.is_completed && !overdue && isUrgent(task.deadline)
 
   return (
-    <div className={`task-item ${task.is_completed ? 'completed' : ''} ${overdue ? 'overdue' : ''} ${urgent ? 'urgent' : ''} ${animatingOut ? 'task-removing' : ''}`}>
+    <div
+      className={`task-item ${task.is_completed ? 'completed' : ''} ${overdue ? 'overdue' : ''} ${urgent ? 'urgent' : ''} ${animatingOut ? 'task-removing' : ''}`}
+    >
       <button
         className="task-checkbox"
         onClick={handleToggle}
@@ -247,11 +249,7 @@ function TaskItem({ task, onToggle, onDelete, onEdit }) {
         )}
       </div>
       <div className="task-actions">
-        <button
-          className="btn btn-ghost btn-sm"
-          onClick={() => setEditing(true)}
-          title="编辑"
-        >
+        <button className="btn btn-ghost btn-sm" onClick={() => setEditing(true)} title="编辑">
           <Pencil size={15} />
         </button>
         <button
@@ -398,7 +396,7 @@ function DesktopTabsView() {
     } else {
       store.fetchPendingTasks()
     }
-  }, [tab, store.completedPage, store.fetchCompletedTasks, store.fetchPendingTasks])
+  }, [tab, store])
 
   const handleEdit = (taskId, content, deadline) => {
     store.handleEdit(taskId, content, deadline, tab)
@@ -472,7 +470,7 @@ function MobileFilterView() {
     } else {
       store.fetchPendingTasks()
     }
-  }, [filter, store.completedPage, store.fetchCompletedTasks, store.fetchPendingTasks])
+  }, [filter, store])
 
   const handleEdit = (taskId, content, deadline) => {
     store.handleEdit(taskId, content, deadline, filter)
@@ -545,9 +543,7 @@ export default function Tasks() {
         <h2>工作待办</h2>
         <p>记录和管理你的工作待办事项</p>
       </div>
-      <div className="page-body">
-        {isDesktop ? <DesktopTabsView /> : <MobileFilterView />}
-      </div>
+      <div className="page-body">{isDesktop ? <DesktopTabsView /> : <MobileFilterView />}</div>
     </>
   )
 }

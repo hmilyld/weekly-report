@@ -74,8 +74,7 @@ export const getTasks = () => api.get('/tasks')
 export const getCompletedTasks = (offset = 0, limit = 20) =>
   api.get(`/tasks/completed?offset=${offset}&limit=${limit}`)
 
-export const createTask = (content, deadline = null) =>
-  api.post('/tasks', { content, deadline })
+export const createTask = (content, deadline = null) => api.post('/tasks', { content, deadline })
 
 export const updateTask = (taskId, data) => api.put(`/tasks/${taskId}`, data)
 

@@ -4,6 +4,60 @@ import { Users, Plus, Trash2, Shield, User } from 'lucide-react'
 import { getUsers, createUser, deleteUser, updateUserRole } from '../api'
 import { useAuth } from '../contexts/AuthContext'
 
+/* ─── Create User Form ─────────────────────────────── */
+function CreateUserForm({ form, setForm, creating, onSubmit, onCancel }) {
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-3)' }}>
+      <div className="form-group" style={{ marginBottom: 0 }}>
+        <label className="form-label">用户名</label>
+        <input
+          type="text"
+          className="form-input"
+          placeholder="至少 2 个字符"
+          value={form.username}
+          onChange={(e) => setForm({ ...form, username: e.target.value })}
+        />
+      </div>
+      <div className="form-group" style={{ marginBottom: 0 }}>
+        <label className="form-label">密码</label>
+        <input
+          type="password"
+          className="form-input"
+          placeholder="至少 8 位"
+          value={form.password}
+          onChange={(e) => setForm({ ...form, password: e.target.value })}
+        />
+      </div>
+      <div className="form-group" style={{ marginBottom: 0 }}>
+        <label className="form-label">角色</label>
+        <select
+          className="form-input"
+          value={form.role}
+          onChange={(e) => setForm({ ...form, role: e.target.value })}
+        >
+          <option value="user">普通用户</option>
+          <option value="admin">管理员</option>
+        </select>
+      </div>
+      <div
+        style={{
+          display: 'flex',
+          gap: 'var(--space-3)',
+          justifyContent: 'flex-end',
+          marginTop: 'var(--space-2)',
+        }}
+      >
+        <button className="btn btn-outline btn-sm" onClick={onCancel}>
+          取消
+        </button>
+        <button className="btn btn-primary btn-sm" onClick={onSubmit} disabled={creating}>
+          {creating ? <span className="spinner" /> : '创建'}
+        </button>
+      </div>
+    </div>
+  )
+}
+
 export default function UserManagement() {
   const { user: currentUser } = useAuth()
   const [users, setUsers] = useState([])
@@ -110,51 +164,6 @@ export default function UserManagement() {
     }
   }
 
-  /* ─── Create User Form ─────────────────────────────── */
-  const CreateUserForm = ({ form, setForm, creating, onSubmit, onCancel }) => (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-3)' }}>
-      <div className="form-group" style={{ marginBottom: 0 }}>
-        <label className="form-label">用户名</label>
-        <input
-          type="text"
-          className="form-input"
-          placeholder="至少 2 个字符"
-          value={form.username}
-          onChange={(e) => setForm({ ...form, username: e.target.value })}
-        />
-      </div>
-      <div className="form-group" style={{ marginBottom: 0 }}>
-        <label className="form-label">密码</label>
-        <input
-          type="password"
-          className="form-input"
-          placeholder="至少 8 位"
-          value={form.password}
-          onChange={(e) => setForm({ ...form, password: e.target.value })}
-        />
-      </div>
-      <div className="form-group" style={{ marginBottom: 0 }}>
-        <label className="form-label">角色</label>
-        <select
-          className="form-input"
-          value={form.role}
-          onChange={(e) => setForm({ ...form, role: e.target.value })}
-        >
-          <option value="user">普通用户</option>
-          <option value="admin">管理员</option>
-        </select>
-      </div>
-      <div style={{ display: 'flex', gap: 'var(--space-3)', justifyContent: 'flex-end', marginTop: 'var(--space-2)' }}>
-        <button className="btn btn-outline btn-sm" onClick={onCancel}>
-          取消
-        </button>
-        <button className="btn btn-primary btn-sm" onClick={onSubmit} disabled={creating}>
-          {creating ? <span className="spinner" /> : '创建'}
-        </button>
-      </div>
-    </div>
-  )
-
   return (
     <>
       <div className="page-header">
@@ -167,12 +176,12 @@ export default function UserManagement() {
       <div className="page-body">
         <div className="settings-section">
           <div className="card">
-            <div className="card-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <div
+              className="card-header"
+              style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}
+            >
               <h3>用户列表</h3>
-              <button
-                className="btn btn-primary btn-sm"
-                onClick={() => setShowCreate(true)}
-              >
+              <button className="btn btn-primary btn-sm" onClick={() => setShowCreate(true)}>
                 <Plus size={14} /> 创建用户
               </button>
             </div>
@@ -249,11 +258,7 @@ export default function UserManagement() {
                               onClick={() => handleToggleRole(u)}
                               title={u.role === 'admin' ? '设为普通用户' : '设为管理员'}
                             >
-                              {u.role === 'admin' ? (
-                                <User size={14} />
-                              ) : (
-                                <Shield size={14} />
-                              )}
+                              {u.role === 'admin' ? <User size={14} /> : <Shield size={14} />}
                             </button>
                             <button
                               className="btn btn-ghost btn-sm"

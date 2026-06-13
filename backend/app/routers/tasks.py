@@ -60,7 +60,7 @@ def create_task(
     try:
         return crud.create_task(db, user.id, body.content, body.deadline)
     except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        raise HTTPException(status_code=400, detail=str(e)) from e
 
 
 @router.put("/{task_id}", response_model=TaskResponse)
@@ -72,9 +72,11 @@ def update_task(
 ):
     """Update a task."""
     try:
-        task = crud.update_task(db, user.id, task_id, body.content, body.deadline, body.is_completed)
+        task = crud.update_task(
+            db, user.id, task_id, body.content, body.deadline, body.is_completed
+        )
     except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        raise HTTPException(status_code=400, detail=str(e)) from e
     if not task:
         raise HTTPException(status_code=404, detail="Task not found")
     return task

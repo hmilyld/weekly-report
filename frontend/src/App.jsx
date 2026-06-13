@@ -1,14 +1,17 @@
 import { useState, useEffect } from 'react'
-import {
-  BrowserRouter,
-  Routes,
-  Route,
-  Navigate,
-  NavLink,
-  useNavigate,
-} from 'react-router-dom'
+import { BrowserRouter, Routes, Route, Navigate, NavLink, useNavigate } from 'react-router-dom'
 import { Toaster } from 'react-hot-toast'
-import { FileText, Calendar, Settings, LogOut, Sun, Moon, Monitor, CheckSquare, Users } from 'lucide-react'
+import {
+  FileText,
+  Calendar,
+  Settings,
+  LogOut,
+  Sun,
+  Moon,
+  Monitor,
+  CheckSquare,
+  Users,
+} from 'lucide-react'
 import { getAuthStatus } from './api'
 import { ThemeProvider, useTheme } from './contexts/ThemeContext'
 import { AuthProvider, useAuth } from './contexts/AuthContext'
@@ -122,11 +125,7 @@ function MobileTopBar() {
     <header className="mobile-topbar">
       <span className="mobile-topbar-logo">📋 日周报</span>
       <div className="mobile-topbar-actions">
-        {user && (
-          <span className="mobile-topbar-username">
-            {user.username}
-          </span>
-        )}
+        {user && <span className="mobile-topbar-username">{user.username}</span>}
         <ThemeToggle />
         <button className="mobile-topbar-btn" onClick={handleLogout} aria-label="退出登录">
           <LogOut size={18} />
@@ -236,49 +235,49 @@ export default function App() {
     <ThemeProvider>
       <AuthProvider>
         <BrowserRouter>
-        <Toaster
-          position={window.innerWidth < 769 ? 'bottom-center' : 'top-right'}
-          toastOptions={{
-            duration: 3000,
-            style: {
-              fontFamily: 'var(--font-sans)',
-              fontSize: '0.8125rem',
-              borderRadius: '8px',
-            },
-          }}
-          containerStyle={window.innerWidth < 769 ? { bottom: 80 } : { top: 20 }}
-        />
-        <Routes>
-          <Route
-            path="/setup"
-            element={
-              needsSetup ? (
-                <Setup onComplete={handleSetupComplete} authError={authError} />
-              ) : (
-                <Navigate to="/login" replace />
-              )
-            }
+          <Toaster
+            position={window.innerWidth < 769 ? 'bottom-center' : 'top-right'}
+            toastOptions={{
+              duration: 3000,
+              style: {
+                fontFamily: 'var(--font-sans)',
+                fontSize: '0.8125rem',
+                borderRadius: '8px',
+              },
+            }}
+            containerStyle={window.innerWidth < 769 ? { bottom: 80 } : { top: 20 }}
           />
-          <Route
-            path="/login"
-            element={
-              <SetupGate needsSetup={needsSetup}>
-                <Login />
-              </SetupGate>
-            }
-          />
-          <Route
-            path="/*"
-            element={
-              <ProtectedRoute>
+          <Routes>
+            <Route
+              path="/setup"
+              element={
+                needsSetup ? (
+                  <Setup onComplete={handleSetupComplete} authError={authError} />
+                ) : (
+                  <Navigate to="/login" replace />
+                )
+              }
+            />
+            <Route
+              path="/login"
+              element={
                 <SetupGate needsSetup={needsSetup}>
-                  <AppLayout />
+                  <Login />
                 </SetupGate>
-              </ProtectedRoute>
-            }
-          />
-        </Routes>
-      </BrowserRouter>
+              }
+            />
+            <Route
+              path="/*"
+              element={
+                <ProtectedRoute>
+                  <SetupGate needsSetup={needsSetup}>
+                    <AppLayout />
+                  </SetupGate>
+                </ProtectedRoute>
+              }
+            />
+          </Routes>
+        </BrowserRouter>
       </AuthProvider>
     </ThemeProvider>
   )

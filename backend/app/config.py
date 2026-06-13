@@ -13,10 +13,10 @@ def _default_jwt_secret() -> str:
         if env == "production":
             raise ValueError(
                 "JWT_SECRET_KEY environment variable is required in production. "
-                "Generate one with: python -c \"import secrets; print(secrets.token_urlsafe(64))\""
+                'Generate one with: python -c "import secrets; print(secrets.token_urlsafe(64))"'
             )
         secret = secrets.token_urlsafe(64)
-        print(f"⚠️  JWT_SECRET_KEY not set — using random key (tokens will be invalid on restart)")
+        print("⚠️  JWT_SECRET_KEY not set — using random key (tokens will be invalid on restart)")
     return secret
 
 

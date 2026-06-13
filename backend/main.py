@@ -6,14 +6,13 @@ from pathlib import Path
 
 from fastapi import FastAPI, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
+from fastapi.staticfiles import StaticFiles
 
-from app.database import engine, Base, SessionLocal
-from app.models import User, AppConfig
+from app.database import Base, SessionLocal, engine
+from app.models import AppConfig
 from app.models_token import ApiToken  # noqa: F401 — ensure table is created
-from app.routers import auth, daily, weekly, config
-from app.routers import tokens, external, tasks, users
+from app.routers import auth, config, daily, external, tasks, tokens, users, weekly
 
 
 def _migrate_db():
@@ -29,7 +28,11 @@ def _migrate_db():
             columns = {col["name"] for col in inspector.get_columns("users")}
             if "password_version" not in columns:
                 with engine.begin() as conn:
-                    conn.execute(text("ALTER TABLE users ADD COLUMN password_version INTEGER NOT NULL DEFAULT 0"))
+                    conn.execute(
+                        text(
+                            "ALTER TABLE users ADD COLUMN password_version INTEGER NOT NULL DEFAULT 0"
+                        )
+                    )
                 print("✅ Migration: added password_version column to users table")
             else:
                 print("✅ users.password_version column already exists")
@@ -37,7 +40,11 @@ def _migrate_db():
             # Add role to users table if missing
             if "role" not in columns:
                 with engine.begin() as conn:
-                    conn.execute(text("ALTER TABLE users ADD COLUMN role VARCHAR(20) NOT NULL DEFAULT 'user'"))
+                    conn.execute(
+                        text(
+                            "ALTER TABLE users ADD COLUMN role VARCHAR(20) NOT NULL DEFAULT 'user'"
+                        )
+                    )
                     # Promote existing user to admin
                     conn.execute(text("UPDATE users SET role = 'admin' WHERE id = 1"))
                 print("✅ Migration: added role column to users table, promoted user id=1 to admin")

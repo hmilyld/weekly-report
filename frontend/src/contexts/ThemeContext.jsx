@@ -47,9 +47,7 @@ export function ThemeProvider({ children }) {
   const label = mode === 'system' ? '跟随系统' : mode === 'dark' ? '暗色模式' : '亮色模式'
 
   return (
-    <ThemeContext.Provider value={{ mode, cycleTheme, label }}>
-      {children}
-    </ThemeContext.Provider>
+    <ThemeContext.Provider value={{ mode, cycleTheme, label }}>{children}</ThemeContext.Provider>
   )
 }
 

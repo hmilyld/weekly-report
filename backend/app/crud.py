@@ -259,7 +259,7 @@ def get_completed_tasks(
 
     return (
         db.query(models.Task)
-        .filter(models.Task.user_id == user_id, models.Task.is_completed == True)
+        .filter(models.Task.user_id == user_id, models.Task.is_completed)
         .order_by(
             nullslast(models.Task.deadline.desc()),
             models.Task.created_at.desc(),
@@ -274,7 +274,7 @@ def get_completed_tasks_count(db: Session, user_id: int) -> int:
     """Get total count of completed tasks for a user."""
     return (
         db.query(models.Task)
-        .filter(models.Task.user_id == user_id, models.Task.is_completed == True)
+        .filter(models.Task.user_id == user_id, models.Task.is_completed)
         .count()
     )
 

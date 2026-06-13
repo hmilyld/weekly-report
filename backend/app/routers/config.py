@@ -1,12 +1,10 @@
 """App config router: LLM settings & test connection."""
 
-import re
-
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 
 from .. import crud
-from ..auth import get_current_user, require_admin
+from ..auth import require_admin
 from ..database import get_db
 from ..llm_client import test_connection
 from ..models import User

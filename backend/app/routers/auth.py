@@ -88,9 +88,7 @@ def initial_setup(body: SetupRequest, db: Session = Depends(get_db)):
     validate_password(body.password)
 
     user = crud.create_user(db, body.username.strip(), hash_password(body.password), role="admin")
-    token = create_access_token(
-        {"sub": str(user.id), "username": user.username, "pwd_ver": 0}
-    )
+    token = create_access_token({"sub": str(user.id), "username": user.username, "pwd_ver": 0})
     return TokenResponse(access_token=token)
 
 

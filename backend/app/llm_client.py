@@ -26,16 +26,26 @@ TIMEOUT_SECONDS = 30
 _ALLOWED_SCHEMES = {"http", "https"}
 # Block private/internal IP ranges
 _BLOCKED_HOSTS = {"localhost", "127.0.0.1", "0.0.0.0", "[::1]", "metadata.google.internal"}
-_BLOCKED_PREFIXES = ("10.", "172.16.", "172.17.", "172.18.", "172.19.", "172.2", "172.30.",
-                     "172.31.", "192.168.", "169.254.")
+_BLOCKED_PREFIXES = (
+    "10.",
+    "172.16.",
+    "172.17.",
+    "172.18.",
+    "172.19.",
+    "172.2",
+    "172.30.",
+    "172.31.",
+    "192.168.",
+    "169.254.",
+)
 
 
 def _validate_llm_url(url: str) -> None:
     """Validate LLM URL to prevent SSRF attacks."""
     try:
         parsed = urlparse(url)
-    except Exception:
-        raise ValueError("Invalid LLM API URL")
+    except Exception as exc:
+        raise ValueError("Invalid LLM API URL") from exc
 
     if parsed.scheme not in _ALLOWED_SCHEMES:
         raise ValueError(f"URL scheme '{parsed.scheme}' not allowed. Use http or https.")
@@ -46,7 +56,7 @@ def _validate_llm_url(url: str) -> None:
 
     for prefix in _BLOCKED_PREFIXES:
         if hostname.startswith(prefix):
-            raise ValueError(f"Access to private IP ranges is not allowed.")
+            raise ValueError("Access to private IP ranges is not allowed.")
 
 
 def build_user_prompt(daily_entries: list[tuple[str, str]]) -> str:
@@ -161,4 +171,8 @@ def test_connection(api_url: str, model_name: str, api_key: str = "") -> dict:
         }
     except Exception as e:
         logger.error("LLM test failed: %s", e)
-        return {"success": False, "message": "Connection failed. Check URL and credentials.", "response": None}
+        return {
+            "success": False,
+            "message": "Connection failed. Check URL and credentials.",
+            "response": None,
+        }

@@ -248,7 +248,7 @@ def get_recent_weekly_reports(
 
 
 class WeeklyGenerateRequest(BaseModel):
-    force: bool = False  # True = 覆盖已有周报，False = 如已有则提示
+    force: bool = False  # True = 覆盖已有周报, False = 如已有则提示
 
 
 @router.post("/weekly/generate")
@@ -294,9 +294,7 @@ def generate_current_weekly(
         content = generate_weekly_report(db, daily_entries)
     except RuntimeError as e:
         logger.error("LLM generation failed: %s", e)
-        raise HTTPException(
-            status_code=502, detail="周报生成失败，请检查大模型配置"
-        ) from e
+        raise HTTPException(status_code=502, detail="周报生成失败，请检查大模型配置") from e
 
     app_config = crud.get_app_config(db)
     report = crud.save_weekly_report(
@@ -364,7 +362,7 @@ def create_external_task(
     try:
         task = crud.create_task(db, user.id, body.content, deadline_date)
     except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        raise HTTPException(status_code=400, detail=str(e)) from e
     return {
         "message": "ok",
         "id": task.id,

@@ -19,8 +19,15 @@ security = HTTPBearer()
 # ─── Password validation ────────────────────────────────
 
 _WEAK_PASSWORDS = {
-    "11111111", "12345678", "password", "qwerty123", "abc12345",
-    "123456789", "1234567890", "admin123", "letmein1",
+    "11111111",
+    "12345678",
+    "password",
+    "qwerty123",
+    "abc12345",
+    "123456789",
+    "1234567890",
+    "admin123",
+    "letmein1",
 }
 
 
@@ -81,10 +88,10 @@ def get_current_user(
         )
     try:
         uid = int(user_id)
-    except (ValueError, TypeError):
+    except (ValueError, TypeError) as exc:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token payload"
-        )
+        ) from exc
     user = db.query(User).filter(User.id == uid).first()
     if user is None:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="User not found")

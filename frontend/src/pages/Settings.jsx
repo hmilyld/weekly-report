@@ -225,86 +225,90 @@ export default function SettingsPage() {
       <div className="page-body">
         {/* ─── LLM Config Card (admin only) ─────── */}
         {isAdmin && (
-        <div className="settings-section">
-          <div className="card">
-            <div className="card-header">
-              <h3>大模型配置</h3>
-            </div>
-            <div className="card-body">
-              <div className="config-grid">
-                <div className="form-group">
-                  <label className="form-label">API 地址</label>
-                  <input
-                    type="url"
-                    className="form-input"
-                    placeholder="http://localhost:11434/v1/chat/completions"
-                    value={config.llm_api_url}
-                    onChange={(e) => setConfig({ ...config, llm_api_url: e.target.value })}
-                  />
-                  <p
-                    style={{
-                      fontSize: '0.75rem',
-                      color: 'var(--color-text-muted)',
-                      marginTop: '4px',
-                    }}
-                  >
-                    完整的 OpenAI 兼容接口地址
-                  </p>
-                </div>
-                <div className="form-group">
-                  <label className="form-label">模型名称</label>
-                  <input
-                    type="text"
-                    className="form-input"
-                    placeholder="llama2"
-                    value={config.llm_model_name}
-                    onChange={(e) => setConfig({ ...config, llm_model_name: e.target.value })}
-                  />
-                </div>
-                <div className="form-group">
-                  <label className="form-label">API Key（可选）</label>
-                  <input
-                    type="password"
-                    className="form-input"
-                    placeholder="留空则不发送 Authorization 头"
-                    value={config.api_key}
-                    onChange={(e) => setConfig({ ...config, api_key: e.target.value })}
-                  />
-                </div>
-                {testResult && (
-                  <div className={`test-result ${testResult.success ? 'success' : 'error'}`}>
-                    {testResult.success ? (
-                      <CheckCircle size={16} style={{ flexShrink: 0, marginTop: '2px' }} />
-                    ) : (
-                      <XCircle size={16} style={{ flexShrink: 0, marginTop: '2px' }} />
-                    )}
-                    <span>{testResult.message}</span>
+          <div className="settings-section">
+            <div className="card">
+              <div className="card-header">
+                <h3>大模型配置</h3>
+              </div>
+              <div className="card-body">
+                <div className="config-grid">
+                  <div className="form-group">
+                    <label className="form-label">API 地址</label>
+                    <input
+                      type="url"
+                      className="form-input"
+                      placeholder="http://localhost:11434/v1/chat/completions"
+                      value={config.llm_api_url}
+                      onChange={(e) => setConfig({ ...config, llm_api_url: e.target.value })}
+                    />
+                    <p
+                      style={{
+                        fontSize: '0.75rem',
+                        color: 'var(--color-text-muted)',
+                        marginTop: '4px',
+                      }}
+                    >
+                      完整的 OpenAI 兼容接口地址
+                    </p>
                   </div>
-                )}
-                <div className="config-actions">
-                  <button className="btn btn-primary" onClick={handleSaveConfig} disabled={saving}>
-                    {saving ? (
-                      <span className="spinner" />
-                    ) : (
-                      <>
-                        <Save size={16} /> 保存配置
-                      </>
-                    )}
-                  </button>
-                  <button className="btn btn-outline" onClick={handleTest} disabled={testing}>
-                    {testing ? (
-                      <span className="spinner" />
-                    ) : (
-                      <>
-                        <Zap size={16} /> 测试连接
-                      </>
-                    )}
-                  </button>
+                  <div className="form-group">
+                    <label className="form-label">模型名称</label>
+                    <input
+                      type="text"
+                      className="form-input"
+                      placeholder="llama2"
+                      value={config.llm_model_name}
+                      onChange={(e) => setConfig({ ...config, llm_model_name: e.target.value })}
+                    />
+                  </div>
+                  <div className="form-group">
+                    <label className="form-label">API Key（可选）</label>
+                    <input
+                      type="password"
+                      className="form-input"
+                      placeholder="留空则不发送 Authorization 头"
+                      value={config.api_key}
+                      onChange={(e) => setConfig({ ...config, api_key: e.target.value })}
+                    />
+                  </div>
+                  {testResult && (
+                    <div className={`test-result ${testResult.success ? 'success' : 'error'}`}>
+                      {testResult.success ? (
+                        <CheckCircle size={16} style={{ flexShrink: 0, marginTop: '2px' }} />
+                      ) : (
+                        <XCircle size={16} style={{ flexShrink: 0, marginTop: '2px' }} />
+                      )}
+                      <span>{testResult.message}</span>
+                    </div>
+                  )}
+                  <div className="config-actions">
+                    <button
+                      className="btn btn-primary"
+                      onClick={handleSaveConfig}
+                      disabled={saving}
+                    >
+                      {saving ? (
+                        <span className="spinner" />
+                      ) : (
+                        <>
+                          <Save size={16} /> 保存配置
+                        </>
+                      )}
+                    </button>
+                    <button className="btn btn-outline" onClick={handleTest} disabled={testing}>
+                      {testing ? (
+                        <span className="spinner" />
+                      ) : (
+                        <>
+                          <Zap size={16} /> 测试连接
+                        </>
+                      )}
+                    </button>
+                  </div>
                 </div>
               </div>
             </div>
           </div>
-        </div>
         )}
 
         {/* ─── Password Change Card ────────────── */}
