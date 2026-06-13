@@ -2,12 +2,14 @@ import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import toast from 'react-hot-toast'
 import { login } from '../api'
+import { useAuth } from '../contexts/AuthContext'
 
 export default function Login() {
   const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
   const [loading, setLoading] = useState(false)
   const navigate = useNavigate()
+  const { refreshUser } = useAuth()
 
   const handleSubmit = async (e) => {
     e.preventDefault()
@@ -19,6 +21,7 @@ export default function Login() {
     try {
       const { data } = await login(username, password)
       localStorage.setItem('token', data.access_token)
+      await refreshUser()
       toast.success('登录成功')
       navigate('/')
     } catch (err) {
