@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-A weekly report auto-generation system (周报自动生成系统). Users maintain daily work logs via a calendar UI, then an LLM generates a weekly report summary. The UI is entirely in Chinese. Supports multiple users with admin/user roles.
+A weekly and monthly report auto-generation system (周报/月报自动生成系统). Users maintain daily work logs via a calendar UI, then an LLM generates weekly or monthly report summaries. The UI is entirely in Chinese. Supports multiple users with admin/user roles.
 
 ## Tech Stack
 
@@ -49,19 +49,19 @@ docker compose up --build   # multi-stage build, serves on :18001
 - `main.py` — FastAPI app entry, lifespan events, static file serving for SPA
 - `app/config.py` — pydantic-settings (JWT, DB, LLM defaults via environment)
 - `app/database.py` — SQLAlchemy engine, session factory, Base
-- `app/models.py` — ORM models: `User` (with role), `DailyReport`, `WeeklyReport`, `AppConfig`, `Task`
+- `app/models.py` — ORM models: `User` (with role), `DailyReport`, `WeeklyReport`, `MonthlyReport`, `AppConfig`, `Task`
 - `app/models_token.py` — `ApiToken` model (64-char hex tokens for external API access)
 - `app/auth.py` — JWT creation/decoding, `get_current_user` dependency, `require_admin` dependency
 - `app/crud.py` — all database operations (centralized CRUD layer)
 - `app/llm_client.py` — httpx-based OpenAI-compatible client + system prompt for report generation
-- `app/routers/` — route modules: `auth`, `daily`, `weekly`, `config`, `tokens`, `external`, `users`
+- `app/routers/` — route modules: `auth`, `daily`, `weekly`, `monthly`, `config`, `tokens`, `external`, `users`
 
 All API routes are under `/api/v1/`. The backend serves the SPA as a catch-all for non-API paths.
 
 ### Frontend (`frontend/src/`)
 - `App.jsx` — Router, auth gates, responsive layout (TopNav desktop / Sidebar mobile)
 - `api/index.js` — Axios instance + all API wrapper functions
-- `pages/` — Login, Setup (first-run), DailyReport (calendar view), WeeklyReport, Settings, UserManagement (admin)
+- `pages/` — Login, Setup (first-run), DailyReport (calendar view), WeeklyReport, MonthlyReport, Settings, UserManagement (admin)
 - `components/` — CalendarView (monthly grid), DailyEditModal
 - `contexts/AuthContext.jsx` — Current user state, `isAdmin` flag, `logout`, `refreshUser`
 - `contexts/ThemeContext.jsx` — System/Light/Dark theme cycling
@@ -77,6 +77,7 @@ All API routes are under `/api/v1/`. The backend serves the SPA as a catch-all f
 - **User** — multi-user auth system (id, username, password_hash, password_version, role)
 - **DailyReport** — one per user per date (unique: user_id + date)
 - **WeeklyReport** — one per user per week_start (unique: user_id + week_start)
+- **MonthlyReport** — one per user per year+month (unique: user_id + year + month)
 - **AppConfig** — singleton (id=1) holding LLM API URL, model, API key (admin-only)
 - **ApiToken** — tokens for external API authentication
 - **Task** — todo items per user (id, user_id, content, deadline, is_completed)
@@ -91,10 +92,10 @@ All API routes are under `/api/v1/`. The backend serves the SPA as a catch-all f
 
 - LLM config is stored in DB (`AppConfig` table) and editable via the Settings page (admin only) — no env vars needed at runtime
 - The weekly report generation calls the LLM with all daily reports for that week as context
+- The monthly report aggregates daily reports by project/module, merging related work across days
 - The frontend `app/` directory contains a pre-built dist committed to the repo (used by Docker)
 - External API endpoints (`/api/v1/external/`) use `ApiToken` auth instead of JWT
 - First user created via `/api/v1/auth/setup` gets admin role; subsequent users created by admin via `/api/v1/users`
 - `require_admin` dependency protects admin-only endpoints; `get_current_user` for user-scoped endpoints
 - `AuthContext` provides `user`, `isAdmin`, `logout`, `refreshUser` to the frontend
-- `scripts/migrate_to_multiuser.py` adds `role` column and promotes existing user to admin
-- `_migrate_db()` in `main.py` runs automatically on startup for the same migration
+- `_migrate_db()` in `main.py` runs automatically on startup for database migrations
