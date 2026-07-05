@@ -11,12 +11,15 @@ from sqlalchemy.orm import Session
 from .. import crud
 from ..auth import (
     create_access_token,
+    derive_user_key,
     get_current_user,
     hash_password,
     validate_password,
     verify_password,
 )
 from ..database import get_db
+from ..key_cache import key_cache
+from ..migration import migrate_user_encryption
 from ..models import User
 from ..schemas import LoginRequest, PasswordChange, TokenResponse
 
@@ -109,6 +112,13 @@ def login(body: LoginRequest, request: Request, db: Session = Depends(get_db)):
     token = create_access_token(
         {"sub": str(user.id), "username": user.username, "pwd_ver": user.password_version}
     )
+
+    key = derive_user_key(body.password, user)
+    key_cache.set(user.id, key)
+
+    if user.needs_encryption_migration:
+        migrate_user_encryption(db, user.id, key)
+
     return TokenResponse(access_token=token)
 
 
@@ -118,7 +128,27 @@ def change_password(
     user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
+    if not verify_password(body.old_password, user.password_hash):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Incorrect current password",
+        )
     validate_password(body.new_password)
+
+    old_key = derive_user_key(body.old_password, user)
+    new_key = derive_user_key(body.new_password, user)
+
+    from ..reencrypt import reencrypt_user_data
+
+    reencrypt_user_data(db, user.id, old_key, new_key)
+
     new_hash = hash_password(body.new_password)
     crud.change_password(db, user, new_hash)
+    key_cache.set(user.id, new_key)
     return {"message": "Password changed successfully"}
+
+
+@router.post("/logout")
+def logout(user: User = Depends(get_current_user)):
+    key_cache.remove(user.id)
+    return {"message": "Logged out successfully"}

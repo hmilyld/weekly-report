@@ -74,9 +74,8 @@ def create_daily_report(
     existing = crud.get_daily_report(db, user.id, report_date)
 
     if body.append and existing:
-        # Append mode
-        sep = "\n" if existing.content else ""
-        new_content = existing.content + sep + body.content
+        existing_content = crud.get_daily_report_decrypted(db, user.id, report_date) or ""
+        new_content = existing_content + ("\n" if existing_content else "") + body.content
     else:
         # Overwrite mode
         new_content = body.content

@@ -19,41 +19,54 @@ def _migrate_db():
     """Add missing columns to existing tables (SQLite ALTER TABLE)."""
     from sqlalchemy import inspect, text
 
-    inspector = inspect(engine)
-
-    # Add password_version to users table if missing
     try:
-        existing_tables = inspector.get_table_names()
-        if "users" in existing_tables:
-            columns = {col["name"] for col in inspector.get_columns("users")}
-            if "password_version" not in columns:
-                with engine.begin() as conn:
-                    conn.execute(
-                        text(
-                            "ALTER TABLE users ADD COLUMN password_version INTEGER NOT NULL DEFAULT 0"
-                        )
-                    )
-                print("✅ Migration: added password_version column to users table")
-            else:
-                print("✅ users.password_version column already exists")
+        existing_tables = inspect(engine).get_table_names()
+    except Exception as e:
+        print(f"⚠️  Migration: cannot inspect tables: {e}")
+        return
 
-            # Add role to users table if missing
+    # ── users table ────────────────────────────────────────
+    if "users" in existing_tables:
+        try:
+            columns = {col["name"] for col in inspect(engine).get_columns("users")}
+            migrations = [
+                ("password_version", "INTEGER NOT NULL DEFAULT 0"),
+                ("role", "VARCHAR(20) NOT NULL DEFAULT 'user'"),
+                ("needs_encryption_migration", "BOOLEAN NOT NULL DEFAULT 1"),
+            ]
+            for col_name, col_def in migrations:
+                if col_name not in columns:
+                    with engine.begin() as conn:
+                        conn.execute(text(f"ALTER TABLE users ADD COLUMN {col_name} {col_def}"))
+                    print(f"✅ Migration: added users.{col_name}")
             if "role" not in columns:
                 with engine.begin() as conn:
-                    conn.execute(
-                        text(
-                            "ALTER TABLE users ADD COLUMN role VARCHAR(20) NOT NULL DEFAULT 'user'"
-                        )
-                    )
-                    # Promote existing user to admin
                     conn.execute(text("UPDATE users SET role = 'admin' WHERE id = 1"))
-                print("✅ Migration: added role column to users table, promoted user id=1 to admin")
-            else:
-                print("✅ users.role column already exists")
-        else:
-            print("ℹ️  users table does not exist yet (first run)")
-    except Exception as e:
-        print(f"⚠️  Migration check failed: {e}")
+        except Exception as e:
+            print(f"⚠️  Migration users failed: {e}")
+    else:
+        print("ℹ️  users table does not exist yet (first run)")
+
+    # ── encryption columns for each content table ──────────
+    for table in ("daily_reports", "weekly_reports", "tasks"):
+        if table not in existing_tables:
+            continue
+        try:
+            columns = {col["name"] for col in inspect(engine).get_columns(table)}
+            enc_cols = [
+                ("content_encrypted", "TEXT"),
+                ("content_salt", "VARCHAR(64)"),
+                ("content_nonce", "VARCHAR(64)"),
+                ("content_tag", "VARCHAR(64)"),
+                ("content_version", "INTEGER"),
+            ]
+            for col_name, col_def in enc_cols:
+                if col_name not in columns:
+                    with engine.begin() as conn:
+                        conn.execute(text(f"ALTER TABLE {table} ADD COLUMN {col_name} {col_def}"))
+                    print(f"✅ Migration: added {table}.{col_name}")
+        except Exception as e:
+            print(f"⚠️  Migration {table} failed: {e}")
 
 
 def _init_db():

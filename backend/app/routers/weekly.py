@@ -8,7 +8,9 @@ from sqlalchemy.orm import Session
 
 from .. import crud
 from ..auth import get_current_user
+from ..crypto import decrypt_content, encrypt_content, generate_salt
 from ..database import get_db
+from ..key_cache import key_cache
 from ..llm_client import generate_weekly_report
 from ..models import User
 from ..schemas import WeeklyReportResponse, WeeklyReportUpdate
@@ -66,10 +68,29 @@ def update_weekly_report(
     report = crud.get_weekly_report(db, user.id, week_start)
     if not report:
         raise HTTPException(status_code=404, detail="Weekly report not found")
-    report.content = body.content
+    key = key_cache.get(user.id)
+    if key:
+        salt = generate_salt()
+        encrypted = encrypt_content(body.content, key)
+        report.content = ""
+        report.content_encrypted = encrypted["ciphertext"]
+        report.content_salt = salt.hex()
+        report.content_nonce = encrypted["nonce"]
+        report.content_tag = encrypted["tag"]
+        report.content_version = 1
+    else:
+        report.content = body.content
+        report.content_encrypted = None
+        report.content_salt = None
+        report.content_nonce = None
+        report.content_tag = None
+        report.content_version = None
     report.generated_at = datetime.now(UTC)
     db.commit()
     db.refresh(report)
+    from ..crud import _decrypt_model_content
+
+    _decrypt_model_content(report, user.id)
     return report
 
 
@@ -81,12 +102,27 @@ def _generate(db: Session, user_id: int, week_start: date) -> WeeklyReportRespon
     if not dailies:
         raise HTTPException(status_code=400, detail="No daily reports found for this week")
 
-    daily_entries = [(str(d.date), d.content) for d in dailies if d.content.strip()]
+    key = key_cache.get(user_id)
+
+    daily_entries = []
+    for d in dailies:
+        if d.content_encrypted and key:
+            encrypted_data = {
+                "ciphertext": d.content_encrypted,
+                "nonce": d.content_nonce or "",
+                "tag": d.content_tag or "",
+            }
+            content = decrypt_content(encrypted_data, key)
+        else:
+            content = d.content
+        if content.strip():
+            daily_entries.append((str(d.date), content))
+
     if not daily_entries:
         raise HTTPException(status_code=400, detail="All daily reports are empty for this week")
 
     try:
-        content = generate_weekly_report(db, daily_entries)
+        weekly_content = generate_weekly_report(db, daily_entries)
     except RuntimeError as e:
         logger.error("LLM generation failed: %s", e)
         raise HTTPException(
@@ -95,6 +131,22 @@ def _generate(db: Session, user_id: int, week_start: date) -> WeeklyReportRespon
 
     config = crud.get_app_config(db)
     report = crud.save_weekly_report(
-        db, user_id, week_start, week_end, content, config.llm_model_name
+        db, user_id, week_start, week_end, weekly_content, config.llm_model_name
     )
+
+    if key:
+        encrypted = encrypt_content(weekly_content, key)
+        salt = generate_salt()
+        report.content = ""
+        report.content_encrypted = encrypted["ciphertext"]
+        report.content_salt = salt.hex()
+        report.content_nonce = encrypted["nonce"]
+        report.content_tag = encrypted["tag"]
+        report.content_version = 1
+        db.commit()
+        db.refresh(report)
+
+    from ..crud import _decrypt_model_content
+
+    _decrypt_model_content(report, user_id)
     return report

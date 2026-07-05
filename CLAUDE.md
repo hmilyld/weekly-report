@@ -19,7 +19,7 @@ A weekly report auto-generation system (周报自动生成系统). Users maintai
 ```bash
 cd frontend
 pnpm install          # install deps
-pnpm dev              # Vite dev server on :5173, proxies /api to :8000
+pnpm dev              # Vite dev server on :5173, proxies /api to :18001
 pnpm build            # production build (output goes to ../app/frontend/)
 pnpm lint             # ESLint
 pnpm lint:fix         # ESLint with auto-fix
@@ -32,14 +32,14 @@ pnpm generate:icons   # regenerate PWA SVG icons (in public/)
 ```bash
 cd backend
 uv pip install -r requirements.txt   # install deps (use uv, not pip)
-uv run uvicorn main:app --reload --port 8000   # dev server
+uv run uvicorn main:app --reload --port 18001   # dev server
 uv run ruff check .              # lint
 uv run ruff format .             # format
 ```
 
 ### Docker
 ```bash
-docker compose up --build   # multi-stage build, serves on :8000
+docker compose up --build   # multi-stage build, serves on :18001
 ./scripts/docker-publish.sh [tag]  # 构建并推送到 Docker Hub (默认 tag=latest)
 ```
 

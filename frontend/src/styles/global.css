@@ -1290,7 +1290,7 @@ textarea.form-input {
 }
 
 .calendar-day.other-month .calendar-day-preview {
-  display: none;
+  opacity: 0.6;
 }
 
 .calendar-loading {

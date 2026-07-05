@@ -18,3 +18,8 @@ data/
 # IDE
 .vscode/
 .idea/
+
+# Dev tools
+.dev/
+.mimocode/
+.claude/

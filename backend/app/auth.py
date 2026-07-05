@@ -10,6 +10,7 @@ from passlib.context import CryptContext
 from sqlalchemy.orm import Session
 
 from .config import settings
+from .crypto import derive_key
 from .database import get_db
 from .models import User
 
@@ -56,6 +57,11 @@ def hash_password(password: str) -> str:
 
 def verify_password(plain: str, hashed: str) -> bool:
     return pwd_context.verify(plain, hashed)
+
+
+def derive_user_key(password: str, user: User) -> bytes:
+    salt = f"user_{user.id}_encryption_salt".encode().ljust(32, b"\0")[:32]
+    return derive_key(password, salt)
 
 
 def create_access_token(data: dict, expires_delta: timedelta | None = None) -> str:

@@ -39,11 +39,11 @@ RUN mkdir -p /app/data && \
 USER app
 
 # Expose port
-EXPOSE 8000
+EXPOSE 18001
 
 # Environment variables (secrets must be injected at runtime)
 ENV PYTHONUNBUFFERED=1
 ENV DATABASE_URL=sqlite:///./data/weekly_report.db
 
 # Run with uvicorn
-CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "18001"]

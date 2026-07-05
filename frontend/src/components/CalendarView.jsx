@@ -37,7 +37,10 @@ function getMonthDays(year, month) {
   for (let d = 1; d <= lastDay.getDate(); d++) {
     days.push(new Date(year, month, d))
   }
-  while (days.length < 42) {
+  const totalDays = startDow + lastDay.getDate()
+  const rows = Math.ceil(totalDays / 7)
+  const targetLength = rows * 7
+  while (days.length < targetLength) {
     days.push(new Date(year, month + 1, days.length - startDow - lastDay.getDate() + 1))
   }
   return days

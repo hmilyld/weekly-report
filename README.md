@@ -33,7 +33,7 @@
 cd backend
 uv venv                          # 创建虚拟环境
 uv pip install -r requirements.txt   # 安装依赖
-uv run uvicorn main:app --reload --port 8000   # 启动开发服务器
+uv run uvicorn main:app --reload --port 18001   # 启动开发服务器
 ```
 
 ### 前端
@@ -44,7 +44,7 @@ pnpm install
 pnpm dev
 ```
 
-前端开发服务器运行在 `http://localhost:5173`，API 请求代理到后端 `http://localhost:8000`。
+前端开发服务器运行在 `http://localhost:5173`，API 请求代理到后端 `http://localhost:18001`。
 
 ### 首次使用
 
@@ -72,7 +72,7 @@ echo "JWT_SECRET_KEY=$(python3 -c 'import secrets; print(secrets.token_urlsafe(6
 docker compose up -d --build
 ```
 
-访问 `http://localhost:8000`
+访问 `http://localhost:18001`
 
 ### 手动构建镜像
 
@@ -81,7 +81,7 @@ docker build -t weekly-report:latest .
 
 docker run -d \
   --name weekly-report \
-  -p 8000:8000 \
+  -p 18001:18001 \
   -v $(pwd)/data:/app/data \
   -e JWT_SECRET_KEY=your-secret-key-here \
   weekly-report:latest

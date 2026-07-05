@@ -5,6 +5,8 @@ from datetime import UTC, date, datetime, timedelta
 from sqlalchemy.orm import Session
 
 from . import models
+from .crypto import decrypt_content, encrypt_content, generate_salt
+from .key_cache import key_cache
 
 # ─── User ───────────────────────────────────────────────
 
@@ -69,11 +71,31 @@ def get_daily_report(db: Session, user_id: int, report_date: date) -> models.Dai
     )
 
 
+def _decrypt_model_content(model, user_id: int):
+    """Decrypt content_encrypted field back into content on a model instance."""
+    if not model.content_encrypted:
+        return
+    key = key_cache.get(user_id)
+    if not key:
+        return
+    try:
+        model.content = decrypt_content(
+            {
+                "ciphertext": model.content_encrypted,
+                "nonce": model.content_nonce or "",
+                "tag": model.content_tag or "",
+            },
+            key,
+        )
+    except Exception:
+        pass
+
+
 def get_daily_reports_by_week(
     db: Session, user_id: int, week_start: date
 ) -> list[models.DailyReport]:
     week_end = week_start + timedelta(days=6)
-    return (
+    reports = (
         db.query(models.DailyReport)
         .filter(
             models.DailyReport.user_id == user_id,
@@ -83,12 +105,15 @@ def get_daily_reports_by_week(
         .order_by(models.DailyReport.date)
         .all()
     )
+    for r in reports:
+        _decrypt_model_content(r, user_id)
+    return reports
 
 
 def get_daily_reports_range(
     db: Session, user_id: int, start_date: date, end_date: date
 ) -> list[models.DailyReport]:
-    return (
+    reports = (
         db.query(models.DailyReport)
         .filter(
             models.DailyReport.user_id == user_id,
@@ -98,24 +123,59 @@ def get_daily_reports_range(
         .order_by(models.DailyReport.date)
         .all()
     )
+    for r in reports:
+        _decrypt_model_content(r, user_id)
+    return reports
 
 
 def upsert_daily_report(
     db: Session, user_id: int, report_date: date, content: str
 ) -> models.DailyReport:
+    key = key_cache.get(user_id)
     existing = get_daily_report(db, user_id, report_date)
     if existing:
         existing.content = content
+        if key:
+            salt = generate_salt()
+            encrypted = encrypt_content(content, key)
+            existing.content = ""
+            existing.content_encrypted = encrypted["ciphertext"]
+            existing.content_salt = salt.hex()
+            existing.content_nonce = encrypted["nonce"]
+            existing.content_tag = encrypted["tag"]
+            existing.content_version = 1
+        else:
+            existing.content_encrypted = None
+            existing.content_salt = None
+            existing.content_nonce = None
+            existing.content_tag = None
+            existing.content_version = None
         from datetime import datetime
 
         existing.updated_at = datetime.now(UTC)
         db.commit()
         db.refresh(existing)
+        _decrypt_model_content(existing, user_id)
         return existing
-    report = models.DailyReport(user_id=user_id, date=report_date, content=content)
+    if key:
+        salt = generate_salt()
+        encrypted = encrypt_content(content, key)
+        report = models.DailyReport(
+            user_id=user_id,
+            date=report_date,
+            content="",
+            content_encrypted=encrypted["ciphertext"],
+            content_salt=salt.hex(),
+            content_nonce=encrypted["nonce"],
+            content_tag=encrypted["tag"],
+            content_version=1,
+        )
+    else:
+        report = models.DailyReport(user_id=user_id, date=report_date, content=content)
     db.add(report)
     db.commit()
     db.refresh(report)
+    _decrypt_model_content(report, user_id)
     return report
 
 
@@ -128,11 +188,30 @@ def delete_daily_report(db: Session, user_id: int, report_date: date) -> bool:
     return False
 
 
+def get_daily_report_decrypted(db: Session, user_id: int, report_date: date) -> str | None:
+    report = get_daily_report(db, user_id, report_date)
+    if not report:
+        return None
+    if report.content_encrypted:
+        key = key_cache.get(user_id)
+        if not key:
+            return None
+        return decrypt_content(
+            {
+                "ciphertext": report.content_encrypted,
+                "nonce": report.content_nonce or "",
+                "tag": report.content_tag or "",
+            },
+            key,
+        )
+    return report.content
+
+
 # ─── Weekly Report ──────────────────────────────────────
 
 
 def get_weekly_report(db: Session, user_id: int, week_start: date) -> models.WeeklyReport | None:
-    return (
+    report = (
         db.query(models.WeeklyReport)
         .filter(
             models.WeeklyReport.user_id == user_id,
@@ -140,16 +219,22 @@ def get_weekly_report(db: Session, user_id: int, week_start: date) -> models.Wee
         )
         .first()
     )
+    if report:
+        _decrypt_model_content(report, user_id)
+    return report
 
 
 def get_weekly_reports(db: Session, user_id: int, limit: int = 12) -> list[models.WeeklyReport]:
-    return (
+    reports = (
         db.query(models.WeeklyReport)
         .filter(models.WeeklyReport.user_id == user_id)
         .order_by(models.WeeklyReport.week_start.desc())
         .limit(limit)
         .all()
     )
+    for r in reports:
+        _decrypt_model_content(r, user_id)
+    return reports
 
 
 def save_weekly_report(
@@ -160,26 +245,60 @@ def save_weekly_report(
     content: str,
     model_name: str,
 ) -> models.WeeklyReport:
+    key = key_cache.get(user_id)
     existing = get_weekly_report(db, user_id, week_start)
     if existing:
-        existing.content = content
         existing.model_name = model_name
+        if key:
+            salt = generate_salt()
+            encrypted = encrypt_content(content, key)
+            existing.content = ""
+            existing.content_encrypted = encrypted["ciphertext"]
+            existing.content_salt = salt.hex()
+            existing.content_nonce = encrypted["nonce"]
+            existing.content_tag = encrypted["tag"]
+            existing.content_version = 1
+        else:
+            existing.content = content
+            existing.content_encrypted = None
+            existing.content_salt = None
+            existing.content_nonce = None
+            existing.content_tag = None
+            existing.content_version = None
         from datetime import datetime
 
         existing.generated_at = datetime.now(UTC)
         db.commit()
         db.refresh(existing)
+        _decrypt_model_content(existing, user_id)
         return existing
-    report = models.WeeklyReport(
-        user_id=user_id,
-        week_start=week_start,
-        week_end=week_end,
-        content=content,
-        model_name=model_name,
-    )
+    if key:
+        salt = generate_salt()
+        encrypted = encrypt_content(content, key)
+        report = models.WeeklyReport(
+            user_id=user_id,
+            week_start=week_start,
+            week_end=week_end,
+            content="",
+            content_encrypted=encrypted["ciphertext"],
+            content_salt=salt.hex(),
+            content_nonce=encrypted["nonce"],
+            content_tag=encrypted["tag"],
+            content_version=1,
+            model_name=model_name,
+        )
+    else:
+        report = models.WeeklyReport(
+            user_id=user_id,
+            week_start=week_start,
+            week_end=week_end,
+            content=content,
+            model_name=model_name,
+        )
     db.add(report)
     db.commit()
     db.refresh(report)
+    _decrypt_model_content(report, user_id)
     return report
 
 
@@ -225,7 +344,7 @@ def get_tasks(db: Session, user_id: int) -> list[models.Task]:
     """Get all tasks for a user, ordered by deadline (nulls last), then by created_at desc."""
     from sqlalchemy import nullslast
 
-    return (
+    tasks = (
         db.query(models.Task)
         .filter(models.Task.user_id == user_id)
         .order_by(
@@ -234,13 +353,16 @@ def get_tasks(db: Session, user_id: int) -> list[models.Task]:
         )
         .all()
     )
+    for t in tasks:
+        _decrypt_model_content(t, user_id)
+    return tasks
 
 
 def get_pending_tasks(db: Session, user_id: int) -> list[models.Task]:
     """Get incomplete tasks for a user."""
     from sqlalchemy import nullslast
 
-    return (
+    tasks = (
         db.query(models.Task)
         .filter(models.Task.user_id == user_id, models.Task.is_completed.is_(False))
         .order_by(
@@ -249,6 +371,9 @@ def get_pending_tasks(db: Session, user_id: int) -> list[models.Task]:
         )
         .all()
     )
+    for t in tasks:
+        _decrypt_model_content(t, user_id)
+    return tasks
 
 
 def get_completed_tasks(
@@ -257,7 +382,7 @@ def get_completed_tasks(
     """Get completed tasks for a user with pagination."""
     from sqlalchemy import nullslast
 
-    return (
+    tasks = (
         db.query(models.Task)
         .filter(models.Task.user_id == user_id, models.Task.is_completed)
         .order_by(
@@ -268,6 +393,9 @@ def get_completed_tasks(
         .limit(limit)
         .all()
     )
+    for t in tasks:
+        _decrypt_model_content(t, user_id)
+    return tasks
 
 
 def get_completed_tasks_count(db: Session, user_id: int) -> int:
@@ -285,10 +413,26 @@ def create_task(
     # Validate deadline is not in the past
     if deadline and deadline < date.today():
         raise ValueError("截止日期不能早于今天")
-    task = models.Task(user_id=user_id, content=content, deadline=deadline)
+    key = key_cache.get(user_id)
+    if key:
+        salt = generate_salt()
+        encrypted = encrypt_content(content, key)
+        task = models.Task(
+            user_id=user_id,
+            content="",
+            content_encrypted=encrypted["ciphertext"],
+            content_salt=salt.hex(),
+            content_nonce=encrypted["nonce"],
+            content_tag=encrypted["tag"],
+            content_version=1,
+            deadline=deadline,
+        )
+    else:
+        task = models.Task(user_id=user_id, content=content, deadline=deadline)
     db.add(task)
     db.commit()
     db.refresh(task)
+    _decrypt_model_content(task, user_id)
     return task
 
 
@@ -311,7 +455,23 @@ def update_task(
     if not task:
         return None
     if content is not None:
-        task.content = content
+        key = key_cache.get(user_id)
+        if key:
+            salt = generate_salt()
+            encrypted = encrypt_content(content, key)
+            task.content = ""
+            task.content_encrypted = encrypted["ciphertext"]
+            task.content_salt = salt.hex()
+            task.content_nonce = encrypted["nonce"]
+            task.content_tag = encrypted["tag"]
+            task.content_version = 1
+        else:
+            task.content = content
+            task.content_encrypted = None
+            task.content_salt = None
+            task.content_nonce = None
+            task.content_tag = None
+            task.content_version = None
     if deadline is not None:
         task.deadline = deadline
     if is_completed is not None:
@@ -319,6 +479,7 @@ def update_task(
     task.updated_at = datetime.now(UTC)
     db.commit()
     db.refresh(task)
+    _decrypt_model_content(task, user_id)
     return task
 
 
@@ -333,3 +494,26 @@ def delete_task(db: Session, user_id: int, task_id: int) -> bool:
         db.commit()
         return True
     return False
+
+
+def get_task_decrypted(db: Session, user_id: int, task_id: int) -> str | None:
+    task = (
+        db.query(models.Task)
+        .filter(models.Task.id == task_id, models.Task.user_id == user_id)
+        .first()
+    )
+    if not task:
+        return None
+    if task.content_encrypted:
+        key = key_cache.get(user_id)
+        if not key:
+            return None
+        return decrypt_content(
+            {
+                "ciphertext": task.content_encrypted,
+                "nonce": task.content_nonce or "",
+                "tag": task.content_tag or "",
+            },
+            key,
+        )
+    return task.content

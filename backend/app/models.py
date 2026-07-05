@@ -30,8 +30,8 @@ class User(Base):
     password_hash = Column(String(255), nullable=False)
     password_version = Column(Integer, default=0, nullable=False)
     role = Column(String(20), nullable=False, default="user")
+    needs_encryption_migration = Column(Boolean, default=True, nullable=False)
     created_at = Column(DateTime, default=_utcnow, nullable=False)
-
     daily_reports = relationship("DailyReport", back_populates="user")
     weekly_reports = relationship("WeeklyReport", back_populates="user")
 
@@ -43,6 +43,11 @@ class DailyReport(Base):
     user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
     date = Column(Date, nullable=False)
     content = Column(Text, nullable=False, default="")
+    content_encrypted = Column(Text, nullable=True)
+    content_salt = Column(String(64), nullable=True)
+    content_nonce = Column(String(64), nullable=True)
+    content_tag = Column(String(64), nullable=True)
+    content_version = Column(Integer, nullable=True)
     created_at = Column(DateTime, default=_utcnow, nullable=False)
     updated_at = Column(DateTime, default=_utcnow, onupdate=_utcnow, nullable=False)
 
@@ -59,6 +64,11 @@ class WeeklyReport(Base):
     week_start = Column(Date, nullable=False)  # Monday
     week_end = Column(Date, nullable=False)  # Sunday
     content = Column(Text, nullable=False)
+    content_encrypted = Column(Text, nullable=True)
+    content_salt = Column(String(64), nullable=True)
+    content_nonce = Column(String(64), nullable=True)
+    content_tag = Column(String(64), nullable=True)
+    content_version = Column(Integer, nullable=True)
     model_name = Column(String(100), nullable=False, default="")
     generated_at = Column(DateTime, default=_utcnow, nullable=False)
 
@@ -85,6 +95,11 @@ class Task(Base):
     id = Column(Integer, primary_key=True, index=True)
     user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
     content = Column(Text, nullable=False)
+    content_encrypted = Column(Text, nullable=True)
+    content_salt = Column(String(64), nullable=True)
+    content_nonce = Column(String(64), nullable=True)
+    content_tag = Column(String(64), nullable=True)
+    content_version = Column(Integer, nullable=True)
     deadline = Column(Date, nullable=True)
     is_completed = Column(Boolean, default=False, nullable=False)
     created_at = Column(DateTime, default=_utcnow, nullable=False)

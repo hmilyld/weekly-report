@@ -30,12 +30,12 @@ docker build -t "${IMAGE_NAME}:${TAG}" .
 # ─── 冒烟测试 ────────────────────────────────────────────────
 echo "🧪 冒烟测试 ..."
 docker rm -f "${CONTAINER_NAME}" 2>/dev/null || true
-docker run -d --name "${CONTAINER_NAME}" -p 8099:8000 \
+docker run -d --name "${CONTAINER_NAME}" -p 18001:18001 \
   -e JWT_SECRET_KEY=smoke-test-secret-key-12345678 \
   "${IMAGE_NAME}:${TAG}"
 
 sleep 5
-HEALTH=$(curl -sf http://localhost:8099/api/v1/health || echo "FAIL")
+HEALTH=$(curl -sf http://localhost:18001/api/v1/health || echo "FAIL")
 docker rm -f "${CONTAINER_NAME}" 2>/dev/null || true
 
 if [[ "${HEALTH}" == *"ok"* ]]; then
@@ -64,4 +64,4 @@ if [[ "${TAG}" != "latest" ]]; then
 fi
 echo ""
 echo "使用方式:"
-echo "   docker run -d -p 8000:8000 -v weekly-report-data:/app/data -e JWT_SECRET_KEY=your-secret ${IMAGE_NAME}:${TAG}"
+echo "   docker run -d -p 18001:18001 -v weekly-report-data:/app/data -e JWT_SECRET_KEY=your-secret ${IMAGE_NAME}:${TAG}"
