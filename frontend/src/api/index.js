@@ -54,6 +54,14 @@ export const generateWeeklyReport = (weekStart) => api.post(`/weekly/${weekStart
 export const updateWeeklyReport = (weekStart, content) =>
   api.put(`/weekly/${weekStart}`, { content })
 
+// ─── Monthly Reports ──────────────────────────────────
+export const getMonthlyReport = (year, month) => api.get(`/monthly/${year}/${month}`)
+
+export const generateMonthlyReport = (year, month) => api.post(`/monthly/${year}/${month}`)
+
+export const updateMonthlyReport = (year, month, content) =>
+  api.put(`/monthly/${year}/${month}`, { content })
+
 // ─── Config ────────────────────────────────────────────
 export const getConfig = () => api.get('/config')
 

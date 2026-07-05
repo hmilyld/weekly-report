@@ -20,6 +20,25 @@ SYSTEM_PROMPT = (
     "注意：语言简洁、专业，避免评价性词语（如优秀）。只输出周报内容，不要额外解释。"
 )
 
+MONTHLY_SYSTEM_PROMPT = (
+    "你是一个月报助手。请根据用户本月每天的工作记录（日报），生成一份简洁的月度工作总结。\n"
+    "核心原则：月报不是日报的简单罗列，而是对整月工作的归纳提炼。\n"
+    "生成步骤：\n"
+    "1. 先通读所有日报，识别涉及的项目、业务领域或工作类型\n"
+    "2. 将工作内容按项目/业务模块进行分类（如：XX项目、XX业务、合同管理、技术支持等）\n"
+    "3. 在每个分类下，将跨天的关联工作合并总结（例如1号启动、10号跟进、20号完成，合并为一条）\n"
+    "月报格式要求：\n"
+    "### 本月工作\n"
+    "先写一行分类小标题（如 **XX项目**），然后在该分类下列出相关工作内容。\n"
+    "每条工作用一句话概括核心内容，可适当润色使表达更专业流畅。\n"
+    "注意：\n"
+    "- 按项目/业务模块分类，而非按时间顺序\n"
+    "- 合并同一工作的多次记录，概述整体进展和成果\n"
+    "- 重点关注工作成果和进展状态，而非过程细节\n"
+    "- 语言简洁、专业，避免评价性词语（如优秀）\n"
+    "- 只输出月报内容，不要额外解释"
+)
+
 TIMEOUT_SECONDS = 30
 
 # SSRF protection: only allow http/https schemes
@@ -62,6 +81,15 @@ def _validate_llm_url(url: str) -> None:
 def build_user_prompt(daily_entries: list[tuple[str, str]]) -> str:
     """Build the user-side prompt from a list of (date_str, content) tuples."""
     lines = ["本周日报记录："]
+    for date_str, content in daily_entries:
+        clean = content.replace("\n", "；")
+        lines.append(f"{date_str}：{clean}")
+    return "\n".join(lines)
+
+
+def build_monthly_user_prompt(daily_entries: list[tuple[str, str]]) -> str:
+    """Build the user-side prompt for monthly report from a list of (date_str, content) tuples."""
+    lines = ["本月日报记录："]
     for date_str, content in daily_entries:
         clean = content.replace("\n", "；")
         lines.append(f"{date_str}：{clean}")
@@ -176,3 +204,61 @@ def test_connection(api_url: str, model_name: str, api_key: str = "") -> dict:
             "message": "Connection failed. Check URL and credentials.",
             "response": None,
         }
+
+
+def generate_monthly_report(
+    db: Session,
+    daily_entries: list[tuple[str, str]],
+) -> str:
+    """
+    Call the configured LLM to generate a monthly report.
+    Returns the generated text.
+    Raises RuntimeError on failure.
+    """
+    config = crud.get_app_config(db)
+    api_url = config.llm_api_url
+    model_name = config.llm_model_name
+    api_key = config.api_key or ""
+
+    # Validate URL before making request
+    try:
+        _validate_llm_url(api_url)
+    except ValueError as e:
+        raise RuntimeError(f"Invalid LLM configuration: {e}") from e
+
+    user_prompt = build_monthly_user_prompt(daily_entries)
+
+    headers = {"Content-Type": "application/json"}
+    if api_key:
+        headers["Authorization"] = f"Bearer {api_key}"
+
+    payload = {
+        "model": model_name,
+        "messages": [
+            {"role": "system", "content": MONTHLY_SYSTEM_PROMPT},
+            {"role": "user", "content": user_prompt},
+        ],
+        "temperature": 0.7,
+    }
+
+    try:
+        with httpx.Client(timeout=TIMEOUT_SECONDS) as client:
+            response = client.post(api_url, json=payload, headers=headers)
+            response.raise_for_status()
+            data = response.json()
+            return data["choices"][0]["message"]["content"]
+    except httpx.TimeoutException as err:
+        raise RuntimeError("LLM request timed out. Please try again.") from err
+    except httpx.HTTPStatusError as e:
+        logger.error("LLM API error: %s %s", e.response.status_code, e.response.text[:500])
+        raise RuntimeError(
+            f"LLM API returned status {e.response.status_code}. Please check your configuration."
+        ) from e
+    except (KeyError, IndexError) as e:
+        logger.error("Unexpected LLM response: %s", e)
+        raise RuntimeError("Unexpected response from LLM. Please check model configuration.") from e
+    except RuntimeError:
+        raise
+    except Exception as e:
+        logger.error("LLM call failed: %s", e)
+        raise RuntimeError("Failed to connect to LLM. Please check your API URL and key.") from e

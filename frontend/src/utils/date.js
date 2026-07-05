@@ -48,3 +48,25 @@ export function formatWeekRange(monday) {
   const end = `${sunday.getMonth() + 1}月${sunday.getDate()}日`
   return `${start} - ${end}`
 }
+
+/**
+ * Add months to a date (returns new Date).
+ * @param {Date} d
+ * @param {number} months
+ * @returns {Date}
+ */
+export function addMonths(d, months) {
+  const result = new Date(d)
+  result.setMonth(result.getMonth() + months)
+  return result
+}
+
+/**
+ * Format month as "YYYY年M月".
+ * @param {number} year
+ * @param {number} month
+ * @returns {string}
+ */
+export function formatMonth(year, month) {
+  return `${year}年${month}月`
+}

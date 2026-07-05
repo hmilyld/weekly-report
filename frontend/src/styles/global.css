@@ -726,7 +726,7 @@ textarea.form-input {
   color: var(--color-text-secondary);
 }
 
-/* ─── Mobile Top Bar (< 769px) ─────────────────────── */
+/* ─── Mobile Top Bar (< 1024px) ─────────────────────── */
 .mobile-topbar {
   display: none;
   position: fixed;
@@ -780,7 +780,7 @@ textarea.form-input {
   color: var(--color-text);
 }
 
-/* ─── Bottom Nav (< 769px) ──────────────────────────── */
+/* ─── Bottom Nav (< 1024px) ──────────────────────────── */
 .bottom-nav {
   display: none;
   position: fixed;
@@ -840,8 +840,8 @@ textarea.form-input {
   }
 }
 
-/* ─── Mobile (< 768px) ────────────────────────────────── */
-@media (max-width: 768px) {
+/* ─── Mobile (< 1024px) ────────────────────────────────── */
+@media (max-width: 1023px) {
   /* Show mobile top bar and bottom nav */
   .mobile-topbar {
     display: flex;
@@ -1324,8 +1324,8 @@ textarea.form-input {
   border: 2px solid var(--color-accent);
 }
 
-/* ─── Desktop (≥769px) ───────────────────────────────── */
-@media (min-width: 769px) {
+/* ─── Desktop (≥1024px) ───────────────────────────────── */
+@media (min-width: 1024px) {
   .mobile-topbar,
   .bottom-nav {
     display: none;

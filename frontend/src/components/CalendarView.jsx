@@ -47,7 +47,7 @@ function getMonthDays(year, month) {
 }
 
 export default function CalendarView({ onEditDate, onDeleteDate, refreshRef }) {
-  const isDesktop = useMediaQuery('(min-width: 769px)')
+  const isDesktop = useMediaQuery('(min-width: 1024px)')
   const today = new Date()
   const [year, setYear] = useState(today.getFullYear())
   const [month, setMonth] = useState(today.getMonth())

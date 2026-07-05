@@ -34,6 +34,7 @@ class User(Base):
     created_at = Column(DateTime, default=_utcnow, nullable=False)
     daily_reports = relationship("DailyReport", back_populates="user")
     weekly_reports = relationship("WeeklyReport", back_populates="user")
+    monthly_reports = relationship("MonthlyReport", back_populates="user")
 
 
 class DailyReport(Base):
@@ -75,6 +76,27 @@ class WeeklyReport(Base):
     user = relationship("User", back_populates="weekly_reports")
 
     __table_args__ = (UniqueConstraint("user_id", "week_start", name="uq_user_week_start"),)
+
+
+class MonthlyReport(Base):
+    __tablename__ = "monthly_reports"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    year = Column(Integer, nullable=False)
+    month = Column(Integer, nullable=False)
+    content = Column(Text, nullable=False)
+    content_encrypted = Column(Text, nullable=True)
+    content_salt = Column(String(64), nullable=True)
+    content_nonce = Column(String(64), nullable=True)
+    content_tag = Column(String(64), nullable=True)
+    content_version = Column(Integer, nullable=True)
+    model_name = Column(String(100), nullable=False, default="")
+    generated_at = Column(DateTime, default=_utcnow, nullable=False)
+
+    user = relationship("User", back_populates="monthly_reports")
+
+    __table_args__ = (UniqueConstraint("user_id", "year", "month", name="uq_user_year_month"),)
 
 
 class AppConfig(Base):

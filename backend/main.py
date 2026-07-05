@@ -12,7 +12,7 @@ from fastapi.staticfiles import StaticFiles
 from app.database import Base, SessionLocal, engine
 from app.models import AppConfig
 from app.models_token import ApiToken  # noqa: F401 — ensure table is created
-from app.routers import auth, config, daily, external, tasks, tokens, users, weekly
+from app.routers import auth, config, daily, external, monthly, tasks, tokens, users, weekly
 
 
 def _migrate_db():
@@ -48,7 +48,7 @@ def _migrate_db():
         print("ℹ️  users table does not exist yet (first run)")
 
     # ── encryption columns for each content table ──────────
-    for table in ("daily_reports", "weekly_reports", "tasks"):
+    for table in ("daily_reports", "weekly_reports", "tasks", "monthly_reports"):
         if table not in existing_tables:
             continue
         try:
@@ -141,6 +141,7 @@ async def security_headers(request: Request, call_next):
 app.include_router(auth.router)
 app.include_router(daily.router)
 app.include_router(weekly.router)
+app.include_router(monthly.router)
 app.include_router(config.router)
 app.include_router(tokens.router)
 app.include_router(external.router)

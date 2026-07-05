@@ -95,6 +95,25 @@ class WeeklyReportUpdate(BaseModel):
     content: str = Field(max_length=50000)
 
 
+# ─── Monthly Report ────────────────────────────────────
+
+
+class MonthlyReportResponse(BaseModel):
+    model_config = {"from_attributes": True, "protected_namespaces": ()}
+
+    id: int
+    user_id: int
+    year: int
+    month: int
+    content: str
+    model_name: str
+    generated_at: datetime
+
+
+class MonthlyReportUpdate(BaseModel):
+    content: str = Field(max_length=50000)
+
+
 # ─── App Config ─────────────────────────────────────────
 
 

@@ -159,7 +159,7 @@ function WeekListView({ onEditDate, refreshRef }) {
 /* ─── Main Component ──────────────────────────────────── */
 
 export default function DailyReport() {
-  const isDesktop = useMediaQuery('(min-width: 769px)')
+  const isDesktop = useMediaQuery('(min-width: 1024px)')
   const [modal, setModal] = useState({ open: false, date: null, content: '' })
   const refreshRef = useRef(null)
 

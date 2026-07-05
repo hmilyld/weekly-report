@@ -562,7 +562,7 @@ function MobileFilterView() {
 /* ─── Main Component ────────────────────────────────────── */
 
 export default function Tasks() {
-  const isDesktop = useMediaQuery('(min-width: 769px)')
+  const isDesktop = useMediaQuery('(min-width: 1024px)')
 
   return (
     <>

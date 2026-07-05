@@ -11,6 +11,7 @@ import {
   Monitor,
   CheckSquare,
   Users,
+  CalendarDays,
 } from 'lucide-react'
 import { getAuthStatus } from './api'
 import { ThemeProvider, useTheme } from './contexts/ThemeContext'
@@ -19,6 +20,7 @@ import Login from './pages/Login'
 import Setup from './pages/Setup'
 import DailyReport from './pages/DailyReport'
 import WeeklyReport from './pages/WeeklyReport'
+import MonthlyReport from './pages/MonthlyReport'
 import Tasks from './pages/Tasks'
 import SettingsPage from './pages/Settings'
 import UserManagement from './pages/UserManagement'
@@ -56,7 +58,7 @@ function ThemeToggle({ className }) {
   )
 }
 
-/* ─── Top Nav (PC ≥ 769px) ──────────────────────────── */
+/* ─── Top Nav (PC ≥ 1024px) ──────────────────────────── */
 
 function TopNav() {
   const navigate = useNavigate()
@@ -65,6 +67,7 @@ function TopNav() {
   const links = [
     { to: '/', icon: Calendar, label: '日报管理' },
     { to: '/weekly', icon: FileText, label: '周报管理' },
+    { to: '/monthly', icon: CalendarDays, label: '月报管理' },
     { to: '/tasks', icon: CheckSquare, label: '工作待办' },
     { to: '/settings', icon: Settings, label: '系统配置' },
   ]
@@ -110,7 +113,7 @@ function TopNav() {
   )
 }
 
-/* ─── Mobile Top Bar (< 769px) ─────────────────────── */
+/* ─── Mobile Top Bar (< 1024px) ─────────────────────── */
 
 function MobileTopBar() {
   const navigate = useNavigate()
@@ -135,7 +138,7 @@ function MobileTopBar() {
   )
 }
 
-/* ─── Bottom Nav (Mobile < 769px) ────────────────────── */
+/* ─── Bottom Nav (Mobile < 1024px) ────────────────────── */
 
 function BottomNav() {
   const { isAdmin } = useAuth()
@@ -143,6 +146,7 @@ function BottomNav() {
   const links = [
     { to: '/', icon: Calendar, label: '日报' },
     { to: '/weekly', icon: FileText, label: '周报' },
+    { to: '/monthly', icon: CalendarDays, label: '月报' },
     { to: '/tasks', icon: CheckSquare, label: '待办' },
     { to: '/settings', icon: Settings, label: '设置' },
   ]
@@ -172,7 +176,7 @@ function BottomNav() {
 
 function AppLayout() {
   const { isAdmin } = useAuth()
-  const isDesktop = useMediaQuery('(min-width: 769px)')
+  const isDesktop = useMediaQuery('(min-width: 1024px)')
 
   return (
     <div className={`app-layout ${isDesktop ? 'has-topnav' : 'has-bottomnav'}`}>
@@ -189,6 +193,7 @@ function AppLayout() {
           <Routes>
             <Route path="/" element={<DailyReport />} />
             <Route path="/weekly" element={<WeeklyReport />} />
+            <Route path="/monthly" element={<MonthlyReport />} />
             <Route path="/tasks" element={<Tasks />} />
             <Route path="/settings" element={<SettingsPage />} />
             {isAdmin && <Route path="/users" element={<UserManagement />} />}
@@ -236,7 +241,7 @@ export default function App() {
       <AuthProvider>
         <BrowserRouter>
           <Toaster
-            position={window.innerWidth < 769 ? 'bottom-center' : 'top-right'}
+            position={window.innerWidth < 1024 ? 'bottom-center' : 'top-right'}
             toastOptions={{
               duration: 3000,
               style: {
@@ -245,7 +250,7 @@ export default function App() {
                 borderRadius: '8px',
               },
             }}
-            containerStyle={window.innerWidth < 769 ? { bottom: 80 } : { top: 20 }}
+            containerStyle={window.innerWidth < 1024 ? { bottom: 80 } : { top: 20 }}
           />
           <Routes>
             <Route

@@ -8,6 +8,56 @@ from . import models
 from .crypto import decrypt_content, encrypt_content, generate_salt
 from .key_cache import key_cache
 
+
+def _encrypt_and_set_content(model, content: str, user_id: int) -> None:
+    """Encrypt content and set all encryption fields on a model instance."""
+    key = key_cache.get(user_id)
+    if key:
+        salt = generate_salt()
+        encrypted = encrypt_content(content, key)
+        model.content = ""
+        model.content_encrypted = encrypted["ciphertext"]
+        model.content_salt = salt.hex()
+        model.content_nonce = encrypted["nonce"]
+        model.content_tag = encrypted["tag"]
+        model.content_version = 1
+    else:
+        model.content = content
+        model.content_encrypted = None
+        model.content_salt = None
+        model.content_nonce = None
+        model.content_tag = None
+        model.content_version = None
+
+
+def _save_encrypted_report(
+    db: Session,
+    model_class,
+    existing,
+    user_id: int,
+    content: str,
+    model_name: str,
+    **kwargs,
+):
+    """Generic save function for encrypted reports (weekly/monthly)."""
+    if existing:
+        existing.model_name = model_name
+        _encrypt_and_set_content(existing, content, user_id)
+        existing.generated_at = datetime.now(UTC)
+        db.commit()
+        db.refresh(existing)
+        _decrypt_model_content(existing, user_id)
+        return existing
+
+    report = model_class(user_id=user_id, model_name=model_name, **kwargs)
+    _encrypt_and_set_content(report, content, user_id)
+    db.add(report)
+    db.commit()
+    db.refresh(report)
+    _decrypt_model_content(report, user_id)
+    return report
+
+
 # ─── User ───────────────────────────────────────────────
 
 
@@ -40,6 +90,7 @@ def delete_user(db: Session, user_id: int) -> bool:
     # Cascade delete related records
     db.query(models.DailyReport).filter(models.DailyReport.user_id == user_id).delete()
     db.query(models.WeeklyReport).filter(models.WeeklyReport.user_id == user_id).delete()
+    db.query(models.MonthlyReport).filter(models.MonthlyReport.user_id == user_id).delete()
     db.query(models.Task).filter(models.Task.user_id == user_id).delete()
     # Delete API tokens (import here to avoid circular import)
     from .models_token import ApiToken
@@ -245,61 +296,71 @@ def save_weekly_report(
     content: str,
     model_name: str,
 ) -> models.WeeklyReport:
-    key = key_cache.get(user_id)
     existing = get_weekly_report(db, user_id, week_start)
-    if existing:
-        existing.model_name = model_name
-        if key:
-            salt = generate_salt()
-            encrypted = encrypt_content(content, key)
-            existing.content = ""
-            existing.content_encrypted = encrypted["ciphertext"]
-            existing.content_salt = salt.hex()
-            existing.content_nonce = encrypted["nonce"]
-            existing.content_tag = encrypted["tag"]
-            existing.content_version = 1
-        else:
-            existing.content = content
-            existing.content_encrypted = None
-            existing.content_salt = None
-            existing.content_nonce = None
-            existing.content_tag = None
-            existing.content_version = None
-        from datetime import datetime
+    return _save_encrypted_report(
+        db,
+        models.WeeklyReport,
+        existing,
+        user_id,
+        content,
+        model_name,
+        week_start=week_start,
+        week_end=week_end,
+    )
 
-        existing.generated_at = datetime.now(UTC)
-        db.commit()
-        db.refresh(existing)
-        _decrypt_model_content(existing, user_id)
-        return existing
-    if key:
-        salt = generate_salt()
-        encrypted = encrypt_content(content, key)
-        report = models.WeeklyReport(
-            user_id=user_id,
-            week_start=week_start,
-            week_end=week_end,
-            content="",
-            content_encrypted=encrypted["ciphertext"],
-            content_salt=salt.hex(),
-            content_nonce=encrypted["nonce"],
-            content_tag=encrypted["tag"],
-            content_version=1,
-            model_name=model_name,
+
+# ─── Monthly Report ────────────────────────────────────
+
+
+def get_monthly_report(
+    db: Session, user_id: int, year: int, month: int
+) -> models.MonthlyReport | None:
+    report = (
+        db.query(models.MonthlyReport)
+        .filter(
+            models.MonthlyReport.user_id == user_id,
+            models.MonthlyReport.year == year,
+            models.MonthlyReport.month == month,
         )
-    else:
-        report = models.WeeklyReport(
-            user_id=user_id,
-            week_start=week_start,
-            week_end=week_end,
-            content=content,
-            model_name=model_name,
-        )
-    db.add(report)
-    db.commit()
-    db.refresh(report)
-    _decrypt_model_content(report, user_id)
+        .first()
+    )
+    if report:
+        _decrypt_model_content(report, user_id)
     return report
+
+
+def get_monthly_reports(db: Session, user_id: int, limit: int = 12) -> list[models.MonthlyReport]:
+    reports = (
+        db.query(models.MonthlyReport)
+        .filter(models.MonthlyReport.user_id == user_id)
+        .order_by(models.MonthlyReport.year.desc(), models.MonthlyReport.month.desc())
+        .limit(limit)
+        .all()
+    )
+    for r in reports:
+        _decrypt_model_content(r, user_id)
+    return reports
+
+
+def save_monthly_report(
+    db: Session,
+    user_id: int,
+    year: int,
+    month: int,
+    content: str,
+    model_name: str,
+) -> models.MonthlyReport:
+    existing = get_monthly_report(db, user_id, year, month)
+    return _save_encrypted_report(
+        db,
+        models.MonthlyReport,
+        existing,
+        user_id,
+        content,
+        model_name,
+        year=year,
+        month=month,
+    )
 
 
 # ─── App Config ─────────────────────────────────────────
