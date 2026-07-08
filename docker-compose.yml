@@ -3,6 +3,7 @@ services:
     image: hmilyld/weekly-report:latest
     build: .
     container_name: weekly-report
+    user: "${UID:-1000}:${GID:-1000}"
     ports:
       - "127.0.0.1:18001:18001"
     volumes:
