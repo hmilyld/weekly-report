@@ -25,7 +25,7 @@ api.interceptors.response.use(
   (res) => {
     // Check for decryption failed in response data
     const data = res.data
-    if (data && (data._decryption_failed || data.tasks?.some?.(t => t._decryption_failed))) {
+    if (data && data._decryption_failed) {
       if (_showReLogin) {
         _showReLogin()
       }

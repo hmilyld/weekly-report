@@ -5,8 +5,53 @@ from datetime import UTC, date, datetime, timedelta
 from sqlalchemy.orm import Session
 
 from . import models
+import base64
+import hashlib
+import os
+
 from .crypto import decrypt_content, encrypt_content, generate_salt
 from .key_cache import key_cache
+
+
+def _get_api_key_encryption_key() -> bytes:
+    """Derive encryption key for API key storage from JWT secret."""
+    from .config import settings
+    # Use JWT secret as base, derive a separate key for API key encryption
+    return hashlib.pbkdf2_hmac(
+        "sha256",
+        settings.jwt_secret_key.encode(),
+        b"api_key_encryption_salt",
+        100000,
+        dklen=32,
+    )
+
+
+def encrypt_api_key(api_key: str) -> str | None:
+    """Encrypt API key for storage."""
+    if not api_key:
+        return None
+    key = _get_api_key_encryption_key()
+    encrypted = encrypt_content(api_key, key)
+    return base64.b64encode(
+        f"{encrypted['ciphertext']}:{encrypted['nonce']}:{encrypted['tag']}".encode()
+    ).decode()
+
+
+def decrypt_api_key(encrypted_api_key: str) -> str | None:
+    """Decrypt API key from storage."""
+    if not encrypted_api_key:
+        return None
+    try:
+        decoded = base64.b64decode(encrypted_api_key).decode()
+        ciphertext, nonce, tag = decoded.split(":")
+        key = _get_api_key_encryption_key()
+        return decrypt_content(
+            {"ciphertext": ciphertext, "nonce": nonce, "tag": tag},
+            key,
+        )
+    except Exception:
+        # If decryption fails, return as-is (backward compatibility)
+        return encrypted_api_key
 
 
 def _encrypt_and_set_content(model, content: str, user_id: int) -> None:
@@ -383,6 +428,9 @@ def get_app_config(db: Session) -> models.AppConfig:
         db.add(config)
         db.commit()
         db.refresh(config)
+    # Decrypt API key if it's encrypted
+    if config.api_key:
+        config.api_key = decrypt_api_key(config.api_key)
     return config
 
 
@@ -392,19 +440,22 @@ def update_app_config(
     llm_model_name: str | None = None,
     api_key: str | None = None,
 ) -> models.AppConfig:
-    config = get_app_config(db)
+    config = db.query(models.AppConfig).filter(models.AppConfig.id == 1).first()
+    if not config:
+        config = models.AppConfig(id=1)
+        db.add(config)
     if llm_api_url is not None:
         config.llm_api_url = llm_api_url
     if llm_model_name is not None:
         config.llm_model_name = llm_model_name
     # Skip masked keys (contain *) — only update with real keys
     if api_key is not None and "*" not in api_key:
-        config.api_key = api_key
-    from datetime import datetime
-
+        config.api_key = encrypt_api_key(api_key)
     config.updated_at = datetime.now(UTC)
     db.commit()
     db.refresh(config)
+    # Return with decrypted API key
+    config.api_key = decrypt_api_key(config.api_key) if config.api_key else None
     return config
 
 
