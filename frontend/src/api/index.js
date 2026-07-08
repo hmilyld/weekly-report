@@ -20,9 +20,18 @@ api.interceptors.request.use((config) => {
   return config
 })
 
-// Handle 401 globally → show re-login modal or redirect
+// Handle 401 or decryption failed → show re-login modal or redirect
 api.interceptors.response.use(
-  (res) => res,
+  (res) => {
+    // Check for decryption failed in response data
+    const data = res.data
+    if (data && (data._decryption_failed || data.tasks?.some?.(t => t._decryption_failed))) {
+      if (_showReLogin) {
+        _showReLogin()
+      }
+    }
+    return res
+  },
   (err) => {
     if (err.response?.status === 401) {
       // 如果有重新登录处理器，使用它（避免页面跳转）

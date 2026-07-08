@@ -123,11 +123,17 @@ def get_daily_report(db: Session, user_id: int, report_date: date) -> models.Dai
 
 
 def _decrypt_model_content(model, user_id: int):
-    """Decrypt content_encrypted field back into content on a model instance."""
+    """Decrypt content_encrypted field back into content on a model instance.
+
+    If decryption fails (e.g., key not in cache after server restart),
+    sets _decryption_failed attribute for frontend to detect.
+    """
     if not model.content_encrypted:
         return
     key = key_cache.get(user_id)
     if not key:
+        # Key not in cache - mark as decryption failed
+        model._decryption_failed = True
         return
     try:
         model.content = decrypt_content(
@@ -138,8 +144,9 @@ def _decrypt_model_content(model, user_id: int):
             },
             key,
         )
+        model._decryption_failed = False
     except Exception:
-        pass
+        model._decryption_failed = True
 
 
 def get_daily_reports_by_week(

@@ -38,7 +38,9 @@ function useTaskList() {
   const fetchPendingTasks = useCallback(async () => {
     try {
       const { data } = await getTasks()
-      setPendingTasks(data.filter((t) => !t.is_completed))
+      // 新格式: { tasks: [...], _decryption_failed: bool }
+      const tasks = Array.isArray(data) ? data : data.tasks || []
+      setPendingTasks(tasks.filter((t) => !t.is_completed))
     } catch {
       toast.error('加载待办失败')
     } finally {

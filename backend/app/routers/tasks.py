@@ -12,13 +12,33 @@ from ..schemas import TaskCreate, TaskResponse, TaskUpdate
 router = APIRouter(prefix="/api/v1/tasks", tags=["tasks"])
 
 
-@router.get("", response_model=list[TaskResponse])
+@router.get("")
 def list_tasks(
     user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
     """List all tasks for the current user."""
-    return crud.get_tasks(db, user.id)
+    tasks = crud.get_tasks(db, user.id)
+    
+    # Check if any task has decryption failed
+    has_decryption_failed = any(getattr(t, '_decryption_failed', False) for t in tasks)
+    
+    return {
+        "tasks": [
+            {
+                "id": t.id,
+                "user_id": t.user_id,
+                "content": t.content,
+                "deadline": str(t.deadline) if t.deadline else None,
+                "is_completed": t.is_completed,
+                "created_at": t.created_at.isoformat(),
+                "updated_at": t.updated_at.isoformat(),
+                "_decryption_failed": getattr(t, '_decryption_failed', False),
+            }
+            for t in tasks
+        ],
+        "_decryption_failed": has_decryption_failed,
+    }
 
 
 @router.get("/completed")
@@ -31,6 +51,10 @@ def list_completed_tasks(
     """List completed tasks with pagination."""
     tasks = crud.get_completed_tasks(db, user.id, offset, limit)
     total = crud.get_completed_tasks_count(db, user.id)
+    
+    # Check if any task has decryption failed
+    has_decryption_failed = any(getattr(t, '_decryption_failed', False) for t in tasks)
+    
     return {
         "tasks": [
             {
@@ -41,12 +65,14 @@ def list_completed_tasks(
                 "is_completed": t.is_completed,
                 "created_at": t.created_at.isoformat(),
                 "updated_at": t.updated_at.isoformat(),
+                "_decryption_failed": getattr(t, '_decryption_failed', False),
             }
             for t in tasks
         ],
         "total": total,
         "offset": offset,
         "limit": limit,
+        "_decryption_failed": has_decryption_failed,
     }
 
 
