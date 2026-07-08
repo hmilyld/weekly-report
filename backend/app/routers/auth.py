@@ -116,8 +116,9 @@ def login(body: LoginRequest, request: Request, db: Session = Depends(get_db)):
     key = derive_user_key(body.password, user)
     key_cache.set(user.id, key)
 
-    if user.needs_encryption_migration:
-        migrate_user_encryption(db, user.id, key)
+    # Always check for and encrypt any plaintext content
+    # (e.g., content written via API token while not logged in)
+    migrate_user_encryption(db, user.id, key)
 
     return TokenResponse(access_token=token)
 

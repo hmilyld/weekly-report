@@ -40,7 +40,8 @@ class TestUpsertDailyReportEncrypted:
         assert report.content_encrypted is not None
         assert report.content_salt is not None
         assert report.content_version == 1
-        assert report.content == ""
+        # content is decrypted back to plaintext on return
+        assert report.content == "secret note"
 
     def test_plaintext_when_no_key(self, db_session, user):
         key_cache.remove(user.id)
@@ -75,7 +76,8 @@ class TestCreateTaskEncrypted:
         assert task.content_encrypted is not None
         assert task.content_salt is not None
         assert task.content_version == 1
-        assert task.content == ""
+        # content is decrypted back to plaintext on return
+        assert task.content == "secret task"
 
     def test_plaintext_when_no_key(self, db_session, user):
         key_cache.remove(user.id)
