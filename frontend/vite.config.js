@@ -3,8 +3,14 @@ import react from '@vitejs/plugin-react'
 import { VitePWA } from 'vite-plugin-pwa'
 import { execSync } from 'child_process'
 
-// 获取版本号：yyyyMMdd-commit（取前7位）
+// 获取版本号：优先使用环境变量，否则从 git 获取
 function getVersion() {
+  // 优先使用环境变量（Docker 构建时传入）
+  if (process.env.APP_VERSION) {
+    return process.env.APP_VERSION
+  }
+
+  // 从 git 获取版本号
   try {
     const date = execSync('git log -1 --format=%cd --date=format:%Y%m%d', {
       encoding: 'utf-8',

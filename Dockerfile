@@ -12,7 +12,10 @@ RUN pnpm install --frozen-lockfile
 
 # Copy source and build
 COPY frontend/ ./
-RUN pnpm run build
+
+# Version argument from build context
+ARG APP_VERSION=dev
+RUN APP_VERSION=${APP_VERSION} pnpm run build
 
 # ─── Stage 2: Runtime ───────────────────────────────────
 FROM python:3.11-slim
