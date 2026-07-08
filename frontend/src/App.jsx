@@ -16,6 +16,8 @@ import {
 import { getAuthStatus } from './api'
 import { ThemeProvider, useTheme } from './contexts/ThemeContext'
 import { AuthProvider, useAuth } from './contexts/AuthContext'
+import ReLoginModal from './components/ReLoginModal'
+import { setReLoginHandler } from './api'
 import Login from './pages/Login'
 import Setup from './pages/Setup'
 import DailyReport from './pages/DailyReport'
@@ -177,6 +179,18 @@ function BottomNav() {
 function AppLayout() {
   const { isAdmin } = useAuth()
   const isDesktop = useMediaQuery('(min-width: 1024px)')
+  const [showReLogin, setShowReLogin] = useState(false)
+
+  // 设置重新登录处理器
+  useEffect(() => {
+    setReLoginHandler(() => setShowReLogin(true))
+    return () => setReLoginHandler(null)
+  }, [])
+
+  const handleReLoginSuccess = () => {
+    setShowReLogin(false)
+    window.location.reload()
+  }
 
   return (
     <div className={`app-layout ${isDesktop ? 'has-topnav' : 'has-bottomnav'}`}>
@@ -201,7 +215,9 @@ function AppLayout() {
         </main>
         <footer className="app-footer">
           © {new Date().getFullYear()} hmilyld · 周报自动生成系统
+          {typeof __APP_VERSION__ !== 'undefined' && <span className="app-version"> v{__APP_VERSION__}</span>}
         </footer>
+        {showReLogin && <ReLoginModal onClose={() => setShowReLogin(false)} onSuccess={handleReLoginSuccess} />}
       </div>
     </div>
   )

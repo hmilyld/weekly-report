@@ -1,5 +1,11 @@
 import axios from 'axios'
 
+// 全局重新登录状态
+let _showReLogin = null
+export const setReLoginHandler = (handler) => {
+  _showReLogin = handler
+}
+
 const api = axios.create({
   baseURL: '/api/v1',
   timeout: 30000,
@@ -14,13 +20,18 @@ api.interceptors.request.use((config) => {
   return config
 })
 
-// Handle 401 globally → redirect to login
+// Handle 401 globally → show re-login modal or redirect
 api.interceptors.response.use(
   (res) => res,
   (err) => {
     if (err.response?.status === 401) {
-      localStorage.removeItem('token')
-      window.location.href = '/login'
+      // 如果有重新登录处理器，使用它（避免页面跳转）
+      if (_showReLogin) {
+        _showReLogin()
+      } else {
+        localStorage.removeItem('token')
+        window.location.href = '/login'
+      }
     }
     return Promise.reject(err)
   },
