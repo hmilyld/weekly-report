@@ -247,14 +247,17 @@ def get_daily_report_decrypted(db: Session, user_id: int, report_date: date) -> 
         key = key_cache.get(user_id)
         if not key:
             return None
-        return decrypt_content(
-            {
-                "ciphertext": report.content_encrypted,
-                "nonce": report.content_nonce or "",
-                "tag": report.content_tag or "",
-            },
-            key,
-        )
+        try:
+            return decrypt_content(
+                {
+                    "ciphertext": report.content_encrypted,
+                    "nonce": report.content_nonce or "",
+                    "tag": report.content_tag or "",
+                },
+                key,
+            )
+        except Exception:
+            return None
     return report.content
 
 
@@ -569,12 +572,15 @@ def get_task_decrypted(db: Session, user_id: int, task_id: int) -> str | None:
         key = key_cache.get(user_id)
         if not key:
             return None
-        return decrypt_content(
-            {
-                "ciphertext": task.content_encrypted,
-                "nonce": task.content_nonce or "",
-                "tag": task.content_tag or "",
-            },
-            key,
-        )
+        try:
+            return decrypt_content(
+                {
+                    "ciphertext": task.content_encrypted,
+                    "nonce": task.content_nonce or "",
+                    "tag": task.content_tag or "",
+                },
+                key,
+            )
+        except Exception:
+            return None
     return task.content
