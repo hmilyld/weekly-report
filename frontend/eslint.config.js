@@ -6,7 +6,7 @@ import react from 'eslint-plugin-react'
 
 export default [
   js.configs.recommended,
-  { ignores: ['dist/**', 'scripts/**'] },
+  { ignores: ['dist/**', 'scripts/**', 'vite.config.js'] },
   {
     files: ['**/*.{js,jsx}'],
     languageOptions: {

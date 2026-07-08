@@ -63,7 +63,9 @@ export default function CalendarView({ onEditDate, onDeleteDate, refreshRef }) {
     setLoading(true)
     try {
       const { data } = await getDailyReportsRange(rangeStart, rangeEnd)
-      setReports(data)
+      // 新格式: { reports: [...], _decryption_failed: bool }
+      const reports = Array.isArray(data) ? data : data.reports || []
+      setReports(reports)
     } catch {
       toast.error('加载日报失败')
     } finally {

@@ -45,7 +45,9 @@ export default function MonthlyReport() {
     setEditing(false)
     try {
       const { data } = await getMonthlyReport(year, month)
-      setReport(data)
+      // 新格式: { reports: [...], _decryption_failed: bool } 或单个报告对象
+      const report = data.reports ? data.reports[0] || null : data
+      setReport(report)
     } catch (err) {
       // 404 = not generated yet, which is fine
       if (err.response?.status !== 404) {
