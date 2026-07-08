@@ -26,16 +26,32 @@ def _get_month_bounds(year: int, month: int) -> tuple[date, date]:
     return date(year, month, 1), date(year, month, last_day)
 
 
-@router.get("", response_model=list[MonthlyReportResponse])
+@router.get("")
 def list_monthly_reports(
     user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
     """List all saved monthly reports."""
-    return crud.get_monthly_reports(db, user.id)
+    reports = crud.get_monthly_reports(db, user.id)
+    has_decryption_failed = any(getattr(r, '_decryption_failed', False) for r in reports)
+    return {
+        "reports": [
+            {
+                "id": r.id,
+                "year": r.year,
+                "month": r.month,
+                "content": r.content,
+                "model_name": r.model_name,
+                "generated_at": r.generated_at.isoformat(),
+                "_decryption_failed": getattr(r, '_decryption_failed', False),
+            }
+            for r in reports
+        ],
+        "_decryption_failed": has_decryption_failed,
+    }
 
 
-@router.get("/{year}/{month}", response_model=MonthlyReportResponse)
+@router.get("/{year}/{month}")
 def get_monthly_report(
     year: int,
     month: int,
@@ -46,7 +62,15 @@ def get_monthly_report(
     report = crud.get_monthly_report(db, user.id, year, month)
     if not report:
         raise HTTPException(status_code=404, detail="Monthly report not found")
-    return report
+    return {
+        "id": report.id,
+        "year": report.year,
+        "month": report.month,
+        "content": report.content,
+        "model_name": report.model_name,
+        "generated_at": report.generated_at.isoformat(),
+        "_decryption_failed": getattr(report, '_decryption_failed', False),
+    }
 
 
 @router.post("/{year}/{month}", response_model=MonthlyReportResponse)

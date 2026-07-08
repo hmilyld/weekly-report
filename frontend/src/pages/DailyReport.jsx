@@ -24,7 +24,9 @@ function WeekListView({ onEditDate, refreshRef }) {
     try {
       const ws = formatDate(currentMonday)
       const { data } = await getDailyReportsWeek(ws)
-      setReports(data)
+      // 新格式: { reports: [...], _decryption_failed: bool }
+      const reports = Array.isArray(data) ? data : data.reports || []
+      setReports(reports)
     } catch {
       toast.error('加载日报失败')
     } finally {

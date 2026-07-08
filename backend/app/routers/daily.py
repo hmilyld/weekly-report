@@ -14,7 +14,7 @@ from ..schemas import DailyReportCreate, DailyReportResponse
 router = APIRouter(prefix="/api/v1/daily", tags=["daily"])
 
 
-@router.get("", response_model=list[DailyReportResponse])
+@router.get("")
 def list_daily_reports(
     start_date: date | None = None,
     end_date: date | None = None,
@@ -23,25 +23,57 @@ def list_daily_reports(
 ):
     """List daily reports. Optional date range filter."""
     if start_date and end_date:
-        return crud.get_daily_reports_range(db, user.id, start_date, end_date)
-    # Default: return all
-    from datetime import timedelta
+        reports = crud.get_daily_reports_range(db, user.id, start_date, end_date)
+    else:
+        # Default: return all
+        from datetime import timedelta
 
-    if not start_date:
-        start_date = date(2020, 1, 1)
-    if not end_date:
-        end_date = date.today() + timedelta(days=365)
-    return crud.get_daily_reports_range(db, user.id, start_date, end_date)
+        if not start_date:
+            start_date = date(2020, 1, 1)
+        if not end_date:
+            end_date = date.today() + timedelta(days=365)
+        reports = crud.get_daily_reports_range(db, user.id, start_date, end_date)
+    
+    has_decryption_failed = any(getattr(r, '_decryption_failed', False) for r in reports)
+    return {
+        "reports": [
+            {
+                "id": r.id,
+                "date": str(r.date),
+                "content": r.content,
+                "created_at": r.created_at.isoformat(),
+                "updated_at": r.updated_at.isoformat(),
+                "_decryption_failed": getattr(r, '_decryption_failed', False),
+            }
+            for r in reports
+        ],
+        "_decryption_failed": has_decryption_failed,
+    }
 
 
-@router.get("/week/{week_start}", response_model=list[DailyReportResponse])
+@router.get("/week/{week_start}")
 def get_week_daily_reports(
     week_start: date,
     user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
     """Get daily reports for a specific week (Monday-Sunday)."""
-    return crud.get_daily_reports_by_week(db, user.id, week_start)
+    reports = crud.get_daily_reports_by_week(db, user.id, week_start)
+    has_decryption_failed = any(getattr(r, '_decryption_failed', False) for r in reports)
+    return {
+        "reports": [
+            {
+                "id": r.id,
+                "date": str(r.date),
+                "content": r.content,
+                "created_at": r.created_at.isoformat(),
+                "updated_at": r.updated_at.isoformat(),
+                "_decryption_failed": getattr(r, '_decryption_failed', False),
+            }
+            for r in reports
+        ],
+        "_decryption_failed": has_decryption_failed,
+    }
 
 
 @router.post("", response_model=DailyReportResponse, status_code=status.HTTP_201_CREATED)
