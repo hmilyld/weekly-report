@@ -11,6 +11,10 @@ IMAGE_NAME="hmilyld/weekly-report"
 TAG="${1:-latest}"
 CONTAINER_NAME="weekly-report-smoke-test"
 
+# ─── 获取版本号 ──────────────────────────────────────────────
+VERSION=$(date +%Y%m%d)-$(git rev-parse --short HEAD)
+echo "📦 版本号: ${VERSION}"
+
 # ─── 预检查 ──────────────────────────────────────────────────
 if ! command -v docker &>/dev/null; then
   echo "❌ 未找到 docker 命令，请先安装 Docker"
@@ -24,8 +28,8 @@ if ! docker info 2>/dev/null | grep -q "Username"; then
 fi
 
 # ─── 构建 ────────────────────────────────────────────────────
-echo "🔨 构建镜像 ${IMAGE_NAME}:${TAG} ..."
-docker build -t "${IMAGE_NAME}:${TAG}" .
+echo "🔨 构建镜像 ${IMAGE_NAME}:${TAG} (版本: ${VERSION}) ..."
+docker build --build-arg APP_VERSION="${VERSION}" -t "${IMAGE_NAME}:${TAG}" .
 
 # ─── 冒烟测试 ────────────────────────────────────────────────
 echo "🧪 冒烟测试 ..."
@@ -58,6 +62,7 @@ fi
 # ─── 完成 ────────────────────────────────────────────────────
 echo ""
 echo "✅ 发布完成！"
+echo "   版本: ${VERSION}"
 echo "   镜像: ${IMAGE_NAME}:${TAG}"
 if [[ "${TAG}" != "latest" ]]; then
   echo "   镜像: ${IMAGE_NAME}:latest"
