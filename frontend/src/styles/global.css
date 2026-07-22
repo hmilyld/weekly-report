@@ -1499,7 +1499,11 @@ textarea.form-input {
 }
 
 [data-theme='dark'] .task-item.overdue {
-  background: rgba(220, 38, 38, 0.1);
+  background: rgba(220, 38, 38, 0.2);
+}
+
+[data-theme='dark'] .task-deadline.overdue {
+  color: #f87171;
 }
 
 .task-item.urgent {
