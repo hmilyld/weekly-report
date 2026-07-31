@@ -10,6 +10,7 @@ from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
 from app.database import Base, SessionLocal, engine
+from app.migration import _cleanup_plaintext_content
 from app.models import AppConfig
 from app.models_token import ApiToken  # noqa: F401 — ensure table is created
 from app.routers import auth, config, daily, external, monthly, tasks, tokens, users, weekly
@@ -75,6 +76,7 @@ def _init_db():
         Base.metadata.create_all(bind=engine)
         print("✅ Database tables created/verified")
         _migrate_db()
+        _cleanup_plaintext_content(SessionLocal())
     except Exception as e:
         print(f"❌ Database init failed: {e}")
         raise
