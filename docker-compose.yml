@@ -1,6 +1,8 @@
 services:
   weekly-report:
-    image: hmilyld/weekly-report:latest
+    # 默认用 Docker Hub；改用 GitHub 镜像：
+    #   IMAGE=ghcr.io/hmilyld/weekly-report:latest docker compose up -d
+    image: ${IMAGE:-hmilyld/weekly-report:latest}
     build:
       context: .
       args:

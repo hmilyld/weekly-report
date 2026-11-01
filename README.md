@@ -99,6 +99,34 @@ docker run -d \
 ./scripts/docker-publish.sh v1.0.0   # 推送指定版本 + latest
 ```
 
+## 发布到 GitHub 镜像（打标签自动）
+
+推一个 `v*` 标签，GitHub Actions 就会构建镜像、跑冒烟测试并推送到 GitHub Container Registry：
+
+```bash
+git tag v1.2.0
+git push origin v1.2.0
+```
+
+工作流：`.github/workflows/release-image.yml`
+
+| 产出标签 | 说明 |
+|---|---|
+| `ghcr.io/hmilyld/weekly-report:1.2.0` | 精确版本，等于前端页脚显示的版本号 |
+| `ghcr.io/hmilyld/weekly-report:1.2` / `:1` | 次版本 / 主版本浮动标签（`v0.x` 不生成主版本标签） |
+| `ghcr.io/hmilyld/weekly-report:latest` | 最新稳定版；`v1.2.0-rc1` 这类预发布不会覆盖它 |
+
+- 推送前会先在本机加载镜像、启动容器并请求 `/api/v1/health`，冒烟测试不通过则中止发布。
+- 也可以在仓库 Actions 页面手动运行 **Release image** 并填写要发布的标签。
+- 首次发布后到仓库的 **Packages** 页面确认包可见性（公开仓库默认 public）。
+- 使用 GitHub 镜像启动：
+
+  ```bash
+  IMAGE=ghcr.io/hmilyld/weekly-report:latest docker compose up -d
+  ```
+
+  私有包需要先登录：`docker login ghcr.io -u <用户名> -p <PAT>`（PAT 勾选 `read:packages`）。
+
 ---
 
 ## API 接口

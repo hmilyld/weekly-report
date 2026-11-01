@@ -70,6 +70,7 @@ weekly-report/
 ```bash
 docker compose up --build   # Build and run on :18001
 ./scripts/docker-publish.sh [tag]  # Build and push to Docker Hub
+git tag v1.2.0 && git push origin v1.2.0  # Tag push publishes ghcr.io image (CI)
 ```
 
 ## Coding Style
