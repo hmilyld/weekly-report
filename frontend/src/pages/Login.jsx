@@ -1,8 +1,12 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import toast from 'react-hot-toast'
+import { LogIn } from 'lucide-react'
 import { login } from '../api'
 import { useAuth } from '../contexts/AuthContext'
+import Button from '../components/ui/Button'
+import Field from '../components/ui/Field'
+import Wordmark from '../components/ui/Wordmark'
 
 export default function Login() {
   const [username, setUsername] = useState('')
@@ -11,8 +15,8 @@ export default function Login() {
   const navigate = useNavigate()
   const { refreshUser } = useAuth()
 
-  const handleSubmit = async (e) => {
-    e.preventDefault()
+  const handleSubmit = async (event) => {
+    event.preventDefault()
     if (!username || !password) {
       toast.error('请输入用户名和密码')
       return
@@ -22,8 +26,7 @@ export default function Login() {
       const { data } = await login(username, password)
       localStorage.setItem('token', data.access_token)
       await refreshUser()
-      toast.success('登录成功')
-      navigate('/')
+      navigate('/', { replace: true })
     } catch (err) {
       toast.error(err.response?.data?.detail || '登录失败')
     } finally {
@@ -32,45 +35,73 @@ export default function Login() {
   }
 
   return (
-    <div className="login-page">
-      <div className="login-card">
-        <h1>📋 日周报管理系统</h1>
-        <p className="subtitle">登录以管理日报和生成周报</p>
-        <form onSubmit={handleSubmit}>
-          <div className="form-group">
-            <label className="form-label">用户名</label>
+    <div className="auth">
+      <aside className="auth-aside">
+        <Wordmark />
+        <div>
+          <h2 className="auth-headline">
+            每天记一句，
+            <br />
+            周五交一份周报。
+          </h2>
+          <ul className="auth-points">
+            <li>
+              <span>01</span>
+              <span>在日历上写当天的进展，一格一条，不建文档。</span>
+            </li>
+            <li>
+              <span>02</span>
+              <span>周报与月报由日报自动汇总，可改可复制。</span>
+            </li>
+            <li>
+              <span>03</span>
+              <span>也支持用 API Token 从脚本写入，再回到这里审阅。</span>
+            </li>
+          </ul>
+        </div>
+        <p className="auth-aside-foot">JWT · 数据按账号加密隔离</p>
+      </aside>
+
+      <section className="auth-panel">
+        <div className="auth-mobile-brand">
+          <Wordmark compact />
+        </div>
+        <div className="auth-panel-head">
+          <h1>登录</h1>
+          <p>使用你的账号继续记录日报。</p>
+        </div>
+        <form className="auth-form" onSubmit={handleSubmit}>
+          <Field label="用户名">
             <input
+              className="input"
               type="text"
-              className="form-input"
-              placeholder="admin"
+              placeholder="请输入用户名"
               value={username}
-              onChange={(e) => setUsername(e.target.value)}
+              onChange={(event) => setUsername(event.target.value)}
               autoFocus
               autoComplete="username"
               inputMode="text"
             />
-          </div>
-          <div className="form-group">
-            <label className="form-label">密码</label>
+          </Field>
+          <Field label="密码">
             <input
+              className="input"
               type="password"
-              className="form-input"
-              placeholder="••••••"
+              placeholder="请输入密码"
               value={password}
-              onChange={(e) => setPassword(e.target.value)}
+              onChange={(event) => setPassword(event.target.value)}
               autoComplete="current-password"
             />
-          </div>
-          <button
-            type="submit"
-            className="btn btn-primary btn-lg"
-            style={{ width: '100%' }}
-            disabled={loading}
-          >
-            {loading ? <span className="spinner" /> : '登 录'}
-          </button>
+          </Field>
+          <Button type="submit" variant="primary" size="lg" block icon={LogIn} loading={loading}>
+            登录
+          </Button>
         </form>
-      </div>
+        <p className="auth-switch">
+          <span>忘记密码请联系管理员重置。</span>
+          <span className="badge">24 小时有效</span>
+        </p>
+      </section>
     </div>
   )
 }

@@ -1,8 +1,11 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import toast from 'react-hot-toast'
-import { AlertTriangle } from 'lucide-react'
+import { AlertTriangle, UserPlus } from 'lucide-react'
 import { setupAccount } from '../api'
+import Button from '../components/ui/Button'
+import Field from '../components/ui/Field'
+import Wordmark from '../components/ui/Wordmark'
 
 export default function Setup({ onComplete, authError }) {
   const [username, setUsername] = useState('')
@@ -11,8 +14,8 @@ export default function Setup({ onComplete, authError }) {
   const [loading, setLoading] = useState(false)
   const navigate = useNavigate()
 
-  const handleSubmit = async (e) => {
-    e.preventDefault()
+  const handleSubmit = async (event) => {
+    event.preventDefault()
 
     if (!username.trim()) {
       toast.error('请输入用户名')
@@ -35,7 +38,7 @@ export default function Setup({ onComplete, authError }) {
     try {
       const { data } = await setupAccount(username.trim(), password)
       localStorage.setItem('token', data.access_token)
-      toast.success('账户创建成功！')
+      toast.success('账户已创建')
       onComplete()
       navigate('/', { replace: true })
     } catch (err) {
@@ -46,75 +49,84 @@ export default function Setup({ onComplete, authError }) {
   }
 
   return (
-    <div className="login-page">
-      <div className="login-card">
-        <h1>📋 欢迎使用周报系统</h1>
-        <p className="subtitle">首次使用，请设置您的账户</p>
+    <div className="auth">
+      <aside className="auth-aside">
+        <Wordmark />
+        <div>
+          <h2 className="auth-headline">
+            先建一个账号，
+            <br />
+            这里是你的记录本。
+          </h2>
+          <ul className="auth-points">
+            <li>
+              <span>01</span>
+              <span>第一个账号是管理员，可以继续添加团队成员。</span>
+            </li>
+            <li>
+              <span>02</span>
+              <span>日报内容加密存储，密钥随登录口令派生。</span>
+            </li>
+            <li>
+              <span>03</span>
+              <span>之后可在「系统配置」里接入大模型并测试连接。</span>
+            </li>
+          </ul>
+        </div>
+        <p className="auth-aside-foot">首次启动 · 仅需一次</p>
+      </aside>
+
+      <section className="auth-panel">
+        <div className="auth-mobile-brand">
+          <Wordmark compact />
+        </div>
+        <div className="auth-panel-head">
+          <h1>创建管理员账户</h1>
+          <p>首次使用，请设置你的账号与密码。</p>
+        </div>
         {authError && (
-          <div
-            style={{
-              display: 'flex',
-              alignItems: 'flex-start',
-              gap: '8px',
-              padding: '10px 12px',
-              marginBottom: '16px',
-              background: '#fef9c3',
-              border: '1px solid #fde047',
-              borderRadius: 'var(--radius-md)',
-              fontSize: '0.8125rem',
-              color: '#854d0e',
-              lineHeight: 1.5,
-            }}
-          >
-            <AlertTriangle size={16} style={{ flexShrink: 0, marginTop: '2px' }} />
-            <span>无法连接后端 API，请确认服务已启动且可通过当前地址访问。</span>
+          <div className="notice notice-warning" role="alert">
+            <AlertTriangle size={16} aria-hidden="true" />
+            <span>无法连接后端 API。请确认服务已启动，且当前地址可以访问 /api。</span>
           </div>
         )}
-        <form onSubmit={handleSubmit}>
-          <div className="form-group">
-            <label className="form-label">用户名</label>
+        <form className="auth-form" onSubmit={handleSubmit}>
+          <Field label="用户名" hint="至少 2 个字符">
             <input
+              className="input"
               type="text"
-              className="form-input"
               placeholder="设置用户名"
               value={username}
-              onChange={(e) => setUsername(e.target.value)}
+              onChange={(event) => setUsername(event.target.value)}
               autoFocus
               autoComplete="username"
             />
-          </div>
-          <div className="form-group">
-            <label className="form-label">密码</label>
+          </Field>
+          <Field label="密码" hint="至少 8 位">
             <input
+              className="input"
               type="password"
-              className="form-input"
-              placeholder="至少 8 位，包含字母和数字"
+              placeholder="设置密码"
               value={password}
-              onChange={(e) => setPassword(e.target.value)}
+              onChange={(event) => setPassword(event.target.value)}
               autoComplete="new-password"
             />
-          </div>
-          <div className="form-group">
-            <label className="form-label">确认密码</label>
+          </Field>
+          <Field label="确认密码">
             <input
+              className="input"
               type="password"
-              className="form-input"
               placeholder="再次输入密码"
               value={confirm}
-              onChange={(e) => setConfirm(e.target.value)}
+              onChange={(event) => setConfirm(event.target.value)}
               autoComplete="new-password"
             />
-          </div>
-          <button
-            type="submit"
-            className="btn btn-primary btn-lg"
-            style={{ width: '100%' }}
-            disabled={loading}
-          >
-            {loading ? <span className="spinner" /> : '创建账户'}
-          </button>
+          </Field>
+          <Button type="submit" variant="primary" size="lg" block icon={UserPlus} loading={loading}>
+            创建账户
+          </Button>
         </form>
-      </div>
+      </section>
     </div>
   )
 }

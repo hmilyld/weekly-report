@@ -1,114 +1,55 @@
-import { useState, useEffect } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import toast from 'react-hot-toast'
-import { Users, Plus, Trash2, Shield, User } from 'lucide-react'
-import { getUsers, createUser, deleteUser, updateUserRole } from '../api'
+import { Plus, Shield, Trash2, User } from 'lucide-react'
+import { createUser, deleteUser, getUsers, updateUserRole } from '../api'
 import { useAuth } from '../contexts/AuthContext'
-
-/* ─── Create User Form ─────────────────────────────── */
-function CreateUserForm({ form, setForm, creating, onSubmit, onCancel }) {
-  return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-3)' }}>
-      <div className="form-group" style={{ marginBottom: 0 }}>
-        <label className="form-label">用户名</label>
-        <input
-          type="text"
-          className="form-input"
-          placeholder="至少 2 个字符"
-          value={form.username}
-          onChange={(e) => setForm({ ...form, username: e.target.value })}
-        />
-      </div>
-      <div className="form-group" style={{ marginBottom: 0 }}>
-        <label className="form-label">密码</label>
-        <input
-          type="password"
-          className="form-input"
-          placeholder="至少 8 位"
-          value={form.password}
-          onChange={(e) => setForm({ ...form, password: e.target.value })}
-        />
-      </div>
-      <div className="form-group" style={{ marginBottom: 0 }}>
-        <label className="form-label">角色</label>
-        <select
-          className="form-input"
-          value={form.role}
-          onChange={(e) => setForm({ ...form, role: e.target.value })}
-        >
-          <option value="user">普通用户</option>
-          <option value="admin">管理员</option>
-        </select>
-      </div>
-      <div
-        style={{
-          display: 'flex',
-          gap: 'var(--space-3)',
-          justifyContent: 'flex-end',
-          marginTop: 'var(--space-2)',
-        }}
-      >
-        <button className="btn btn-outline btn-sm" onClick={onCancel}>
-          取消
-        </button>
-        <button className="btn btn-primary btn-sm" onClick={onSubmit} disabled={creating}>
-          {creating ? <span className="spinner" /> : '创建'}
-        </button>
-      </div>
-    </div>
-  )
-}
+import { useConfirm } from '../components/ui/ConfirmProvider'
+import Button from '../components/ui/Button'
+import Field from '../components/ui/Field'
+import Modal from '../components/ui/Modal'
+import PageHeader from '../components/ui/PageHeader'
+import { Panel, PanelBody, PanelHeader } from '../components/ui/Panel'
 
 export default function UserManagement() {
   const { user: currentUser } = useAuth()
+  const confirm = useConfirm()
+
   const [users, setUsers] = useState([])
   const [loading, setLoading] = useState(true)
-  const [showCreate, setShowCreate] = useState(false)
-  const [form, setForm] = useState({ username: '', password: '', role: 'user' })
   const [creating, setCreating] = useState(false)
-  const [deletingId, setDeletingId] = useState(null)
+  const [busyId, setBusyId] = useState(null)
+  const [form, setForm] = useState({ username: '', password: '', role: 'user' })
+  const [showCreate, setShowCreate] = useState(false)
 
-  useEffect(() => {
-    loadUsers()
-  }, [])
-
-  const loadUsers = async () => {
+  const loadUsers = useCallback(async () => {
     setLoading(true)
     try {
       const { data } = await getUsers()
       setUsers(data.users)
-    } catch (err) {
+    } catch {
       toast.error('加载用户列表失败')
     } finally {
       setLoading(false)
     }
-  }
+  }, [])
 
-  const resetForm = () => {
-    setForm({ username: '', password: '', role: 'user' })
-    setShowCreate(false)
-  }
-
-  // 锁定 body 滚动（弹窗打开时）
   useEffect(() => {
-    if (showCreate) {
-      document.body.style.overflow = 'hidden'
-    }
-    return () => {
-      document.body.style.overflow = ''
-    }
-  }, [showCreate])
+    loadUsers()
+  }, [loadUsers])
 
-  const handleCreate = async () => {
+  const closeCreate = () => {
+    setShowCreate(false)
+    setForm({ username: '', password: '', role: 'user' })
+  }
+
+  const handleCreate = async (event) => {
+    event?.preventDefault()
     if (!form.username.trim()) {
       toast.error('请输入用户名')
       return
     }
     if (form.username.trim().length < 2) {
       toast.error('用户名至少 2 个字符')
-      return
-    }
-    if (!form.password) {
-      toast.error('请输入密码')
       return
     }
     if (form.password.length < 8) {
@@ -118,8 +59,8 @@ export default function UserManagement() {
     setCreating(true)
     try {
       await createUser(form.username.trim(), form.password, form.role)
-      toast.success('用户创建成功')
-      resetForm()
+      toast.success('用户已创建')
+      closeCreate()
       loadUsers()
     } catch (err) {
       toast.error(err.response?.data?.detail || '创建失败')
@@ -128,192 +69,193 @@ export default function UserManagement() {
     }
   }
 
-  const handleDelete = async (u) => {
-    if (u.id === currentUser?.id) {
-      toast.error('不能删除自己')
+  const handleDelete = async (target) => {
+    if (target.id === currentUser?.id) {
+      toast.error('不能删除自己的账号')
       return
     }
-    if (!confirm(`确定删除用户「${u.username}」？此操作不可恢复。`)) return
-    setDeletingId(u.id)
+    const ok = await confirm({
+      title: `删除用户「${target.username}」？`,
+      body: '该账号的日报、周报与月报会一并移除，此操作不可恢复。',
+      confirmLabel: '删除用户',
+      tone: 'danger',
+    })
+    if (!ok) return
+    setBusyId(target.id)
     try {
-      await deleteUser(u.id)
+      await deleteUser(target.id)
       toast.success('已删除')
       loadUsers()
     } catch (err) {
       toast.error(err.response?.data?.detail || '删除失败')
     } finally {
-      setDeletingId(null)
+      setBusyId(null)
     }
   }
 
-  const handleToggleRole = async (u) => {
-    const newRole = u.role === 'admin' ? 'user' : 'admin'
-    if (u.role === 'admin' && newRole === 'user') {
-      const adminCount = users.filter((usr) => usr.role === 'admin').length
-      if (adminCount <= 1) {
-        toast.error('不能将最后一个管理员降级为普通用户')
+  const handleToggleRole = async (target) => {
+    const nextRole = target.role === 'admin' ? 'user' : 'admin'
+    if (target.role === 'admin') {
+      const admins = users.filter((item) => item.role === 'admin').length
+      if (admins <= 1) {
+        toast.error('至少要保留一名管理员')
         return
       }
     }
+    setBusyId(target.id)
     try {
-      await updateUserRole(u.id, newRole)
-      toast.success(`已将「${u.username}」设为${newRole === 'admin' ? '管理员' : '普通用户'}`)
+      await updateUserRole(target.id, nextRole)
+      toast.success(`「${target.username}」已设为${nextRole === 'admin' ? '管理员' : '普通用户'}`)
       loadUsers()
     } catch (err) {
       toast.error(err.response?.data?.detail || '修改失败')
+    } finally {
+      setBusyId(null)
     }
   }
 
+  const adminCount = users.filter((item) => item.role === 'admin').length
+
   return (
-    <>
-      <div className="page-header">
-        <h2>
-          <Users size={20} style={{ verticalAlign: 'middle', marginRight: '8px' }} />
-          用户管理
-        </h2>
-        <p>管理系统用户和权限</p>
-      </div>
-      <div className="page-body">
-        <div className="settings-section">
-          <div className="card">
-            <div
-              className="card-header"
-              style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}
-            >
-              <h3>用户列表</h3>
-              <button className="btn btn-primary btn-sm" onClick={() => setShowCreate(true)}>
-                <Plus size={14} /> 创建用户
-              </button>
-            </div>
-            <div className="card-body">
-              {loading ? (
-                <div className="loading-center" style={{ padding: 'var(--space-6)' }}>
-                  <span className="spinner" />
-                </div>
-              ) : users.length === 0 ? (
-                <p
-                  style={{
-                    fontSize: '0.8125rem',
-                    color: 'var(--color-text-muted)',
-                    textAlign: 'center',
-                    padding: 'var(--space-6)',
-                  }}
-                >
-                  暂无用户
-                </p>
-              ) : (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-2)' }}>
-                  {users.map((u) => (
-                    <div
-                      key={u.id}
-                      style={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'space-between',
-                        padding: 'var(--space-3) var(--space-4)',
-                        background: 'var(--color-bg)',
-                        borderRadius: 'var(--radius-md)',
-                        border: '1px solid var(--color-border)',
-                      }}
-                    >
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                        {u.role === 'admin' ? (
-                          <Shield size={18} style={{ color: 'var(--color-primary)' }} />
-                        ) : (
-                          <User size={18} style={{ color: 'var(--color-text-muted)' }} />
-                        )}
-                        <div>
-                          <span style={{ fontWeight: 600, fontSize: '0.875rem' }}>
-                            {u.username}
-                            {u.id === currentUser?.id && (
-                              <span
-                                style={{
-                                  fontSize: '0.75rem',
-                                  color: 'var(--color-text-muted)',
-                                  marginLeft: '8px',
-                                  fontWeight: 400,
-                                }}
-                              >
-                                (当前)
-                              </span>
-                            )}
-                          </span>
-                          <div
-                            style={{
-                              fontSize: '0.75rem',
-                              color: 'var(--color-text-muted)',
-                              marginTop: '2px',
-                            }}
-                          >
-                            {u.role === 'admin' ? '管理员' : '普通用户'} · 创建于{' '}
-                            {new Date(u.created_at).toLocaleDateString('zh-CN')}
-                          </div>
-                        </div>
+    <div className="page">
+      <PageHeader
+        title="用户管理"
+        subtitle={`共 ${users.length} 个账号，其中 ${adminCount} 名管理员。每个人的日报互不可见。`}
+        actions={
+          <Button variant="primary" icon={Plus} onClick={() => setShowCreate(true)}>
+            创建用户
+          </Button>
+        }
+      />
+
+      <Panel>
+        <PanelHeader title="用户列表" />
+        {loading ? (
+          <div className="loading-block">
+            <span className="spinner" aria-hidden="true" />
+            正在读取用户…
+          </div>
+        ) : users.length === 0 ? (
+          <PanelBody>
+            <p className="section-note">还没有其他账号。创建用户后，他们可以各自记录日报。</p>
+          </PanelBody>
+        ) : (
+          <div>
+            {users.map((item) => {
+              const isSelf = item.id === currentUser?.id
+              const isAdmin = item.role === 'admin'
+              return (
+                <div className="record-row" key={item.id}>
+                  <div className="record-main">
+                    <span className="record-icon">
+                      {isAdmin ? (
+                        <Shield size={14} aria-hidden="true" />
+                      ) : (
+                        <User size={14} aria-hidden="true" />
+                      )}
+                    </span>
+                    <div>
+                      <div className="record-title">
+                        {item.username}
+                        {isSelf && <span className="badge">当前</span>}
+                        <span className={`badge ${isAdmin ? 'badge-accent' : ''}`.trim()}>
+                          {isAdmin ? '管理员' : '普通用户'}
+                        </span>
                       </div>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                        {u.id !== currentUser?.id && (
-                          <>
-                            <button
-                              className="btn btn-ghost btn-sm"
-                              onClick={() => handleToggleRole(u)}
-                              title={u.role === 'admin' ? '设为普通用户' : '设为管理员'}
-                            >
-                              {u.role === 'admin' ? <User size={14} /> : <Shield size={14} />}
-                            </button>
-                            <button
-                              className="btn btn-ghost btn-sm"
-                              onClick={() => handleDelete(u)}
-                              disabled={deletingId === u.id}
-                              style={{ color: 'var(--color-danger)' }}
-                            >
-                              <Trash2 size={14} />
-                            </button>
-                          </>
-                        )}
+                      <div className="record-meta">
+                        <span>创建于 {new Date(item.created_at).toLocaleDateString('zh-CN')}</span>
                       </div>
                     </div>
-                  ))}
+                  </div>
+                  <div className="record-actions">
+                    {!isSelf && (
+                      <>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          iconOnly
+                          icon={isAdmin ? User : Shield}
+                          aria-label={isAdmin ? '设为普通用户' : '设为管理员'}
+                          title={isAdmin ? '设为普通用户' : '设为管理员'}
+                          loading={busyId === item.id}
+                          onClick={() => handleToggleRole(item)}
+                        />
+                        <Button
+                          variant="danger"
+                          size="sm"
+                          iconOnly
+                          icon={Trash2}
+                          aria-label={`删除 ${item.username}`}
+                          onClick={() => handleDelete(item)}
+                        />
+                      </>
+                    )}
+                  </div>
                 </div>
-              )}
-            </div>
+              )
+            })}
           </div>
-        </div>
-      </div>
+        )}
+      </Panel>
 
-      {/* ─── Create User Modal ──────────────────────── */}
       {showCreate && (
-        <div className="modal-overlay" onClick={creating ? undefined : resetForm}>
-          <div
-            className="modal"
-            role="dialog"
-            aria-modal="true"
-            aria-label="创建用户"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="modal-header">
-              <h3>创建用户</h3>
-              <button
-                className="btn btn-ghost btn-sm"
-                onClick={resetForm}
-                disabled={creating}
-                aria-label="关闭"
-                style={{ minWidth: '44px', minHeight: '44px' }}
+        <Modal
+          title="创建用户"
+          description="新用户会收到用户名和初始密码，首次登录后建议修改密码。"
+          onClose={closeCreate}
+          dismissible={!creating}
+          footer={
+            <>
+              <Button variant="ghost" onClick={closeCreate} disabled={creating}>
+                取消
+              </Button>
+              <Button
+                variant="primary"
+                icon={Plus}
+                onClick={handleCreate}
+                loading={creating}
+                disabled={!form.username || !form.password}
               >
-                ✕
-              </button>
-            </div>
-            <div className="modal-body">
-              <CreateUserForm
-                form={form}
-                setForm={setForm}
-                creating={creating}
-                onSubmit={handleCreate}
-                onCancel={resetForm}
+                创建
+              </Button>
+            </>
+          }
+        >
+          <form className="form-stack" onSubmit={handleCreate}>
+            <Field label="用户名" hint="至少 2 个字符">
+              <input
+                className="input"
+                type="text"
+                placeholder="例如 zhangsan"
+                value={form.username}
+                onChange={(event) => setForm({ ...form, username: event.target.value })}
+                autoComplete="off"
               />
-            </div>
-          </div>
-        </div>
+            </Field>
+            <Field label="初始密码" hint="至少 8 位">
+              <input
+                className="input"
+                type="password"
+                placeholder="设置初始密码"
+                value={form.password}
+                onChange={(event) => setForm({ ...form, password: event.target.value })}
+                autoComplete="new-password"
+              />
+            </Field>
+            <Field label="角色" hint="管理员可以配置模型、管理账号与 Token。">
+              <select
+                className="select"
+                value={form.role}
+                onChange={(event) => setForm({ ...form, role: event.target.value })}
+              >
+                <option value="user">普通用户</option>
+                <option value="admin">管理员</option>
+              </select>
+            </Field>
+            <button type="submit" hidden aria-hidden="true" tabIndex={-1} />
+          </form>
+        </Modal>
       )}
-    </>
+    </div>
   )
 }

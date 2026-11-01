@@ -1,26 +1,28 @@
-import { useState, useRef, useEffect } from 'react'
+import { useRef, useState } from 'react'
 import { Save } from 'lucide-react'
+import Modal from './ui/Modal'
+import Button from './ui/Button'
 
+const WEEKDAY_NAMES = ['周日', '周一', '周二', '周三', '周四', '周五', '周六']
+
+function describeDate(dateStr) {
+  const date = new Date(`${dateStr}T00:00:00`)
+  if (Number.isNaN(date.getTime())) return dateStr
+  return `${date.getFullYear()} 年 ${date.getMonth() + 1} 月 ${date.getDate()} 日 · ${WEEKDAY_NAMES[date.getDay()]}`
+}
+
+/**
+ * Writing a daily record: one textarea, one save, keyboard-first.
+ * Ctrl/Cmd+Enter saves, Esc closes without saving.
+ */
 export default function DailyEditModal({ date, content, onSave, onClose }) {
-  const [text, setText] = useState(content)
+  const [text, setText] = useState(content ?? '')
   const [saving, setSaving] = useState(false)
-  const savingRef = useRef(false) // ← ref for synchronous guard
+  const savingRef = useRef(false)
   const textareaRef = useRef(null)
 
-  useEffect(() => {
-    const timer = setTimeout(() => textareaRef.current?.focus(), 100)
-    return () => clearTimeout(timer)
-  }, [])
-
-  useEffect(() => {
-    document.body.style.overflow = 'hidden'
-    return () => {
-      document.body.style.overflow = ''
-    }
-  }, [])
-
   const handleSave = async () => {
-    if (savingRef.current) return // ← synchronous check, no stale closure
+    if (savingRef.current) return
     savingRef.current = true
     setSaving(true)
     try {
@@ -31,94 +33,52 @@ export default function DailyEditModal({ date, content, onSave, onClose }) {
     }
   }
 
-  const handleKeyDown = (e) => {
-    if (e.key === 'Escape' && !savingRef.current) onClose()
-    if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
-      e.preventDefault() // ← prevent browser newline insert
-      handleSave()
-    }
-  }
+  const hasContent = text.trim().length > 0
+  const isDirty = text !== (content ?? '')
 
   return (
-    <div className="modal-overlay" onClick={saving ? undefined : onClose} onKeyDown={handleKeyDown}>
-      <div className="modal" onClick={(e) => e.stopPropagation()}>
-        <div className="modal-header">
-          <h3>编辑日报 · {date}</h3>
-          <button
-            className="btn btn-ghost btn-sm"
-            onClick={onClose}
-            disabled={saving}
-            aria-label="关闭"
-            style={{ minWidth: '44px', minHeight: '44px' }}
-          >
-            ✕
-          </button>
-        </div>
-        <div className="modal-body">
-          <div className="form-group" style={{ marginBottom: 0 }}>
-            <textarea
-              ref={textareaRef}
-              className="form-input"
-              rows={8}
-              placeholder="记录今天的工作内容..."
-              value={text}
-              onChange={(e) => setText(e.target.value)}
-              disabled={saving}
-              onKeyDown={(e) => {
-                // Handle Ctrl+Enter directly on textarea for reliability
-                if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
-                  e.preventDefault()
-                  handleSave()
-                }
-              }}
-              style={{
-                minHeight: '180px',
-                fontSize: '16px',
-              }}
-            />
-            <p
-              style={{
-                fontSize: '0.75rem',
-                color: 'var(--color-text-muted)',
-                marginTop: '8px',
-                display: 'flex',
-                justifyContent: 'space-between',
-                flexWrap: 'wrap',
-                gap: '4px',
-              }}
-            >
-              <span>Ctrl+Enter 保存</span>
-              <span>Esc 取消</span>
-            </p>
-          </div>
-        </div>
-        <div className="modal-footer">
-          <button
-            className="btn btn-outline"
-            onClick={onClose}
-            disabled={saving}
-            style={{ flex: 1 }}
-          >
+    <Modal
+      title={content ? '编辑日报' : '记录今天的进展'}
+      description={describeDate(date)}
+      onClose={onClose}
+      dismissible={!saving}
+      footer={
+        <>
+          <span className="hint grow">
+            {hasContent ? `${text.trim().length} 字` : 'Ctrl / ⌘ + Enter 保存'}
+          </span>
+          <Button variant="ghost" onClick={onClose} disabled={saving}>
             取消
-          </button>
-          <button
-            className={`btn btn-primary ${saving ? 'btn-loading' : ''}`}
+          </Button>
+          <Button
+            variant="primary"
+            icon={Save}
             onClick={handleSave}
-            disabled={saving}
-            style={{ flex: 1 }}
+            loading={saving}
+            disabled={!isDirty}
           >
-            {saving ? (
-              <>
-                <span className="spinner" /> 保存中...
-              </>
-            ) : (
-              <>
-                <Save size={16} /> 保存
-              </>
-            )}
-          </button>
-        </div>
-      </div>
-    </div>
+            保存
+          </Button>
+        </>
+      }
+    >
+      <textarea
+        ref={textareaRef}
+        className="textarea"
+        rows={9}
+        placeholder="今天做了什么？一两句就够，比如：修了导出 CSV 的日期偏移，原因是时区没按本地取。"
+        value={text}
+        onChange={(event) => setText(event.target.value)}
+        onKeyDown={(event) => {
+          if ((event.metaKey || event.ctrlKey) && event.key === 'Enter') {
+            event.preventDefault()
+            handleSave()
+          }
+        }}
+        disabled={saving}
+        aria-label="日报正文"
+        autoFocus
+      />
+    </Modal>
   )
 }

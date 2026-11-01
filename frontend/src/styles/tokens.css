@@ -1,0 +1,258 @@
+/* ═══════════════════════════════════════════════════════════
+   TOKENS — the only place raw values live.
+   Palette, type, space, radius, elevation, motion, layers.
+   Every other stylesheet composes these; components never
+   declare a literal colour, size, radius or duration.
+   ═══════════════════════════════════════════════════════════ */
+
+:root {
+  /* ─── Type ─────────────────────────────────────────────── */
+  --font-sans:
+    'IBM Plex Sans', 'Noto Sans SC', system-ui, -apple-system, 'PingFang SC', 'Microsoft YaHei',
+    sans-serif;
+  --font-display: 'Saira Semi Condensed', 'Noto Sans SC', var(--font-sans);
+  --font-mono: 'IBM Plex Mono', ui-monospace, 'SFMono-Regular', 'Cascadia Mono', monospace;
+
+  --text-2xs: 0.6875rem; /* 11 */
+  --text-xs: 0.75rem; /* 12 */
+  --text-sm: 0.8125rem; /* 13 */
+  --text-md: 0.875rem; /* 14 */
+  --text-lg: 1rem; /* 16 */
+  --text-xl: 1.125rem; /* 18 */
+  --text-2xl: 1.375rem; /* 22 */
+  --text-3xl: 1.75rem; /* 28 */
+  --text-4xl: 2.125rem; /* 34 */
+
+  --leading-tight: 1.25;
+  --leading-snug: 1.45;
+  --leading-normal: 1.6;
+  --leading-relaxed: 1.75;
+
+  --tracking-display: -0.032em;
+  --tracking-heading: -0.018em;
+  --tracking-body: -0.006em;
+  --tracking-label: 0.02em;
+
+  --weight-regular: 400;
+  --weight-medium: 500;
+  --weight-semibold: 600;
+  --weight-bold: 700;
+
+  /* ─── Palette ──────────────────────────────────────────── */
+  --blueprint: #f4f6f9;
+  --white: #ffffff;
+  --ink: #111111;
+  --signal: #0057ff;
+  --signal-hover: #0046cc;
+  --signal-tint: #eef3ff;
+  --cyan: #0fa3b9;
+  --danger: #c4271d;
+  --warning: #9a5b00;
+  --success: #0b7a3e;
+
+  /* ─── Semantic surfaces ────────────────────────────────── */
+  --color-bg: var(--blueprint);
+  --color-surface: var(--white);
+  --color-surface-inset: #fafbfd;
+  --color-surface-sunk: #f0f3f8;
+  --color-surface-hover: #f0f3f8;
+  --color-overlay: rgba(17, 17, 17, 0.42);
+
+  --color-border: #e6ebf2;
+  --color-border-strong: #d3dae6;
+  --color-border-focus: #aeb9c8;
+
+  --color-text: var(--ink);
+  --color-text-secondary: #565d68;
+  --color-text-muted: #6e757f;
+
+  --color-accent: var(--signal);
+  --color-accent-hover: var(--signal-hover);
+  --color-accent-tint: var(--signal-tint);
+  --color-primary: var(--ink);
+  --color-primary-hover: #2a2a2a;
+
+  --color-danger: var(--danger);
+  --color-danger-tint: #fdecea;
+  --color-danger-border: #f5c9c4;
+  --color-warning: var(--warning);
+  --color-warning-tint: #fff5e6;
+  --color-success: var(--success);
+  --color-success-tint: #eaf7ef;
+
+  /* Report bands — one colour per cadence, used for the
+     calendar mark, the summary rail and the legend. */
+  --band-daily: var(--ink);
+  --band-weekly: var(--signal);
+  --band-monthly: var(--cyan);
+
+  /* ─── Space ────────────────────────────────────────────── */
+  --space-1: 0.25rem;
+  --space-2: 0.5rem;
+  --space-3: 0.75rem;
+  --space-4: 1rem;
+  --space-5: 1.25rem;
+  --space-6: 1.5rem;
+  --space-7: 1.75rem;
+  --space-8: 2rem;
+  --space-10: 2.5rem;
+  --space-12: 3rem;
+  --space-16: 4rem;
+
+  /* ─── Radius ───────────────────────────────────────────── */
+  --radius-xs: 2px;
+  --radius-sm: 4px;
+  --radius-md: 6px;
+  --radius-lg: 10px;
+  --radius-pill: 999px;
+
+  /* ─── Elevation (offset + soft blur, never a halo) ─────── */
+  --shadow-sm: 0 1px 2px rgba(17, 24, 39, 0.06);
+  --shadow-md: 0 6px 16px -6px rgba(17, 24, 39, 0.18), 0 2px 4px -2px rgba(17, 24, 39, 0.08);
+  --shadow-lg: 0 24px 48px -16px rgba(17, 24, 39, 0.28), 0 4px 10px -4px rgba(17, 24, 39, 0.1);
+
+  /* ─── Motion ───────────────────────────────────────────── */
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-in-out: cubic-bezier(0.65, 0, 0.35, 1);
+  --duration-fast: 120ms;
+  --duration-normal: 180ms;
+  --duration-slow: 260ms;
+  --transition-fast: var(--duration-fast) var(--ease-out);
+  --transition-normal: var(--duration-normal) var(--ease-out);
+
+  /* ─── Layout ───────────────────────────────────────────── */
+  --header-height: 56px;
+  --mobile-topbar-height: 52px;
+  --bottomnav-height: 58px;
+  --measure: 1100px;
+  --measure-narrow: 640px;
+  --control-height: 40px;
+  --control-height-sm: 32px;
+  --touch-target: 44px;
+
+  /* ─── Layers ───────────────────────────────────────────── */
+  --layer-nav: 20;
+  --layer-sticky: 30;
+  --layer-overlay: 100;
+  --layer-toast: 200;
+
+  /* ─── Safe areas ───────────────────────────────────────── */
+  --safe-top: env(safe-area-inset-top, 0px);
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+  --safe-left: env(safe-area-inset-left, 0px);
+  --safe-right: env(safe-area-inset-right, 0px);
+
+  /* ─── Focus ────────────────────────────────────────────── */
+  --focus-ring: 0 0 0 2px var(--color-surface), 0 0 0 4px var(--color-accent);
+
+  color-scheme: light;
+}
+
+/* ─── Dark ───────────────────────────────────────────────── */
+/* Same token names, re-pointed. Never a second vocabulary. */
+[data-theme='dark'] {
+  --blueprint: #0c0f14;
+  --white: #151920;
+  --ink: #f2f4f8;
+  --signal: #4d84ff;
+  --signal-hover: #6b9aff;
+  --signal-tint: #14213d;
+  --cyan: #3fc4d8;
+  --danger: #ff6b5e;
+  --warning: #f0b357;
+  --success: #4ecf8b;
+
+  --color-bg: var(--blueprint);
+  --color-surface: var(--white);
+  --color-surface-inset: #12161d;
+  --color-surface-sunk: #1b202a;
+  --color-surface-hover: #1b202a;
+  --color-overlay: rgba(0, 0, 0, 0.62);
+
+  --color-border: #262c37;
+  --color-border-strong: #333b48;
+  --color-border-focus: #4a5361;
+
+  --color-text: var(--ink);
+  --color-text-secondary: #a7aeb9;
+  --color-text-muted: #838c99;
+
+  --color-accent: var(--signal);
+  --color-accent-hover: var(--signal-hover);
+  --color-accent-tint: var(--signal-tint);
+  --color-primary: #f2f4f8;
+  --color-primary-hover: #ffffff;
+
+  --color-danger: var(--danger);
+  --color-danger-tint: #2a1512;
+  --color-danger-border: #4a2620;
+  --color-warning: var(--warning);
+  --color-warning-tint: #2a2011;
+  --color-success: var(--success);
+  --color-success-tint: #10241a;
+
+  --band-daily: #f2f4f8;
+  --band-weekly: var(--signal);
+  --band-monthly: var(--cyan);
+
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.5);
+  --shadow-md: 0 8px 20px -8px rgba(0, 0, 0, 0.7), 0 2px 4px -2px rgba(0, 0, 0, 0.4);
+  --shadow-lg: 0 28px 56px -20px rgba(0, 0, 0, 0.8), 0 6px 12px -6px rgba(0, 0, 0, 0.5);
+
+  color-scheme: dark;
+}
+
+/* System preference applies only when the user has not pinned one. */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) {
+    --blueprint: #0c0f14;
+    --white: #151920;
+    --ink: #f2f4f8;
+    --signal: #4d84ff;
+    --signal-hover: #6b9aff;
+    --signal-tint: #14213d;
+    --cyan: #3fc4d8;
+    --danger: #ff6b5e;
+    --warning: #f0b357;
+    --success: #4ecf8b;
+
+    --color-bg: var(--blueprint);
+    --color-surface: var(--white);
+    --color-surface-inset: #12161d;
+    --color-surface-sunk: #1b202a;
+    --color-surface-hover: #1b202a;
+    --color-overlay: rgba(0, 0, 0, 0.62);
+
+    --color-border: #262c37;
+    --color-border-strong: #333b48;
+    --color-border-focus: #4a5361;
+
+    --color-text: var(--ink);
+    --color-text-secondary: #a7aeb9;
+    --color-text-muted: #838c99;
+
+    --color-accent: var(--signal);
+    --color-accent-hover: var(--signal-hover);
+    --color-accent-tint: var(--signal-tint);
+    --color-primary: #f2f4f8;
+    --color-primary-hover: #ffffff;
+
+    --color-danger: var(--danger);
+    --color-danger-tint: #2a1512;
+    --color-danger-border: #4a2620;
+    --color-warning: var(--warning);
+    --color-warning-tint: #2a2011;
+    --color-success: var(--success);
+    --color-success-tint: #10241a;
+
+    --band-daily: #f2f4f8;
+    --band-weekly: var(--signal);
+    --band-monthly: var(--cyan);
+
+    --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.5);
+    --shadow-md: 0 8px 20px -8px rgba(0, 0, 0, 0.7), 0 2px 4px -2px rgba(0, 0, 0, 0.4);
+    --shadow-lg: 0 28px 56px -20px rgba(0, 0, 0, 0.8), 0 6px 12px -6px rgba(0, 0, 0, 0.5);
+
+    color-scheme: dark;
+  }
+}

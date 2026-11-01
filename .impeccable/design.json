@@ -1,0 +1,106 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-11-01T18:40:00Z",
+  "title": "Design System: 日周报管理系统",
+  "extensions": {
+    "colorMeta": {
+      "blueprint": {
+        "role": "neutral",
+        "displayName": "Blueprint Ground",
+        "canonical": "#f4f6f9",
+        "tonalRamp": ["#12151a", "#1d222a", "#333a45", "#4d5663", "#6e7787", "#98a1ae", "#c7cdd6", "#f4f6f9"]
+      },
+      "surface": {
+        "role": "neutral",
+        "displayName": "Panel White",
+        "canonical": "#ffffff",
+        "tonalRamp": ["#151920", "#1f242c", "#333a45", "#4f5764", "#727b8a", "#9ea7b4", "#d6dbe3", "#ffffff"]
+      },
+      "ink": {
+        "role": "neutral",
+        "displayName": "Drawing Ink",
+        "canonical": "#111111",
+        "tonalRamp": ["#111111", "#262626", "#3b414a", "#565d68", "#6e757f", "#98a1ae", "#c7cdd6", "#f4f6f9"]
+      },
+      "signal": {
+        "role": "primary",
+        "displayName": "Construction Signal",
+        "canonical": "#0057ff",
+        "tonalRamp": ["#001a4d", "#002a80", "#003bb3", "#004ce6", "#0057ff", "#4d84ff", "#99baff", "#eef3ff"]
+      },
+      "cyan": {
+        "role": "secondary",
+        "displayName": "Monthly Cyan",
+        "canonical": "#0fa3b9",
+        "tonalRamp": ["#04333c", "#075361", "#0a7284", "#0d92a6", "#0fa3b9", "#4dc4d6", "#93dfeb", "#e6f8fb"]
+      },
+      "danger": {
+        "role": "tertiary",
+        "displayName": "Overdue Red",
+        "canonical": "#c4271d",
+        "tonalRamp": ["#3d0b08", "#61130e", "#861a14", "#a92119", "#c4271d", "#e2594f", "#f19d96", "#fdecea"]
+      }
+    },
+    "typographyMeta": {
+      "display": { "displayName": "Display", "purpose": "Page and panel titles, period labels, auth headlines." },
+      "title": { "displayName": "Title", "purpose": "Panel titles and section headings." },
+      "body": { "displayName": "Body", "purpose": "Prose, labels, controls, all UI copy." },
+      "label": { "displayName": "Label", "purpose": "Field labels and button text at small sizes." },
+      "data": { "displayName": "Data", "purpose": "Dates, day numbers, counts, versions, tokens." }
+    },
+    "shadows": [
+      { "name": "panel-rest", "value": "none", "purpose": "Panels rest on hairline borders; depth is tonal." },
+      { "name": "overlay", "value": "0 24px 48px -16px rgba(17,24,39,0.28), 0 4px 10px -4px rgba(17,24,39,0.1)", "purpose": "Modals and sheets." },
+      { "name": "popover", "value": "0 6px 16px -6px rgba(17,24,39,0.18), 0 2px 4px -2px rgba(17,24,39,0.08)", "purpose": "Toasts and floating controls." }
+    ],
+    "motion": [
+      { "name": "fast", "value": "120ms cubic-bezier(0.16, 1, 0.3, 1)", "purpose": "Hover, focus, colour and border changes." },
+      { "name": "normal", "value": "180ms cubic-bezier(0.16, 1, 0.3, 1)", "purpose": "Modal entrance, slash reveal, row removal." },
+      { "name": "slow", "value": "260ms cubic-bezier(0.16, 1, 0.3, 1)", "purpose": "Mobile sheet entrance." }
+    ],
+    "breakpoints": [
+      { "name": "phone", "value": "max-width: 767px", "purpose": "Top bar + bottom tab bar + week list." },
+      { "name": "desktop", "value": "min-width: 768px", "purpose": "Sticky top bar + month calendar." },
+      { "name": "wide", "value": "min-width: 1440px", "purpose": "Taller calendar cells, seven-line previews." }
+    ],
+    "narrative": {
+      "northStar": "The Record Grid",
+      "overview": "This is a working record book, not a dashboard. Every day of the month is a cell in a visible, hairline-ruled grid; writing a report means filling a cell, and a weekly or monthly report is that same grid gathered up.",
+      "keyCharacteristics": [
+        "Blueprint ground with white panels; hairline rules do the dividing, not shadows.",
+        "One accent — signal blue — for current selection, primary generative action, and the today ring.",
+        "Condensed display type for titles and periods; IBM Plex Sans for body; IBM Plex Mono for dates and counts.",
+        "Zero-radius calendar cells inside a rounded panel.",
+        "A diagonal slash marks actionability and never decorates static content.",
+        "Light and dark are the same vocabulary, re-pointed token by token."
+      ],
+      "rules": [
+        { "name": "The Signal Rule", "section": "Colors", "body": "Signal blue means \"this is where you are\" or \"this is the action that produces something\". It never fills a surface larger than a button, a row tint, or a 2px line." },
+        { "name": "The Band Rule", "section": "Colors", "body": "One colour per cadence, used identically in the calendar chip, the summary rail, and the legend: ink for daily, signal for weekly, cyan for monthly." },
+        { "name": "The Measure Rule", "section": "Typography", "body": "Report prose is capped at 72ch, always left-aligned under its panel title." }
+      ],
+      "dos": [
+        "Keep one accent; use weight, size, or a tonal step for emphasis.",
+        "Keep dates, counts, versions and identifiers in mono with tabular numerals.",
+        "Let hairline rules do the dividing; shadow only for things that float.",
+        "Write the action on the button and name the consequence in the confirm dialog.",
+        "Keep one component vocabulary across screens."
+      ],
+      "donts": [
+        "No coloured side stripe on rows, cards, or alerts.",
+        "No nested panels and no card-per-row lists.",
+        "No window.confirm for destructive actions.",
+        "No decorative motion.",
+        "No second radius scale, accent hue, or font family for a new screen."
+      ]
+    },
+    "components": {
+      "button": "<button class=\"btn btn-primary\"><span class=\"btn-label\">保存</span></button>",
+      "buttonAccent": "<button class=\"btn btn-accent\"><span class=\"btn-label\">生成周报</span></button>",
+      "input": "<label class=\"field\"><span class=\"field-label\">模型名称</span><input class=\"input\" value=\"llama2\"><span class=\"field-hint\">与接口返回的模型标识一致</span></label>",
+      "panel": "<section class=\"panel\"><div class=\"panel-header\"><h3>周报内容</h3></div><div class=\"panel-body\">…</div><div class=\"panel-footer\">…</div></section>",
+      "badge": "<span class=\"badge\">qwen2.5-72b</span>",
+      "dayCell": "<button class=\"day is-filled\"><span class=\"day-head\"><span class=\"day-num\">14</span><span class=\"chip-band\"></span></span><span class=\"day-preview\">修导出 CSV 的日期偏移</span><span class=\"day-slash\"></span></button>"
+    }
+  }
+}

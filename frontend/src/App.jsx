@@ -1,34 +1,37 @@
-import { useState, useEffect } from 'react'
-import { BrowserRouter, Routes, Route, Navigate, NavLink, useNavigate } from 'react-router-dom'
+import { useEffect, useState } from 'react'
+import { BrowserRouter, NavLink, Navigate, Route, Routes, useNavigate } from 'react-router-dom'
 import { Toaster } from 'react-hot-toast'
 import {
-  FileText,
   Calendar,
-  Settings,
-  LogOut,
-  Sun,
-  Moon,
-  Monitor,
-  CheckSquare,
-  Users,
   CalendarDays,
+  CheckSquare,
+  FileText,
+  LogOut,
+  Monitor,
+  Moon,
+  Settings,
+  Sun,
+  Users,
 } from 'lucide-react'
-import { getAuthStatus } from './api'
-import { ThemeProvider, useTheme } from './contexts/ThemeContext'
-import { AuthProvider, useAuth } from './contexts/AuthContext'
-import ReLoginModal from './components/ReLoginModal'
-import { setReLoginHandler } from './api'
-import Login from './pages/Login'
-import Setup from './pages/Setup'
-import DailyReport from './pages/DailyReport'
-import WeeklyReport from './pages/WeeklyReport'
-import MonthlyReport from './pages/MonthlyReport'
-import Tasks from './pages/Tasks'
-import SettingsPage from './pages/Settings'
-import UserManagement from './pages/UserManagement'
-import useMediaQuery from './hooks/useMediaQuery'
 
-/* ─── Route Guards ─────────────────────────────────────── */
+import { getAuthStatus, setReLoginHandler } from './api'
+import { AuthProvider, useAuth } from './contexts/AuthContext'
+import { ThemeProvider, useTheme } from './contexts/ThemeContext'
+import useMediaQuery from './hooks/useMediaQuery'
+import ReLoginModal from './components/ReLoginModal'
+import Wordmark from './components/ui/Wordmark'
+import { ConfirmProvider } from './components/ui/ConfirmProvider'
+
+import DailyReport from './pages/DailyReport'
+import Login from './pages/Login'
+import MonthlyReport from './pages/MonthlyReport'
+import SettingsPage from './pages/Settings'
+import Setup from './pages/Setup'
+import Tasks from './pages/Tasks'
+import UserManagement from './pages/UserManagement'
+import WeeklyReport from './pages/WeeklyReport'
+
+/* ─── Route guards ─────────────────────────────────────── */
 
 function ProtectedRoute({ children }) {
   const token = localStorage.getItem('token')
@@ -41,42 +44,37 @@ function SetupGate({ needsSetup, children }) {
   return children
 }
 
-/* ─── Theme Toggle Button ─────────────────────────────── */
+/* ─── Navigation model (one source for both navs) ──────── */
+
+const NAV = [
+  { to: '/', icon: Calendar, label: '日报', desktopLabel: '日报管理' },
+  { to: '/weekly', icon: FileText, label: '周报', desktopLabel: '周报管理' },
+  { to: '/monthly', icon: CalendarDays, label: '月报', desktopLabel: '月报管理' },
+  { to: '/tasks', icon: CheckSquare, label: '待办', desktopLabel: '工作待办' },
+  { to: '/settings', icon: Settings, label: '设置', desktopLabel: '系统配置' },
+  { to: '/users', icon: Users, label: '管理', desktopLabel: '用户管理', adminOnly: true },
+]
+
+/* ─── Theme control ────────────────────────────────────── */
 
 const THEME_ICONS = { system: Monitor, light: Sun, dark: Moon }
 
-function ThemeToggle({ className }) {
+function ThemeToggle() {
   const { mode, cycleTheme, label } = useTheme()
   const Icon = THEME_ICONS[mode]
   return (
-    <button
-      className={`theme-toggle ${className || ''}`}
-      onClick={cycleTheme}
-      title={label}
-      aria-label={label}
-    >
-      <Icon size={18} />
+    <button className="icon-btn" onClick={cycleTheme} title={label} aria-label={`主题：${label}`}>
+      <Icon size={17} />
     </button>
   )
 }
 
-/* ─── Top Nav (PC ≥ 1024px) ──────────────────────────── */
+/* ─── Desktop top bar ──────────────────────────────────── */
 
-function TopNav() {
+function TopBar() {
   const navigate = useNavigate()
   const { user, isAdmin, logout } = useAuth()
-
-  const links = [
-    { to: '/', icon: Calendar, label: '日报管理' },
-    { to: '/weekly', icon: FileText, label: '周报管理' },
-    { to: '/monthly', icon: CalendarDays, label: '月报管理' },
-    { to: '/tasks', icon: CheckSquare, label: '工作待办' },
-    { to: '/settings', icon: Settings, label: '系统配置' },
-  ]
-
-  if (isAdmin) {
-    links.push({ to: '/users', icon: Users, label: '用户管理' })
-  }
+  const links = NAV.filter((item) => !item.adminOnly || isAdmin)
 
   const handleLogout = () => {
     logout()
@@ -84,40 +82,38 @@ function TopNav() {
   }
 
   return (
-    <header className="top-nav">
-      <div className="top-nav-left">
-        <span className="top-nav-logo">📋 日周报管理系统</span>
-      </div>
-      <nav className="top-nav-links">
-        {links.map(({ to, icon: Icon, label }) => (
+    <header className="topbar">
+      <NavLink to="/" aria-label="日周报管理系统 · 首页">
+        <Wordmark />
+      </NavLink>
+      <nav className="topbar-links" aria-label="主导航">
+        {links.map(({ to, icon: Icon, desktopLabel }) => (
           <NavLink
             key={to}
             to={to}
             end={to === '/'}
-            className={({ isActive }) => `top-nav-link ${isActive ? 'active' : ''}`}
+            className="topbar-link"
+            aria-label={desktopLabel}
           >
-            <Icon size={16} />
-            {label}
+            <Icon size={15} aria-hidden="true" />
+            <span>{desktopLabel}</span>
           </NavLink>
         ))}
       </nav>
-      {user && (
-        <span className="top-nav-username" title={user.role === 'admin' ? '管理员' : '普通用户'}>
-          {user.username}
-        </span>
-      )}
-      <ThemeToggle />
-      <button className="top-nav-logout" onClick={handleLogout}>
-        <LogOut size={16} />
-        退出
-      </button>
+      <div className="topbar-account">
+        {user && <span className="topbar-user">{user.username}</span>}
+        <ThemeToggle />
+        <button className="icon-btn" onClick={handleLogout} title="退出登录" aria-label="退出登录">
+          <LogOut size={17} />
+        </button>
+      </div>
     </header>
   )
 }
 
-/* ─── Mobile Top Bar (< 1024px) ─────────────────────── */
+/* ─── Mobile chrome ────────────────────────────────────── */
 
-function MobileTopBar() {
+function MobileBar() {
   const navigate = useNavigate()
   const { user, logout } = useAuth()
 
@@ -127,46 +123,30 @@ function MobileTopBar() {
   }
 
   return (
-    <header className="mobile-topbar">
-      <span className="mobile-topbar-logo">📋 日周报</span>
-      <div className="mobile-topbar-actions">
-        {user && <span className="mobile-topbar-username">{user.username}</span>}
+    <header className="mobile-bar">
+      <NavLink to="/" aria-label="日周报 · 首页">
+        <Wordmark compact />
+      </NavLink>
+      <div className="mobile-bar-actions">
+        {user && <span className="topbar-user">{user.username}</span>}
         <ThemeToggle />
-        <button className="mobile-topbar-btn" onClick={handleLogout} aria-label="退出登录">
-          <LogOut size={18} />
+        <button className="icon-btn" onClick={handleLogout} aria-label="退出登录">
+          <LogOut size={17} />
         </button>
       </div>
     </header>
   )
 }
 
-/* ─── Bottom Nav (Mobile < 1024px) ────────────────────── */
-
-function BottomNav() {
+function TabBar() {
   const { isAdmin } = useAuth()
-
-  const links = [
-    { to: '/', icon: Calendar, label: '日报' },
-    { to: '/weekly', icon: FileText, label: '周报' },
-    { to: '/monthly', icon: CalendarDays, label: '月报' },
-    { to: '/tasks', icon: CheckSquare, label: '待办' },
-    { to: '/settings', icon: Settings, label: '设置' },
-  ]
-
-  if (isAdmin) {
-    links.push({ to: '/users', icon: Users, label: '管理' })
-  }
+  const links = NAV.filter((item) => !item.adminOnly || isAdmin)
 
   return (
-    <nav className="bottom-nav">
+    <nav className="tabbar" aria-label="主导航">
       {links.map(({ to, icon: Icon, label }) => (
-        <NavLink
-          key={to}
-          to={to}
-          end={to === '/'}
-          className={({ isActive }) => `bottom-nav-item ${isActive ? 'active' : ''}`}
-        >
-          <Icon size={20} />
+        <NavLink key={to} to={to} end={to === '/'} className="tabbar-item">
+          <Icon size={19} aria-hidden="true" />
           <span>{label}</span>
         </NavLink>
       ))}
@@ -174,56 +154,58 @@ function BottomNav() {
   )
 }
 
-/* ─── App Layout ───────────────────────────────────────── */
+/* ─── Shell ────────────────────────────────────────────── */
 
 function AppLayout() {
-  const { isAdmin } = useAuth()
-  const isDesktop = useMediaQuery('(min-width: 1024px)')
+  const isDesktop = useMediaQuery('(min-width: 768px)')
   const [showReLogin, setShowReLogin] = useState(false)
 
-  // 设置重新登录处理器
   useEffect(() => {
     setReLoginHandler(() => setShowReLogin(true))
     return () => setReLoginHandler(null)
   }, [])
 
-  const handleReLoginSuccess = () => {
-    setShowReLogin(false)
-    window.location.reload()
-  }
-
   return (
-    <div className={`app-layout ${isDesktop ? 'has-topnav' : 'has-bottomnav'}`}>
+    <div className="app-shell">
       {isDesktop ? (
-        <TopNav />
+        <TopBar />
       ) : (
         <>
-          <MobileTopBar />
-          <BottomNav />
+          <MobileBar />
+          <TabBar />
         </>
       )}
-      <div className="app-content">
-        <main className="main-content">
-          <Routes>
-            <Route path="/" element={<DailyReport />} />
-            <Route path="/weekly" element={<WeeklyReport />} />
-            <Route path="/monthly" element={<MonthlyReport />} />
-            <Route path="/tasks" element={<Tasks />} />
-            <Route path="/settings" element={<SettingsPage />} />
-            {isAdmin && <Route path="/users" element={<UserManagement />} />}
-          </Routes>
-        </main>
-        <footer className="app-footer">
-          © {new Date().getFullYear()} hmilyld · 周报自动生成系统
-          {typeof __APP_VERSION__ !== 'undefined' && <span className="app-version"> v{__APP_VERSION__}</span>}
-        </footer>
-        {showReLogin && <ReLoginModal onClose={() => setShowReLogin(false)} onSuccess={handleReLoginSuccess} />}
-      </div>
+      <main className="app-main">
+        <Routes>
+          <Route path="/" element={<DailyReport />} />
+          <Route path="/weekly" element={<WeeklyReport />} />
+          <Route path="/monthly" element={<MonthlyReport />} />
+          <Route path="/tasks" element={<Tasks />} />
+          <Route path="/settings" element={<SettingsPage />} />
+          <Route path="/users" element={<UserManagement />} />
+          <Route path="*" element={<Navigate to="/" replace />} />
+        </Routes>
+      </main>
+      <footer className="app-footer">
+        <span>日周报管理系统 · 由日报自动汇成周报与月报</span>
+        {typeof __APP_VERSION__ !== 'undefined' && (
+          <span className="app-version">v{__APP_VERSION__}</span>
+        )}
+      </footer>
+      {showReLogin && (
+        <ReLoginModal
+          onClose={() => setShowReLogin(false)}
+          onSuccess={() => {
+            setShowReLogin(false)
+            window.location.reload()
+          }}
+        />
+      )}
     </div>
   )
 }
 
-/* ─── Root App ─────────────────────────────────────────── */
+/* ─── Root ─────────────────────────────────────────────── */
 
 export default function App() {
   const [needsSetup, setNeedsSetup] = useState(null)
@@ -236,18 +218,21 @@ export default function App() {
         setAuthError(false)
       })
       .catch(() => {
-        // API 调用失败时默认显示初始化页面（首次部署场景）
+        // The API is unreachable — show setup with the connection warning.
         setNeedsSetup(true)
         setAuthError(true)
       })
   }, [])
 
-  const handleSetupComplete = () => setNeedsSetup(false)
-
   if (needsSetup === null) {
     return (
-      <div className="login-page">
-        <span className="spinner spinner-lg" />
+      <div className="auth">
+        <div className="auth-panel">
+          <div className="loading-block">
+            <span className="spinner" aria-hidden="true" />
+            正在连接服务…
+          </div>
+        </div>
       </div>
     )
   }
@@ -255,50 +240,63 @@ export default function App() {
   return (
     <ThemeProvider>
       <AuthProvider>
-        <BrowserRouter>
-          <Toaster
-            position={window.innerWidth < 1024 ? 'bottom-center' : 'top-right'}
-            toastOptions={{
-              duration: 3000,
-              style: {
-                fontFamily: 'var(--font-sans)',
-                fontSize: '0.8125rem',
-                borderRadius: '8px',
-              },
-            }}
-            containerStyle={window.innerWidth < 1024 ? { bottom: 80 } : { top: 20 }}
-          />
-          <Routes>
-            <Route
-              path="/setup"
-              element={
-                needsSetup ? (
-                  <Setup onComplete={handleSetupComplete} authError={authError} />
-                ) : (
-                  <Navigate to="/login" replace />
-                )
-              }
+        <ConfirmProvider>
+          <BrowserRouter>
+            <Toaster
+              position="top-center"
+              gutter={8}
+              toastOptions={{
+                duration: 3000,
+                style: {
+                  fontFamily: 'var(--font-sans)',
+                  fontSize: 'var(--text-md)',
+                  color: 'var(--color-text)',
+                  background: 'var(--color-surface)',
+                  border: '1px solid var(--color-border-strong)',
+                  borderRadius: 'var(--radius-sm)',
+                  boxShadow: 'var(--shadow-md)',
+                  padding: '10px 14px',
+                  maxWidth: 'min(92vw, 420px)',
+                },
+                success: {
+                  iconTheme: { primary: 'var(--color-success)', secondary: 'var(--white)' },
+                },
+                error: { iconTheme: { primary: 'var(--color-danger)', secondary: 'var(--white)' } },
+              }}
+              containerClassName="toast-container"
             />
-            <Route
-              path="/login"
-              element={
-                <SetupGate needsSetup={needsSetup}>
-                  <Login />
-                </SetupGate>
-              }
-            />
-            <Route
-              path="/*"
-              element={
-                <ProtectedRoute>
+            <Routes>
+              <Route
+                path="/setup"
+                element={
+                  needsSetup ? (
+                    <Setup onComplete={() => setNeedsSetup(false)} authError={authError} />
+                  ) : (
+                    <Navigate to="/login" replace />
+                  )
+                }
+              />
+              <Route
+                path="/login"
+                element={
                   <SetupGate needsSetup={needsSetup}>
-                    <AppLayout />
+                    <Login />
                   </SetupGate>
-                </ProtectedRoute>
-              }
-            />
-          </Routes>
-        </BrowserRouter>
+                }
+              />
+              <Route
+                path="/*"
+                element={
+                  <ProtectedRoute>
+                    <SetupGate needsSetup={needsSetup}>
+                      <AppLayout />
+                    </SetupGate>
+                  </ProtectedRoute>
+                }
+              />
+            </Routes>
+          </BrowserRouter>
+        </ConfirmProvider>
       </AuthProvider>
     </ThemeProvider>
   )

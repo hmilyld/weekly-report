@@ -9,12 +9,13 @@ weekly-report/
 ├── frontend/          # React 18 + Vite 5 SPA
 │   ├── src/
 │   │   ├── api/         # Axios instance + API wrappers
-│   │   ├── components/  # CalendarView, DailyEditModal
+│   │   ├── components/  # CalendarView, WeekList, DailyEditModal, ReportWorkspace
+│   │   │   └── ui/        # Button, Field, Panel, Modal, ConfirmProvider, PeriodBar…
 │   │   ├── contexts/    # AuthContext, ThemeContext
 │   │   ├── hooks/       # Custom hooks (useMediaQuery)
 │   │   ├── pages/       # DailyReport, WeeklyReport, MonthlyReport, Settings, etc.
-│   │   ├── styles/      # global.css (CSS custom properties for theming)
-│   │   └── utils/       # date helpers
+│   │   ├── styles/      # tokens.css → base.css → components.css → app.css
+│   │   └── utils/       # date helpers, clipboard
 │   └── public/          # PWA icons (SVG)
 ├── backend/           # Python FastAPI + SQLAlchemy + SQLite
 │   ├── app/
@@ -88,6 +89,16 @@ docker compose up --build   # Build and run on :18001
 - LF line endings. UTF-8 charset (see `.editorconfig`).
 - React 18 — `react/react-in-jsx-scope` off (no explicit React imports).
 - `prop-types` off — typed via conventions, not PropTypes.
+
+### Frontend styling
+
+The visual system is documented in `DESIGN.md` and is not re-decided per screen.
+
+- **No literal values in page code.** Colours, sizes, radii, shadows, and durations come from the tokens in `src/styles/tokens.css`. Inline `style={{}}` is only for one-off layout a component cannot express.
+- **One component vocabulary.** Use `components/ui/` (`Button`, `Field`, `Panel`, `Modal`, `EmptyState`, `PeriodBar`) instead of new ad-hoc markup. Destructive actions go through `useConfirm()`, never `window.confirm`.
+- **Styling layers:** `tokens.css` (values) → `base.css` (reset, focus, browser surfaces) → `components.css` (button/field/panel/modal/tabs/state) → `app.css` (shell, navigation, page surfaces). Add rules to the layer that owns them.
+- **Theme by re-pointing tokens**, not by duplicating rules under `[data-theme='dark']`.
+- **Every interactive component ships default, hover, focus-visible, active, disabled, and loading.** Icon-only buttons need `aria-label`.
 
 ## Testing
 

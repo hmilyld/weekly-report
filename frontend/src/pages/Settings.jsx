@@ -1,64 +1,61 @@
-import { useState, useEffect } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import toast from 'react-hot-toast'
 import {
-  Save,
-  Zap,
-  CheckCircle,
-  XCircle,
+  Check,
+  CheckCircle2,
+  Copy,
+  ExternalLink,
+  Key,
   KeyRound,
   Plus,
+  Save,
   Trash2,
-  Copy,
-  Check,
-  Key,
-  ExternalLink,
+  XCircle,
+  Zap,
 } from 'lucide-react'
 import {
-  getConfig,
-  updateConfig,
-  testConnection,
   changePassword,
-  getTokens,
   createToken,
   deleteToken,
+  getConfig,
+  getTokens,
+  testConnection,
+  updateConfig,
 } from '../api'
 import { useAuth } from '../contexts/AuthContext'
+import { useConfirm } from '../components/ui/ConfirmProvider'
+import { copyText } from '../utils/clipboard'
+import Button from '../components/ui/Button'
+import Field from '../components/ui/Field'
+import PageHeader from '../components/ui/PageHeader'
+import { Panel, PanelBody, PanelFooter, PanelHeader } from '../components/ui/Panel'
 
 export default function SettingsPage() {
   const { isAdmin } = useAuth()
-  // ─── LLM Config ─────────────────────────────────────
-  const [config, setConfig] = useState({
-    llm_api_url: '',
-    llm_model_name: '',
-    api_key: '',
-  })
-  const [loading, setLoading] = useState(false)
+  const confirm = useConfirm()
+
+  /* LLM config */
+  const [config, setConfig] = useState({ llm_api_url: '', llm_model_name: '', api_key: '' })
+  const [loadingConfig, setLoadingConfig] = useState(isAdmin)
+  const [saving, setSaving] = useState(false)
   const [testing, setTesting] = useState(false)
   const [testResult, setTestResult] = useState(null)
-  const [saving, setSaving] = useState(false)
 
-  // ─── Password ───────────────────────────────────────
-  const [pwd, setPwd] = useState({ new_password: '', confirm: '' })
+  /* Password */
+  const [pwd, setPwd] = useState({ next: '', confirm: '' })
   const [changingPwd, setChangingPwd] = useState(false)
 
-  // ─── Tokens ─────────────────────────────────────────
+  /* Tokens */
   const [tokens, setTokens] = useState([])
-  const [loadingTokens, setLoadingTokens] = useState(false)
-  const [newTokenName, setNewTokenName] = useState('')
+  const [loadingTokens, setLoadingTokens] = useState(true)
+  const [tokenName, setTokenName] = useState('')
   const [creatingToken, setCreatingToken] = useState(false)
-  const [deletingTokenId, setDeletingTokenId] = useState(null)
-  const [createdToken, setCreatedToken] = useState(null) // Show once
-  const [copiedId, setCopiedId] = useState(null)
+  const [createdToken, setCreatedToken] = useState(null)
+  const [deletingId, setDeletingId] = useState(null)
+  const [copied, setCopied] = useState(null)
 
-  useEffect(() => {
-    if (isAdmin) {
-      loadConfig()
-    }
-    loadTokens()
-  }, [isAdmin])
-
-  const loadConfig = async () => {
-    setLoading(true)
+  const loadConfig = useCallback(async () => {
+    setLoadingConfig(true)
     try {
       const { data } = await getConfig()
       setConfig({
@@ -66,37 +63,43 @@ export default function SettingsPage() {
         llm_model_name: data.llm_model_name || '',
         api_key: data.api_key || '',
       })
-    } catch (_) {
+    } catch {
       toast.error('加载配置失败')
     } finally {
-      setLoading(false)
+      setLoadingConfig(false)
     }
-  }
+  }, [])
 
-  const loadTokens = async () => {
+  const loadTokens = useCallback(async () => {
     setLoadingTokens(true)
     try {
       const { data } = await getTokens()
       setTokens(data)
-    } catch (err) {
-      console.error('Failed to load tokens', err)
+    } catch {
+      toast.error('加载 Token 列表失败')
     } finally {
       setLoadingTokens(false)
     }
+  }, [])
+
+  useEffect(() => {
+    if (isAdmin) loadConfig()
+    loadTokens()
+  }, [isAdmin, loadConfig, loadTokens])
+
+  // A masked key must not be sent back; only a freshly typed key is written.
+  const configPayload = () => {
+    const payload = { ...config }
+    if (config.api_key && config.api_key.includes('*')) delete payload.api_key
+    return payload
   }
 
-  // ─── LLM handlers ──────────────────────────────────
   const handleSaveConfig = async () => {
     setSaving(true)
     try {
-      // Only send api_key if user changed it from the masked version
-      const payload = { ...config }
-      if (config.api_key && config.api_key.includes('*')) {
-        delete payload.api_key
-      }
-      await updateConfig(payload)
+      await updateConfig(configPayload())
       toast.success('配置已保存')
-      loadConfig() // Reload to get fresh masked key
+      loadConfig()
     } catch (err) {
       toast.error(err.response?.data?.detail || '保存失败')
     } finally {
@@ -108,12 +111,7 @@ export default function SettingsPage() {
     setTesting(true)
     setTestResult(null)
     try {
-      // Save config first (skip masked key)
-      const payload = { ...config }
-      if (config.api_key && config.api_key.includes('*')) {
-        delete payload.api_key
-      }
-      await updateConfig(payload)
+      await updateConfig(configPayload())
       const { data } = await testConnection()
       setTestResult(data)
       toast[data.success ? 'success' : 'error'](data.message)
@@ -124,25 +122,24 @@ export default function SettingsPage() {
     }
   }
 
-  // ─── Password handler ──────────────────────────────
   const handleChangePassword = async () => {
-    if (!pwd.new_password) {
+    if (!pwd.next) {
       toast.error('请输入新密码')
       return
     }
-    if (pwd.new_password.length < 6) {
+    if (pwd.next.length < 6) {
       toast.error('密码至少 6 位')
       return
     }
-    if (pwd.new_password !== pwd.confirm) {
+    if (pwd.next !== pwd.confirm) {
       toast.error('两次密码不一致')
       return
     }
     setChangingPwd(true)
     try {
-      await changePassword(pwd.new_password)
-      toast.success('密码修改成功')
-      setPwd({ new_password: '', confirm: '' })
+      await changePassword(pwd.next)
+      toast.success('密码已修改，其他设备需要重新登录')
+      setPwd({ next: '', confirm: '' })
     } catch (err) {
       toast.error(err.response?.data?.detail || '修改失败')
     } finally {
@@ -150,15 +147,14 @@ export default function SettingsPage() {
     }
   }
 
-  // ─── Token handlers ────────────────────────────────
   const handleCreateToken = async () => {
     setCreatingToken(true)
     try {
-      const { data } = await createToken(newTokenName || 'default')
+      const { data } = await createToken(tokenName || 'default')
       setCreatedToken(data)
-      setNewTokenName('')
+      setTokenName('')
       loadTokens()
-      toast.success('Token 创建成功，请保存，只显示一次')
+      toast.success('Token 已创建')
     } catch (err) {
       toast.error(err.response?.data?.detail || '创建失败')
     } finally {
@@ -166,418 +162,262 @@ export default function SettingsPage() {
     }
   }
 
-  const handleDeleteToken = async (id, name) => {
-    if (!confirm(`确定删除 Token "${name}"？`)) return
-    setDeletingTokenId(id)
+  const handleDeleteToken = async (token) => {
+    const ok = await confirm({
+      title: `删除 Token「${token.name}」？`,
+      body: '使用这个 Token 的脚本会立刻失去写入权限。',
+      confirmLabel: '删除',
+      tone: 'danger',
+    })
+    if (!ok) return
+    setDeletingId(token.id)
     try {
-      await deleteToken(id)
+      await deleteToken(token.id)
       toast.success('已删除')
       loadTokens()
-    } catch (_) {
+    } catch {
       toast.error('删除失败')
     } finally {
-      setDeletingTokenId(null)
+      setDeletingId(null)
     }
   }
 
-  const handleCopyToken = async (token) => {
-    try {
-      await navigator.clipboard.writeText(token)
-    } catch {
-      const ta = document.createElement('textarea')
-      ta.value = token
-      ta.style.position = 'fixed'
-      ta.style.opacity = '0'
-      document.body.appendChild(ta)
-      ta.select()
-      document.execCommand('copy')
-      document.body.removeChild(ta)
+  const handleCopy = async (value) => {
+    const ok = await copyText(value)
+    if (!ok) {
+      toast.error('复制失败，请手动选择')
+      return
     }
-    setCopiedId(token)
+    setCopied(value)
     toast.success('已复制')
-    setTimeout(() => setCopiedId(null), 2000)
-  }
-
-  if (loading && isAdmin) {
-    return (
-      <>
-        <div className="page-header">
-          <h2>系统配置</h2>
-          <p>配置大模型接口参数和账户设置</p>
-        </div>
-        <div className="page-body">
-          <div className="loading-center">
-            <span className="spinner spinner-lg" />
-          </div>
-        </div>
-      </>
-    )
+    window.setTimeout(() => setCopied(null), 2000)
   }
 
   const apiBase = window.location.origin
 
   return (
-    <>
-      <div className="page-header">
-        <h2>系统配置</h2>
-        <p>配置大模型接口、账户设置和 API Token</p>
-      </div>
-      <div className="page-body">
-        {/* ─── LLM Config Card (admin only) ─────── */}
-        {isAdmin && (
-          <div className="settings-section">
-            <div className="card">
-              <div className="card-header">
-                <h3>大模型配置</h3>
+    <div className="page page-narrow">
+      <PageHeader title="系统配置" subtitle="模型接入、账号安全，以及给脚本用的 API Token。" />
+
+      {isAdmin && (
+        <Panel className="page-section">
+          <PanelHeader title="大模型配置" icon={Zap} />
+          <PanelBody>
+            {loadingConfig ? (
+              <div className="loading-block">
+                <span className="spinner" aria-hidden="true" />
+                正在读取配置…
               </div>
-              <div className="card-body">
-                <div className="config-grid">
-                  <div className="form-group">
-                    <label className="form-label">API 地址</label>
-                    <input
-                      type="url"
-                      className="form-input"
-                      placeholder="http://localhost:11434/v1/chat/completions"
-                      value={config.llm_api_url}
-                      onChange={(e) => setConfig({ ...config, llm_api_url: e.target.value })}
-                    />
-                    <p
-                      style={{
-                        fontSize: '0.75rem',
-                        color: 'var(--color-text-muted)',
-                        marginTop: '4px',
-                      }}
-                    >
-                      完整的 OpenAI 兼容接口地址
-                    </p>
+            ) : (
+              <div className="form-stack">
+                <Field label="API 地址" hint="以 /chat/completions 结尾的完整 OpenAI 兼容地址">
+                  <input
+                    className="input"
+                    type="url"
+                    placeholder="http://localhost:11434/v1/chat/completions"
+                    value={config.llm_api_url}
+                    onChange={(event) => setConfig({ ...config, llm_api_url: event.target.value })}
+                  />
+                </Field>
+                <Field label="模型名称" hint="与接口返回的模型标识一致，例如 llama2、gpt-4o-mini">
+                  <input
+                    className="input"
+                    type="text"
+                    placeholder="llama2"
+                    value={config.llm_model_name}
+                    onChange={(event) =>
+                      setConfig({ ...config, llm_model_name: event.target.value })
+                    }
+                  />
+                </Field>
+                <Field
+                  label="API Key"
+                  optional
+                  hint="留空则不发送 Authorization 头；已保存的密钥显示为掩码。"
+                >
+                  <input
+                    className="input"
+                    type="password"
+                    placeholder="留空则不发送 Authorization 头"
+                    value={config.api_key}
+                    onChange={(event) => setConfig({ ...config, api_key: event.target.value })}
+                  />
+                </Field>
+                {testResult && (
+                  <div
+                    className={`notice ${testResult.success ? 'notice-success' : 'notice-danger'}`}
+                    role="status"
+                  >
+                    {testResult.success ? (
+                      <CheckCircle2 size={16} aria-hidden="true" />
+                    ) : (
+                      <XCircle size={16} aria-hidden="true" />
+                    )}
+                    <span>{testResult.message}</span>
                   </div>
-                  <div className="form-group">
-                    <label className="form-label">模型名称</label>
-                    <input
-                      type="text"
-                      className="form-input"
-                      placeholder="llama2"
-                      value={config.llm_model_name}
-                      onChange={(e) => setConfig({ ...config, llm_model_name: e.target.value })}
-                    />
-                  </div>
-                  <div className="form-group">
-                    <label className="form-label">API Key（可选）</label>
-                    <input
-                      type="password"
-                      className="form-input"
-                      placeholder="留空则不发送 Authorization 头"
-                      value={config.api_key}
-                      onChange={(e) => setConfig({ ...config, api_key: e.target.value })}
-                    />
-                  </div>
-                  {testResult && (
-                    <div className={`test-result ${testResult.success ? 'success' : 'error'}`}>
-                      {testResult.success ? (
-                        <CheckCircle size={16} style={{ flexShrink: 0, marginTop: '2px' }} />
-                      ) : (
-                        <XCircle size={16} style={{ flexShrink: 0, marginTop: '2px' }} />
-                      )}
-                      <span>{testResult.message}</span>
-                    </div>
-                  )}
-                  <div className="config-actions">
-                    <button
-                      className="btn btn-primary"
-                      onClick={handleSaveConfig}
-                      disabled={saving}
-                    >
-                      {saving ? (
-                        <span className="spinner" />
-                      ) : (
-                        <>
-                          <Save size={16} /> 保存配置
-                        </>
-                      )}
-                    </button>
-                    <button className="btn btn-outline" onClick={handleTest} disabled={testing}>
-                      {testing ? (
-                        <span className="spinner" />
-                      ) : (
-                        <>
-                          <Zap size={16} /> 测试连接
-                        </>
-                      )}
-                    </button>
-                  </div>
+                )}
+              </div>
+            )}
+          </PanelBody>
+          <PanelFooter>
+            <Button variant="outline" icon={Zap} onClick={handleTest} loading={testing}>
+              测试连接
+            </Button>
+            <Button variant="primary" icon={Save} onClick={handleSaveConfig} loading={saving}>
+              保存配置
+            </Button>
+          </PanelFooter>
+        </Panel>
+      )}
+
+      <Panel className="page-section">
+        <PanelHeader title="修改密码" icon={KeyRound} />
+        <PanelBody>
+          <div className="form-stack">
+            <Field label="新密码" hint="至少 6 位；修改后其他设备上的登录会失效。">
+              <input
+                className="input"
+                type="password"
+                placeholder="输入新密码"
+                value={pwd.next}
+                onChange={(event) => setPwd({ ...pwd, next: event.target.value })}
+                autoComplete="new-password"
+              />
+            </Field>
+            <Field label="确认新密码">
+              <input
+                className="input"
+                type="password"
+                placeholder="再次输入新密码"
+                value={pwd.confirm}
+                onChange={(event) => setPwd({ ...pwd, confirm: event.target.value })}
+                autoComplete="new-password"
+              />
+            </Field>
+          </div>
+        </PanelBody>
+        <PanelFooter>
+          <Button
+            variant="primary"
+            icon={KeyRound}
+            onClick={handleChangePassword}
+            loading={changingPwd}
+          >
+            修改密码
+          </Button>
+        </PanelFooter>
+      </Panel>
+
+      <Panel className="page-section">
+        <PanelHeader title="API Token" icon={Key} />
+        <PanelBody>
+          <p className="section-note">
+            创建 Token 后，脚本可以带着 <code>X-API-Token</code> 直接写入日报，无需登录。
+          </p>
+
+          {createdToken && (
+            <div className="notice notice-success" style={{ marginTop: 'var(--space-4)' }}>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <strong>Token 已创建，只显示这一次</strong>
+                <div className="token-reveal" style={{ marginTop: 'var(--space-2)' }}>
+                  <code>{createdToken.token}</code>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    iconOnly
+                    icon={copied === createdToken.token ? Check : Copy}
+                    aria-label="复制 Token"
+                    onClick={() => handleCopy(createdToken.token)}
+                  />
                 </div>
               </div>
             </div>
+          )}
+
+          <div className="row" style={{ marginTop: 'var(--space-4)' }}>
+            <input
+              className="input"
+              type="text"
+              placeholder="Token 名称，例如 ci-bot"
+              value={tokenName}
+              onChange={(event) => setTokenName(event.target.value)}
+              onKeyDown={(event) => {
+                if (event.key === 'Enter') handleCreateToken()
+              }}
+              aria-label="Token 名称"
+            />
+            <Button
+              variant="primary"
+              icon={Plus}
+              onClick={handleCreateToken}
+              loading={creatingToken}
+            >
+              创建
+            </Button>
+          </div>
+        </PanelBody>
+
+        {loadingTokens ? (
+          <div className="loading-block">
+            <span className="spinner" aria-hidden="true" />
+            正在读取 Token…
+          </div>
+        ) : tokens.length === 0 ? (
+          <p className="panel-note">
+            还没有 Token。创建后请在脚本里妥善保存，页面上不会再显示完整值。
+          </p>
+        ) : (
+          <div>
+            {tokens.map((token) => (
+              <div className="record-row" key={token.id}>
+                <div className="record-main">
+                  <span className="record-icon">
+                    <Key size={14} aria-hidden="true" />
+                  </span>
+                  <div>
+                    <div className="record-title">{token.name}</div>
+                    <div className="record-meta">
+                      <span>创建 {new Date(token.created_at).toLocaleDateString('zh-CN')}</span>
+                      {token.last_used_at && (
+                        <span>
+                          最近使用 {new Date(token.last_used_at).toLocaleDateString('zh-CN')}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                </div>
+                <div className="record-actions">
+                  <Button
+                    variant="danger"
+                    size="sm"
+                    iconOnly
+                    icon={Trash2}
+                    aria-label={`删除 ${token.name}`}
+                    loading={deletingId === token.id}
+                    onClick={() => handleDeleteToken(token)}
+                  />
+                </div>
+              </div>
+            ))}
           </div>
         )}
 
-        {/* ─── Password Change Card ────────────── */}
-        <div className="settings-section">
-          <div className="card">
-            <div className="card-header">
-              <h3 style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <KeyRound size={18} /> 修改密码
-              </h3>
-            </div>
-            <div className="card-body">
-              <div className="config-grid">
-                <div className="form-group">
-                  <label className="form-label">新密码</label>
-                  <input
-                    type="password"
-                    className="form-input"
-                    placeholder="至少 6 位"
-                    value={pwd.new_password}
-                    onChange={(e) => setPwd({ ...pwd, new_password: e.target.value })}
-                  />
-                </div>
-                <div className="form-group">
-                  <label className="form-label">确认新密码</label>
-                  <input
-                    type="password"
-                    className="form-input"
-                    placeholder="再次输入新密码"
-                    value={pwd.confirm}
-                    onChange={(e) => setPwd({ ...pwd, confirm: e.target.value })}
-                  />
-                </div>
-                <div className="config-actions">
-                  <button
-                    className="btn btn-primary"
-                    onClick={handleChangePassword}
-                    disabled={changingPwd}
-                  >
-                    {changingPwd ? (
-                      <span className="spinner" />
-                    ) : (
-                      <>
-                        <KeyRound size={16} /> 修改密码
-                      </>
-                    )}
-                  </button>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* ─── API Token Card ──────────────────── */}
-        <div className="settings-section">
-          <div className="card">
-            <div className="card-header">
-              <h3 style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <Key size={18} /> API Token
-              </h3>
-            </div>
-            <div className="card-body">
-              <p
-                style={{
-                  fontSize: '0.8125rem',
-                  color: 'var(--color-text-secondary)',
-                  marginBottom: 'var(--space-4)',
-                }}
-              >
-                创建 Token 后，可通过 API 直接提交日报，无需登录。
-              </p>
-
-              {/* Created token notice */}
-              {createdToken && (
-                <div
-                  style={{
-                    padding: 'var(--space-4)',
-                    background: '#f0fdf4',
-                    border: '1px solid #bbf7d0',
-                    borderRadius: 'var(--radius-md)',
-                    marginBottom: 'var(--space-4)',
-                  }}
-                >
-                  <p
-                    style={{
-                      fontSize: '0.8125rem',
-                      fontWeight: 600,
-                      color: '#166534',
-                      marginBottom: '8px',
-                    }}
-                  >
-                    ✅ Token 创建成功（仅显示一次，请妥善保存）
-                  </p>
-                  <div
-                    style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: '8px',
-                      background: 'white',
-                      padding: '8px 12px',
-                      borderRadius: '6px',
-                      border: '1px solid #d1fae5',
-                    }}
-                  >
-                    <code
-                      style={{
-                        flex: 1,
-                        fontSize: '0.75rem',
-                        wordBreak: 'break-all',
-                        fontFamily: 'var(--font-mono)',
-                      }}
-                    >
-                      {createdToken.token}
-                    </code>
-                    <button
-                      className="btn btn-ghost btn-sm"
-                      onClick={() => handleCopyToken(createdToken.token)}
-                    >
-                      {copiedId === createdToken.token ? <Check size={14} /> : <Copy size={14} />}
-                    </button>
-                  </div>
-                </div>
-              )}
-
-              {/* Create new token */}
-              <div
-                style={{ display: 'flex', gap: 'var(--space-3)', marginBottom: 'var(--space-4)' }}
-              >
-                <input
-                  type="text"
-                  className="form-input"
-                  placeholder="Token 名称（可选）"
-                  value={newTokenName}
-                  onChange={(e) => setNewTokenName(e.target.value)}
-                  style={{ flex: 1 }}
-                  onKeyDown={(e) => e.key === 'Enter' && handleCreateToken()}
-                />
-                <button
-                  className="btn btn-primary btn-sm"
-                  onClick={handleCreateToken}
-                  disabled={creatingToken}
-                >
-                  {creatingToken ? (
-                    <span className="spinner" />
-                  ) : (
-                    <>
-                      <Plus size={14} /> 创建
-                    </>
-                  )}
-                </button>
-              </div>
-
-              {/* Token list */}
-              {loadingTokens ? (
-                <div className="loading-center" style={{ padding: 'var(--space-6)' }}>
-                  <span className="spinner" />
-                </div>
-              ) : tokens.length === 0 ? (
-                <p
-                  style={{
-                    fontSize: '0.8125rem',
-                    color: 'var(--color-text-muted)',
-                    textAlign: 'center',
-                    padding: 'var(--space-6)',
-                  }}
-                >
-                  暂无 Token
-                </p>
-              ) : (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-2)' }}>
-                  {tokens.map((t) => (
-                    <div
-                      key={t.id}
-                      style={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'space-between',
-                        padding: 'var(--space-3) var(--space-4)',
-                        background: 'var(--color-bg)',
-                        borderRadius: 'var(--radius-md)',
-                        border: '1px solid var(--color-border)',
-                      }}
-                    >
-                      <div>
-                        <span style={{ fontWeight: 600, fontSize: '0.875rem' }}>{t.name}</span>
-                        <span
-                          style={{
-                            fontSize: '0.75rem',
-                            color: 'var(--color-text-muted)',
-                            marginLeft: '8px',
-                          }}
-                        >
-                          {new Date(t.created_at).toLocaleDateString('zh-CN')}
-                        </span>
-                        {t.last_used_at && (
-                          <span
-                            style={{
-                              fontSize: '0.75rem',
-                              color: 'var(--color-text-muted)',
-                              marginLeft: '8px',
-                            }}
-                          >
-                            最近使用: {new Date(t.last_used_at).toLocaleDateString('zh-CN')}
-                          </span>
-                        )}
-                      </div>
-                      <button
-                        className={`btn btn-ghost btn-sm ${deletingTokenId === t.id ? 'btn-loading' : ''}`}
-                        onClick={() => handleDeleteToken(t.id, t.name)}
-                        disabled={deletingTokenId === t.id}
-                        style={{ color: 'var(--color-danger)' }}
-                      >
-                        <Trash2 size={14} />
-                      </button>
-                    </div>
-                  ))}
-                </div>
-              )}
-
-              {/* API usage example */}
-              <div
-                style={{
-                  marginTop: 'var(--space-5)',
-                  padding: 'var(--space-4)',
-                  background: 'var(--color-bg)',
-                  borderRadius: 'var(--radius-md)',
-                  border: '1px solid var(--color-border)',
-                }}
-              >
-                <p
-                  style={{
-                    fontSize: '0.8125rem',
-                    fontWeight: 600,
-                    marginBottom: '8px',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '6px',
-                  }}
-                >
-                  <ExternalLink size={14} /> 使用示例
-                </p>
-                <pre
-                  style={{
-                    fontSize: '0.75rem',
-                    lineHeight: 1.6,
-                    fontFamily: 'var(--font-mono)',
-                    color: 'var(--color-text-secondary)',
-                    whiteSpace: 'pre-wrap',
-                    wordBreak: 'break-all',
-                  }}
-                >
-                  {`curl -X POST ${apiBase}/api/v1/external/daily \\
+        <PanelBody>
+          <p className="row" style={{ gap: 'var(--space-2)', marginBottom: 'var(--space-2)' }}>
+            <ExternalLink size={14} aria-hidden="true" />
+            <span className="field-label" style={{ margin: 0 }}>
+              使用示例
+            </span>
+          </p>
+          <pre className="code-block">{`curl -X POST ${apiBase}/api/v1/external/daily \\
   -H "X-API-Token: <你的Token>" \\
   -H "Content-Type: application/json" \\
-  -d '{"content":"今天完成了xxx","date":"2026-06-10","append":false}'`}
-                </pre>
-                <p
-                  style={{
-                    fontSize: '0.6875rem',
-                    color: 'var(--color-text-muted)',
-                    marginTop: '8px',
-                  }}
-                >
-                  date 和 append 为可选参数。date 默认当天，append 默认 false（覆盖模式）
-                </p>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-    </>
+  -d '{"content":"今天完成了 xxx","date":"2026-06-10","append":false}'`}</pre>
+          <p className="field-hint" style={{ marginTop: 'var(--space-2)' }}>
+            date 与 append 为可选参数：date 默认当天，append 默认 false（覆盖当天内容）。
+          </p>
+        </PanelBody>
+      </Panel>
+    </div>
   )
 }

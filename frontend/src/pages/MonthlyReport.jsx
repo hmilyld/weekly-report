@@ -1,55 +1,29 @@
-import { useState, useEffect, useCallback, useRef } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import toast from 'react-hot-toast'
-import {
-  ChevronLeft,
-  ChevronRight,
-  RefreshCw,
-  FileText,
-  Copy,
-  Pencil,
-  Save,
-  X,
-  Check,
-} from 'lucide-react'
-import { getMonthlyReport, generateMonthlyReport, updateMonthlyReport } from '../api'
+import { generateMonthlyReport, getMonthlyReport, updateMonthlyReport } from '../api'
 import { addMonths, formatMonth } from '../utils/date'
+import PageHeader from '../components/ui/PageHeader'
+import PeriodBar from '../components/ui/PeriodBar'
+import ReportWorkspace from '../components/ReportWorkspace'
 
 export default function MonthlyReport() {
-  const [currentDate, setCurrentDate] = useState(() => new Date())
+  const [current, setCurrent] = useState(() => new Date())
   const [report, setReport] = useState(null)
-  const [loading, setLoading] = useState(false)
+  const [loading, setLoading] = useState(true)
   const [generating, setGenerating] = useState(false)
-
-  // Edit state
-  const [editing, setEditing] = useState(false)
-  const [editContent, setEditContent] = useState('')
   const [saving, setSaving] = useState(false)
 
-  // Copy state
-  const [copied, setCopied] = useState(false)
-  const copyTimerRef = useRef(null)
+  const year = current.getFullYear()
+  const month = current.getMonth() + 1
+  const label = formatMonth(year, month)
 
-  useEffect(() => {
-    return () => {
-      if (copyTimerRef.current) clearTimeout(copyTimerRef.current)
-    }
-  }, [])
-
-  const year = currentDate.getFullYear()
-  const month = currentDate.getMonth() + 1
-
-  // When switching months, try to load existing report (don't auto-generate)
   const loadReport = useCallback(async () => {
     setLoading(true)
     setReport(null)
-    setEditing(false)
     try {
       const { data } = await getMonthlyReport(year, month)
-      // 新格式: { reports: [...], _decryption_failed: bool } 或单个报告对象
-      const report = data.reports ? data.reports[0] || null : data
-      setReport(report)
+      setReport(data.reports ? data.reports[0] || null : data)
     } catch (err) {
-      // 404 = not generated yet, which is fine
       if (err.response?.status !== 404) {
         toast.error(err.response?.data?.detail || '加载月报失败')
       }
@@ -63,13 +37,12 @@ export default function MonthlyReport() {
     loadReport()
   }, [loadReport])
 
-  // Generate
   const handleGenerate = async () => {
     setGenerating(true)
     try {
       const { data } = await generateMonthlyReport(year, month)
       setReport(data)
-      toast.success('月报生成成功')
+      toast.success('月报已生成')
     } catch (err) {
       toast.error(err.response?.data?.detail || '生成失败')
     } finally {
@@ -77,224 +50,53 @@ export default function MonthlyReport() {
     }
   }
 
-  // Edit
-  const startEdit = () => {
-    setEditContent(report.content)
-    setEditing(true)
-  }
-
-  const cancelEdit = () => {
-    setEditing(false)
-    setEditContent('')
-  }
-
-  const saveEdit = async () => {
-    if (!editContent.trim()) {
-      toast.error('内容不能为空')
-      return
-    }
+  const handleSave = async (content) => {
     setSaving(true)
     try {
-      const { data } = await updateMonthlyReport(year, month, editContent)
+      const { data } = await updateMonthlyReport(year, month, content)
       setReport(data)
-      setEditing(false)
-      toast.success('已保存')
+      toast.success('月报已保存')
+      return true
     } catch (err) {
       toast.error(err.response?.data?.detail || '保存失败')
+      return false
     } finally {
       setSaving(false)
     }
   }
 
-  // Copy
-  const handleCopy = async () => {
-    try {
-      await navigator.clipboard.writeText(report.content)
-    } catch {
-      // Fallback for insecure contexts
-      const ta = document.createElement('textarea')
-      ta.value = report.content
-      ta.style.position = 'fixed'
-      ta.style.opacity = '0'
-      document.body.appendChild(ta)
-      ta.select()
-      document.execCommand('copy')
-      document.body.removeChild(ta)
-    }
-    setCopied(true)
-    toast.success('已复制到剪贴板')
-    if (copyTimerRef.current) clearTimeout(copyTimerRef.current)
-    copyTimerRef.current = setTimeout(() => setCopied(false), 2000)
-  }
+  const now = new Date()
+  const isThisMonth = year === now.getFullYear() && month === now.getMonth() + 1
 
   return (
-    <>
-      <div className="page-header">
-        <h2>月报管理</h2>
-        <p>基于日报自动生成月度工作总结</p>
-      </div>
-      <div className="page-body">
-        {/* Month Navigation */}
-        <div className="week-nav">
-          <button
-            className="btn btn-ghost btn-sm"
-            onClick={() => setCurrentDate(addMonths(currentDate, -1))}
-            aria-label="上一月"
-          >
-            <ChevronLeft size={18} />
-          </button>
-          <span className="week-nav-label">{formatMonth(year, month)}</span>
-          <button
-            className="btn btn-ghost btn-sm"
-            onClick={() => setCurrentDate(addMonths(currentDate, 1))}
-            aria-label="下一月"
-          >
-            <ChevronRight size={18} />
-          </button>
-          <button
-            className="btn btn-outline btn-sm"
-            onClick={() => setCurrentDate(new Date())}
-          >
-            本月
-          </button>
-        </div>
-
-        {/* Loading */}
-        {loading ? (
-          <div className="loading-center">
-            <span className="spinner spinner-lg" />
-          </div>
-        ) : report && !editing ? (
-          /* ─── Report View ──────────────────────── */
-          <div className="card">
-            <div className="card-header">
-              <h3 style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <FileText size={18} />
-                月报内容
-              </h3>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)' }}>
-                <span className="badge">{report.model_name}</span>
-              </div>
-            </div>
-            <div className="card-body">
-              <div className="weekly-content">{report.content}</div>
-              <p
-                style={{
-                  fontSize: '0.75rem',
-                  color: 'var(--color-text-muted)',
-                  marginTop: 'var(--space-3)',
-                }}
-              >
-                生成时间: {new Date(report.generated_at).toLocaleString('zh-CN')}
-              </p>
-            </div>
-            {/* Action buttons */}
-            <div
-              style={{
-                padding: 'var(--space-3) var(--space-5)',
-                borderTop: '1px solid var(--color-border)',
-                display: 'flex',
-                gap: 'var(--space-3)',
-                flexWrap: 'wrap',
-              }}
-            >
-              <button className="btn btn-outline btn-sm" onClick={startEdit}>
-                <Pencil size={14} /> 编辑
-              </button>
-              <button className="btn btn-outline btn-sm" onClick={handleCopy}>
-                {copied ? (
-                  <>
-                    <Check size={14} /> 已复制
-                  </>
-                ) : (
-                  <>
-                    <Copy size={14} /> 复制
-                  </>
-                )}
-              </button>
-              <button
-                className="btn btn-ghost btn-sm"
-                onClick={handleGenerate}
-                disabled={generating}
-                style={{ marginLeft: 'auto' }}
-              >
-                {generating ? (
-                  <>
-                    <span className="spinner" /> 生成中...
-                  </>
-                ) : (
-                  <>
-                    <RefreshCw size={14} /> 重新生成
-                  </>
-                )}
-              </button>
-            </div>
-          </div>
-        ) : editing ? (
-          /* ─── Edit Mode ───────────────────────── */
-          <div className="card">
-            <div className="card-header">
-              <h3>编辑月报</h3>
-            </div>
-            <div className="card-body">
-              <textarea
-                className="form-input weekly-edit-textarea"
-                rows={14}
-                value={editContent}
-                onChange={(e) => setEditContent(e.target.value)}
-                style={{ minHeight: '280px', fontSize: '14px', lineHeight: '1.8' }}
-              />
-            </div>
-            <div
-              style={{
-                padding: 'var(--space-3) var(--space-5)',
-                borderTop: '1px solid var(--color-border)',
-                display: 'flex',
-                gap: 'var(--space-3)',
-                justifyContent: 'flex-end',
-              }}
-            >
-              <button className="btn btn-outline btn-sm" onClick={cancelEdit}>
-                <X size={14} /> 取消
-              </button>
-              <button className="btn btn-primary btn-sm" onClick={saveEdit} disabled={saving}>
-                {saving ? (
-                  <span className="spinner" />
-                ) : (
-                  <>
-                    <Save size={14} /> 保存
-                  </>
-                )}
-              </button>
-            </div>
-          </div>
-        ) : (
-          /* ─── Empty State ─────────────────────── */
-          <div style={{ textAlign: 'center' }}>
-            <div className="empty-state">
-              <FileText size={48} />
-              <p>该月暂无月报</p>
-              <p style={{ marginTop: '4px' }}>请先填写日报，然后点击下方按钮生成</p>
-            </div>
-            <button
-              className="btn btn-accent"
-              onClick={handleGenerate}
-              disabled={generating}
-              style={{ maxWidth: '280px' }}
-            >
-              {generating ? (
-                <>
-                  <span className="spinner" /> 生成中...
-                </>
-              ) : (
-                <>
-                  <RefreshCw size={16} /> 生成月报
-                </>
-              )}
-            </button>
-          </div>
-        )}
-      </div>
-    </>
+    <div className="page">
+      <PageHeader
+        title="月报管理"
+        subtitle="把一个月的日报汇总成月度总结；跨月回看时直接切换周期即可。"
+      />
+      <ReportWorkspace
+        cadence="monthly"
+        periodLabel={label}
+        periodNode={
+          <PeriodBar
+            label={label}
+            onPrev={() => setCurrent(addMonths(current, -1))}
+            onNext={() => setCurrent(addMonths(current, 1))}
+            onToday={() => setCurrent(new Date())}
+            todayLabel="回到本月"
+            todayDisabled={isThisMonth}
+            prevLabel="上个月"
+            nextLabel="下个月"
+          />
+        }
+        report={report}
+        loading={loading}
+        generating={generating}
+        saving={saving}
+        onGenerate={handleGenerate}
+        onSave={handleSave}
+        emptyHint="月报由本月所有日报汇总。先在「日报管理」里补全记录，再回来生成。"
+      />
+    </div>
   )
 }

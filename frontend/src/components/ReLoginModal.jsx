@@ -1,25 +1,31 @@
 import { useState } from 'react'
-import { X } from 'lucide-react'
-import { login } from '../api'
 import toast from 'react-hot-toast'
+import { login } from '../api'
+import Modal from './ui/Modal'
+import Button from './ui/Button'
+import Field from './ui/Field'
 
+/**
+ * Shown when the server restarted and the in-memory key cache is gone:
+ * the session is still valid, but data cannot be decrypted until the
+ * password is supplied again.
+ */
 export default function ReLoginModal({ onClose, onSuccess }) {
   const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
   const [loading, setLoading] = useState(false)
 
-  const handleSubmit = async (e) => {
-    e.preventDefault()
+  const handleSubmit = async (event) => {
+    event.preventDefault()
     if (!username || !password) {
       toast.error('请输入用户名和密码')
       return
     }
-
     setLoading(true)
     try {
       const { data } = await login(username, password)
       localStorage.setItem('token', data.access_token)
-      toast.success('重新登录成功')
+      toast.success('已重新登录')
       onSuccess()
     } catch {
       toast.error('登录失败，请检查用户名和密码')
@@ -29,51 +35,43 @@ export default function ReLoginModal({ onClose, onSuccess }) {
   }
 
   return (
-    <div className="modal-overlay" onClick={onClose}>
-      <div className="modal" onClick={(e) => e.stopPropagation()}>
-        <div className="modal-header">
-          <h3>需要重新登录</h3>
-          <button className="btn btn-ghost btn-sm" onClick={onClose}>
-            <X size={18} />
-          </button>
-        </div>
-        <div className="modal-body">
-          <p style={{ marginBottom: '1rem', color: 'var(--color-text-secondary)' }}>
-            服务器已重启，密钥缓存已清空。请重新登录以恢复数据访问。
-          </p>
-          <form onSubmit={handleSubmit}>
-            <div className="form-group">
-              <label htmlFor="username">用户名</label>
-              <input
-                id="username"
-                type="text"
-                className="form-input"
-                value={username}
-                onChange={(e) => setUsername(e.target.value)}
-                autoFocus
-              />
-            </div>
-            <div className="form-group">
-              <label htmlFor="password">密码</label>
-              <input
-                id="password"
-                type="password"
-                className="form-input"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-              />
-            </div>
-            <div className="modal-footer">
-              <button type="button" className="btn btn-secondary" onClick={onClose}>
-                取消
-              </button>
-              <button type="submit" className="btn btn-primary" disabled={loading}>
-                {loading ? '登录中...' : '重新登录'}
-              </button>
-            </div>
-          </form>
-        </div>
-      </div>
-    </div>
+    <Modal
+      size="sm"
+      title="需要重新登录"
+      description="服务器重启后密钥缓存已清空，重新登录即可恢复数据访问。"
+      onClose={onClose}
+      footer={
+        <>
+          <Button variant="ghost" onClick={onClose}>
+            稍后
+          </Button>
+          <Button type="submit" form="relogin-form" variant="primary" loading={loading}>
+            重新登录
+          </Button>
+        </>
+      }
+    >
+      <form id="relogin-form" className="form-stack" onSubmit={handleSubmit}>
+        <Field label="用户名">
+          <input
+            className="input"
+            type="text"
+            value={username}
+            onChange={(event) => setUsername(event.target.value)}
+            autoFocus
+            autoComplete="username"
+          />
+        </Field>
+        <Field label="密码">
+          <input
+            className="input"
+            type="password"
+            value={password}
+            onChange={(event) => setPassword(event.target.value)}
+            autoComplete="current-password"
+          />
+        </Field>
+      </form>
+    </Modal>
   )
 }
