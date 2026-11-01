@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import toast from 'react-hot-toast'
 import { AlertTriangle, UserPlus } from 'lucide-react'
 import { setupAccount } from '../api'
+import { useAuth } from '../contexts/AuthContext'
 import Button from '../components/ui/Button'
 import Field from '../components/ui/Field'
 import Wordmark from '../components/ui/Wordmark'
@@ -13,6 +14,7 @@ export default function Setup({ onComplete, authError }) {
   const [confirm, setConfirm] = useState('')
   const [loading, setLoading] = useState(false)
   const navigate = useNavigate()
+  const { refreshUser } = useAuth()
 
   const handleSubmit = async (event) => {
     event.preventDefault()
@@ -38,6 +40,9 @@ export default function Setup({ onComplete, authError }) {
     try {
       const { data } = await setupAccount(username.trim(), password)
       localStorage.setItem('token', data.access_token)
+      // Load the new admin into the auth context, otherwise the
+      // admin-only entries stay hidden until a manual reload.
+      await refreshUser()
       toast.success('账户已创建')
       onComplete()
       navigate('/', { replace: true })

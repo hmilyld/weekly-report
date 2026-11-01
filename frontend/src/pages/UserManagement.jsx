@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react'
 import toast from 'react-hot-toast'
 import { Plus, Shield, Trash2, User } from 'lucide-react'
 import { createUser, deleteUser, getUsers, updateUserRole } from '../api'
+import { formatDateTime } from '../utils/date'
 import { useAuth } from '../contexts/AuthContext'
 import { useConfirm } from '../components/ui/ConfirmProvider'
 import Button from '../components/ui/Button'
@@ -163,7 +164,12 @@ export default function UserManagement() {
                         </span>
                       </div>
                       <div className="record-meta">
-                        <span>创建于 {new Date(item.created_at).toLocaleDateString('zh-CN')}</span>
+                        <span>创建于 {formatDateTime(item.created_at)}</span>
+                        <span>
+                          {item.last_login_at
+                            ? `最近登录 ${formatDateTime(item.last_login_at)}`
+                            : '从未登录'}
+                        </span>
                       </div>
                     </div>
                   </div>

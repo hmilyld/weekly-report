@@ -34,6 +34,7 @@ def _migrate_db():
                 ("password_version", "INTEGER NOT NULL DEFAULT 0"),
                 ("role", "VARCHAR(20) NOT NULL DEFAULT 'user'"),
                 ("needs_encryption_migration", "BOOLEAN NOT NULL DEFAULT 1"),
+                ("last_login_at", "DATETIME"),
             ]
             for col_name, col_def in migrations:
                 if col_name not in columns:

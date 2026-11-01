@@ -1,14 +1,12 @@
 """CRUD operations."""
 
+import base64
+import hashlib
 from datetime import UTC, date, datetime, timedelta
 
 from sqlalchemy.orm import Session
 
 from . import models
-import base64
-import hashlib
-import os
-
 from .crypto import decrypt_content, encrypt_content, generate_salt
 from .key_cache import key_cache
 
@@ -16,6 +14,7 @@ from .key_cache import key_cache
 def _get_api_key_encryption_key() -> bytes:
     """Derive encryption key for API key storage from JWT secret."""
     from .config import settings
+
     # Use JWT secret as base, derive a separate key for API key encryption
     return hashlib.pbkdf2_hmac(
         "sha256",
@@ -121,6 +120,12 @@ def create_user(db: Session, username: str, password_hash: str, role: str = "use
 def change_password(db: Session, user: models.User, new_hash: str) -> None:
     user.password_hash = new_hash
     user.password_version = (user.password_version or 0) + 1
+    db.commit()
+
+
+def touch_last_login(db: Session, user: models.User) -> None:
+    """Record a successful sign-in."""
+    user.last_login_at = datetime.now(UTC)
     db.commit()
 
 

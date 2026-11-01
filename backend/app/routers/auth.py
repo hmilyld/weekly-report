@@ -91,6 +91,7 @@ def initial_setup(body: SetupRequest, db: Session = Depends(get_db)):
     validate_password(body.password)
 
     user = crud.create_user(db, body.username.strip(), hash_password(body.password), role="admin")
+    crud.touch_last_login(db, user)
     token = create_access_token({"sub": str(user.id), "username": user.username, "pwd_ver": 0})
     return TokenResponse(access_token=token)
 
@@ -112,6 +113,8 @@ def login(body: LoginRequest, request: Request, db: Session = Depends(get_db)):
     token = create_access_token(
         {"sub": str(user.id), "username": user.username, "pwd_ver": user.password_version}
     )
+
+    crud.touch_last_login(db, user)
 
     key = derive_user_key(body.password, user)
     key_cache.set(user.id, key)

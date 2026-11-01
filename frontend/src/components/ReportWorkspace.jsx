@@ -5,6 +5,7 @@ import Button from './ui/Button'
 import { Panel, PanelBody, PanelFooter, PanelHeader } from './ui/Panel'
 import EmptyState from './ui/EmptyState'
 import { copyText } from '../utils/clipboard'
+import { formatDateTime } from '../utils/date'
 
 /**
  * The weekly and monthly surfaces are the same surface at two scales:
@@ -177,10 +178,10 @@ export default function ReportWorkspace({
         <PanelBody>
           <div className="report-text">{report.content}</div>
           <div className="report-meta">
-            <span>生成于 {new Date(report.generated_at).toLocaleString('zh-CN')}</span>
+            <span>生成于 {formatDateTime(report.generated_at)}</span>
             {report.model_name && <span>· {report.model_name}</span>}
             {report.updated_at && report.updated_at !== report.generated_at && (
-              <span>· 编辑于 {new Date(report.updated_at).toLocaleString('zh-CN')}</span>
+              <span>· 编辑于 {formatDateTime(report.updated_at)}</span>
             )}
           </div>
         </PanelBody>

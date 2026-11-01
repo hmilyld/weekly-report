@@ -36,6 +36,7 @@ class UserResponse(BaseModel):
     username: str
     role: str
     created_at: datetime
+    last_login_at: datetime | None = None
 
     model_config = {"from_attributes": True}
 

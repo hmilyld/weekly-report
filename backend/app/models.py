@@ -32,6 +32,7 @@ class User(Base):
     role = Column(String(20), nullable=False, default="user")
     needs_encryption_migration = Column(Boolean, default=True, nullable=False)
     created_at = Column(DateTime, default=_utcnow, nullable=False)
+    last_login_at = Column(DateTime, nullable=True)
     daily_reports = relationship("DailyReport", back_populates="user")
     weekly_reports = relationship("WeeklyReport", back_populates="user")
     monthly_reports = relationship("MonthlyReport", back_populates="user")

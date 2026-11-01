@@ -25,6 +25,7 @@ import {
 import { useAuth } from '../contexts/AuthContext'
 import { useConfirm } from '../components/ui/ConfirmProvider'
 import { copyText } from '../utils/clipboard'
+import { formatDateTime } from '../utils/date'
 import Button from '../components/ui/Button'
 import Field from '../components/ui/Field'
 import PageHeader from '../components/ui/PageHeader'
@@ -377,12 +378,12 @@ export default function SettingsPage() {
                   <div>
                     <div className="record-title">{token.name}</div>
                     <div className="record-meta">
-                      <span>创建 {new Date(token.created_at).toLocaleDateString('zh-CN')}</span>
-                      {token.last_used_at && (
-                        <span>
-                          最近使用 {new Date(token.last_used_at).toLocaleDateString('zh-CN')}
-                        </span>
-                      )}
+                      <span>创建 {formatDateTime(token.created_at)}</span>
+                      <span>
+                        {token.last_used_at
+                          ? `最近使用 ${formatDateTime(token.last_used_at)}`
+                          : '尚未使用'}
+                      </span>
                     </div>
                   </div>
                 </div>
