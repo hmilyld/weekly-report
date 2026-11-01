@@ -3,7 +3,7 @@ import toast from 'react-hot-toast'
 import { Plus, Trash2 } from 'lucide-react'
 import { getDailyReportsRange } from '../api'
 import useMediaQuery from '../hooks/useMediaQuery'
-import { formatDate } from '../utils/date'
+import { formatDate, formatMonth } from '../utils/date'
 import PeriodBar from './ui/PeriodBar'
 
 const WEEKDAY_HEADERS = ['一', '二', '三', '四', '五', '六', '日']
@@ -100,7 +100,7 @@ export default function CalendarView({ onEditDate, onDeleteDate, refreshRef }) {
   return (
     <div>
       <PeriodBar
-        label={`${year} 年 ${month + 1} 月`}
+        label={formatMonth(year, month + 1)}
         onPrev={() => shiftMonth(-1)}
         onNext={() => shiftMonth(1)}
         onToday={goToday}
@@ -158,8 +158,9 @@ export default function CalendarView({ onEditDate, onDeleteDate, refreshRef }) {
                   {isDesktop && (
                     <span className="day-preview">
                       {report?.content || (
-                        <span className="day-add" aria-hidden="true">
-                          <Plus size={14} />
+                        <span className="day-add">
+                          <Plus size={12} aria-hidden="true" />
+                          记录
                         </span>
                       )}
                     </span>

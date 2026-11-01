@@ -116,7 +116,7 @@ export default function WeekList({ onEditDate, refreshRef }) {
                   }}
                 >
                   <span className={`week-text ${report ? '' : 'is-empty'}`.trim()}>
-                    {report?.content || '还没有记录，点这里写今天的进展'}
+                    {report?.content || '还没有记录，点这里补记当天进展'}
                   </span>
                 </div>
                 <div className="week-actions">

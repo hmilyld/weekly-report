@@ -6,6 +6,7 @@ import useMediaQuery from '../hooks/useMediaQuery'
 import { useConfirm } from '../components/ui/ConfirmProvider'
 import Button from '../components/ui/Button'
 import EmptyState from '../components/ui/EmptyState'
+import Field from '../components/ui/Field'
 import PageHeader from '../components/ui/PageHeader'
 
 const PAGE_SIZE = 20
@@ -196,22 +197,30 @@ function TaskComposer({ onAdd }) {
 
   return (
     <form className="task-composer" onSubmit={submit}>
-      <input
-        className="input"
-        value={content}
-        onChange={(event) => setContent(event.target.value)}
-        placeholder="要做什么？例如：把月报草稿发给 @lin 过一遍"
-        aria-label="新待办内容"
-      />
-      <input
-        className="input"
-        type="date"
-        value={deadline}
-        min={todayInput()}
-        onChange={(event) => setDeadline(event.target.value)}
-        aria-label="截止日期（可选）"
-      />
-      <Button type="submit" variant="primary" icon={Plus} loading={loading}>
+      <Field label="要做的事">
+        <input
+          className="input"
+          value={content}
+          onChange={(event) => setContent(event.target.value)}
+          placeholder="例如：把月报草稿发给 @lin 过一遍"
+        />
+      </Field>
+      <Field label="截止日期" optional>
+        <input
+          className="input"
+          type="date"
+          value={deadline}
+          min={todayInput()}
+          onChange={(event) => setDeadline(event.target.value)}
+        />
+      </Field>
+      <Button
+        type="submit"
+        variant="primary"
+        icon={Plus}
+        loading={loading}
+        className="task-composer-submit"
+      >
         添加
       </Button>
     </form>
@@ -373,17 +382,11 @@ export default function Tasks() {
           ))}
         </div>
       ) : (
-        <div
-          className="segmented"
-          role="tablist"
-          aria-label="待办筛选"
-          style={{ marginBottom: 'var(--space-3)' }}
-        >
+        <div className="segmented" role="group" aria-label="待办筛选">
           {filters.map(({ key, label, count }) => (
             <button
               key={key}
-              role="tab"
-              aria-selected={tab === key}
+              aria-pressed={tab === key}
               className="segmented-item"
               onClick={() => {
                 setTab(key)
@@ -396,7 +399,7 @@ export default function Tasks() {
         </div>
       )}
 
-      <div style={{ marginTop: 'var(--space-3)' }}>
+      <div className="task-body-area">
         {!loaded || busy ? (
           <div className="loading-block">
             <span className="spinner" aria-hidden="true" />

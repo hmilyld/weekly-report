@@ -145,39 +145,45 @@ export default function ReportWorkspace({
       {periodNode}
       <Panel>
         <PanelHeader
-          title={`${noun}内容`}
-          icon={FileText}
+          title={
+            <>
+              <span
+                className={`chip-band ${isWeekly ? 'is-weekly' : 'is-monthly'}`.trim()}
+                aria-hidden="true"
+              />
+              {noun}内容
+            </>
+          }
           actions={
-            report.model_name ? <span className="badge">{report.model_name}</span> : undefined
+            <>
+              <Button variant="ghost" size="sm" icon={Pencil} onClick={startEdit}>
+                编辑
+              </Button>
+              <Button variant="ghost" size="sm" icon={copied ? Check : Copy} onClick={handleCopy}>
+                {copied ? '已复制' : '复制'}
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                icon={RefreshCw}
+                onClick={onGenerate}
+                loading={generating}
+              >
+                {regenerateLabel}
+              </Button>
+            </>
           }
         />
         <PanelBody>
           <div className="report-text">{report.content}</div>
           <div className="report-meta">
             <span>生成于 {new Date(report.generated_at).toLocaleString('zh-CN')}</span>
+            {report.model_name && <span>· {report.model_name}</span>}
             {report.updated_at && report.updated_at !== report.generated_at && (
               <span>· 编辑于 {new Date(report.updated_at).toLocaleString('zh-CN')}</span>
             )}
           </div>
         </PanelBody>
-        <PanelFooter>
-          <Button variant="outline" size="sm" icon={Pencil} onClick={startEdit}>
-            编辑
-          </Button>
-          <Button variant="outline" size="sm" icon={copied ? Check : Copy} onClick={handleCopy}>
-            {copied ? '已复制' : '复制'}
-          </Button>
-          <Button
-            variant="ghost"
-            size="sm"
-            icon={RefreshCw}
-            className="push-right"
-            onClick={onGenerate}
-            loading={generating}
-          >
-            {regenerateLabel}
-          </Button>
-        </PanelFooter>
       </Panel>
     </>
   )

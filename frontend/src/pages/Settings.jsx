@@ -316,10 +316,10 @@ export default function SettingsPage() {
           </p>
 
           {createdToken && (
-            <div className="notice notice-success" style={{ marginTop: 'var(--space-4)' }}>
-              <div style={{ flex: 1, minWidth: 0 }}>
+            <div className="notice notice-success token-notice">
+              <div className="token-notice-body">
                 <strong>Token 已创建，只显示这一次</strong>
-                <div className="token-reveal" style={{ marginTop: 'var(--space-2)' }}>
+                <div className="token-reveal">
                   <code>{createdToken.token}</code>
                   <Button
                     variant="ghost"
@@ -334,7 +334,7 @@ export default function SettingsPage() {
             </div>
           )}
 
-          <div className="row" style={{ marginTop: 'var(--space-4)' }}>
+          <div className="row token-create">
             <input
               className="input"
               type="text"
@@ -402,18 +402,16 @@ export default function SettingsPage() {
           </div>
         )}
 
-        <PanelBody>
-          <p className="row" style={{ gap: 'var(--space-2)', marginBottom: 'var(--space-2)' }}>
+        <PanelBody className="token-usage">
+          <p className="usage-label">
             <ExternalLink size={14} aria-hidden="true" />
-            <span className="field-label" style={{ margin: 0 }}>
-              使用示例
-            </span>
+            使用示例
           </p>
           <pre className="code-block">{`curl -X POST ${apiBase}/api/v1/external/daily \\
   -H "X-API-Token: <你的Token>" \\
   -H "Content-Type: application/json" \\
   -d '{"content":"今天完成了 xxx","date":"2026-06-10","append":false}'`}</pre>
-          <p className="field-hint" style={{ marginTop: 'var(--space-2)' }}>
+          <p className="field-hint usage-hint">
             date 与 append 为可选参数：date 默认当天，append 默认 false（覆盖当天内容）。
           </p>
         </PanelBody>

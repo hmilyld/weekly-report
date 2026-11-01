@@ -47,7 +47,7 @@ export default function DailyEditModal({ date, content, onSave, onClose }) {
           <span className="hint grow">
             {hasContent ? `${text.trim().length} 字` : 'Ctrl / ⌘ + Enter 保存'}
           </span>
-          <Button variant="ghost" onClick={onClose} disabled={saving}>
+          <Button variant="outline" onClick={onClose} disabled={saving}>
             取消
           </Button>
           <Button

@@ -424,6 +424,7 @@
 /* Segmented control (mobile filters) */
 .segmented {
   display: grid;
+  margin-bottom: var(--space-3);
   grid-auto-flow: column;
   grid-auto-columns: 1fr;
   gap: 2px;
