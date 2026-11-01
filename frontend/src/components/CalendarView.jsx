@@ -144,44 +144,43 @@ export default function CalendarView({ onEditDate, onDeleteDate, refreshRef }) {
                 .join(' ')
 
               return (
-                <button
-                  key={dateStr}
-                  type="button"
-                  className={classes}
-                  onClick={() => onEditDate(dateStr, report?.content || '')}
-                  aria-label={`${dateStr}${report ? '，已有日报' : '，暂无日报'}`}
-                >
-                  <span className="day-head">
-                    <span className="day-num">{date.getDate()}</span>
-                    {report && <span className="chip-band" title="有日报" />}
-                  </span>
-                  {isDesktop && (
-                    <span className="day-preview">
-                      {report?.content || (
-                        <span className="day-add">
-                          <Plus size={12} aria-hidden="true" />
-                          记录
-                        </span>
-                      )}
+                <div key={dateStr} className={classes}>
+                  {/* The cell's open action and its delete action are
+                      siblings: a button may not contain another control. */}
+                  <button
+                    type="button"
+                    className="day-open"
+                    onClick={() => onEditDate(dateStr, report?.content || '')}
+                    aria-label={`${dateStr}${report ? '，已有日报' : '，暂无日报'}`}
+                  >
+                    <span className="day-head">
+                      <span className="day-num">{date.getDate()}</span>
+                      {report && <span className="chip-band" title="有日报" />}
                     </span>
-                  )}
+                    {isDesktop && (
+                      <span className="day-preview">
+                        {report?.content || (
+                          <span className="day-add">
+                            <Plus size={12} aria-hidden="true" />
+                            记录
+                          </span>
+                        )}
+                      </span>
+                    )}
+                    {isDesktop && <span className="day-slash" aria-hidden="true" />}
+                  </button>
                   {isDesktop && report && (
-                    <span
+                    <button
+                      type="button"
                       className="day-delete"
-                      role="button"
-                      tabIndex={0}
                       onClick={(event) => handleDelete(event, dateStr)}
-                      onKeyDown={(event) => {
-                        if (event.key === 'Enter' || event.key === ' ') handleDelete(event, dateStr)
-                      }}
                       title="删除这条日报"
                       aria-label={`删除 ${dateStr} 的日报`}
                     >
                       <Trash2 size={13} />
-                    </span>
+                    </button>
                   )}
-                  {isDesktop && <span className="day-slash" aria-hidden="true" />}
-                </button>
+                </div>
               )
             })}
           </div>

@@ -81,6 +81,11 @@ export function formatMonth(year, month) {
 export function parseServerDate(value) {
   if (!value) return null
   if (value instanceof Date) return Number.isNaN(value.getTime()) ? null : value
+  // A bare calendar date has no timezone to correct; keep it on its own day.
+  if (/^\d{4}-\d{2}-\d{2}$/.test(value)) {
+    const local = new Date(`${value}T00:00:00`)
+    return Number.isNaN(local.getTime()) ? null : local
+  }
   const hasZone = /(?:[zZ]|[+-]\d{2}:?\d{2})$/.test(value)
   const parsed = new Date(hasZone ? value : `${value}Z`)
   return Number.isNaN(parsed.getTime()) ? null : parsed

@@ -400,16 +400,9 @@
 
 .day {
   position: relative;
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-1);
+  display: grid; /* the open button stretches to the whole cell */
   min-height: 96px;
-  padding: var(--space-2);
   background: var(--color-surface);
-  border: none;
-  text-align: left;
-  font: inherit;
-  color: inherit;
   transition: background-color var(--transition-fast);
 }
 
@@ -417,7 +410,20 @@
   background: var(--color-surface-sunk);
 }
 
-.day:focus-visible {
+.day-open {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  width: 100%;
+  padding: var(--space-2);
+  border: none;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+}
+
+.day-open:focus-visible {
   outline: 2px solid var(--color-accent);
   outline-offset: -2px;
 }
@@ -551,8 +557,9 @@
 
 .day-delete {
   position: absolute;
-  right: 6px;
-  bottom: 6px;
+  top: 4px;
+  right: 4px;
+  z-index: 1;
   display: none;
   align-items: center;
   justify-content: center;
@@ -573,10 +580,6 @@
   color: var(--color-danger);
   border-color: var(--color-danger-border);
   background: var(--color-danger-tint);
-}
-
-.day:hover .day-delete ~ .day-slash {
-  display: none;
 }
 
 .calendar-legend {
