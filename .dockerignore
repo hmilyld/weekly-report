@@ -1,19 +1,43 @@
-.git
-.gitignore
-.env
-.env.*
-data/
-*.db
-node_modules/
-__pycache__/
-*.pyc
-.venv/
-venv/
-.idea/
-.vscode/
-*.md
+# Build context hygiene.
+# Docker anchors patterns at the context root, so every rule that must
+# apply to nested paths needs an explicit **/ prefix — without it,
+# backend/data/weekly_report.db would be copied into a published image.
+
+**/.git
+**/.gitignore
+
+# Secrets and local databases (never ship personal data in an image)
+**/.env
+**/.env.*
+**/data
+**/*.db
+**/*.sqlite
+**/*.sqlite3
+
+# Dependencies and caches
+**/node_modules
+**/__pycache__
+**/*.pyc
+**/.venv
+**/venv
+**/.pytest_cache
+**/.ruff_cache
+**/.mypy_cache
+
+# Build output
+**/dist
+
+# Local tooling and editor state
+**/.dev
+**/.impeccable
+**/.claude
+**/.idea
+**/.vscode
+**/.DS_Store
+**/scripts
+**/app/frontend
+
+# Docs are not part of the runtime image
+**/*.md
 !README.md
-.claude/
-.editorconfig
-scripts/
-app/frontend/
+**/.editorconfig
