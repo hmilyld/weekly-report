@@ -226,12 +226,19 @@ export default function App() {
 
   if (needsSetup === null) {
     return (
-      <div className="auth">
-        <div className="auth-panel">
-          <div className="loading-block">
-            <span className="spinner" aria-hidden="true" />
-            正在连接服务…
-          </div>
+      <div className="boot">
+        <span className="wordmark">
+          <span className="wordmark-mark" aria-hidden="true">
+            <i />
+            <i />
+            <i />
+            <i />
+          </span>
+          日周报管理系统
+        </span>
+        <div className="loading-block" role="status">
+          <span className="spinner" aria-hidden="true" />
+          正在连接服务…
         </div>
       </div>
     )

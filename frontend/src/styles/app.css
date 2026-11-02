@@ -1026,6 +1026,38 @@
   word-break: break-all;
 }
 
+/* ─── Boot screen (waiting for /auth/status) ────────────── */
+/* Its own centred frame: the auth grid would park it in the
+   left-hand column of a two-column layout. */
+.boot {
+  display: grid;
+  place-content: center;
+  justify-items: center;
+  gap: var(--space-4);
+  min-height: 100dvh;
+  padding: var(--space-6);
+  padding-bottom: calc(var(--space-6) + var(--safe-bottom));
+  background: var(--color-bg);
+  text-align: center;
+}
+
+.boot .wordmark {
+  font-size: var(--text-md);
+  color: var(--color-text-secondary);
+}
+
+.boot .wordmark-mark i {
+  background: var(--color-text-muted);
+}
+
+.boot .wordmark-mark i:nth-child(4) {
+  background: var(--color-accent);
+}
+
+.boot .loading-block {
+  padding: 0;
+}
+
 /* ─── Auth screens ──────────────────────────────────────── */
 .auth {
   display: grid;
