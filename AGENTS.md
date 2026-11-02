@@ -13,25 +13,36 @@ weekly-report/
 │   │   │   └── ui/        # Button, Field, Panel, Modal, ConfirmProvider, PeriodBar…
 │   │   ├── contexts/    # AuthContext, ThemeContext
 │   │   ├── hooks/       # Custom hooks (useMediaQuery)
-│   │   ├── pages/       # DailyReport, WeeklyReport, MonthlyReport, Settings, etc.
+│   │   ├── pages/       # DailyReport, WeeklyReport, MonthlyReport, Tasks, Settings, UserManagement…
 │   │   ├── styles/      # tokens.css → base.css → components.css → app.css
-│   │   └── utils/       # date helpers, clipboard
-│   └── public/          # PWA icons (SVG)
+│   │   └── utils/       # date helpers (incl. UTC parsing), clipboard
+│   ├── public/          # App icons: favicon.svg, pwa-*.svg/png, apple-touch-icon.png
+│   └── scripts/         # generate-pwa-icons.mjs
 ├── backend/           # Python FastAPI + SQLAlchemy + SQLite
 │   ├── app/
-│   │   ├── routers/     # Route modules: auth, daily, weekly, monthly, config, tokens, external, users
-│   │   ├── models.py    # ORM models (User, DailyReport, WeeklyReport, MonthlyReport, Task, etc.)
+│   │   ├── routers/     # auth, daily, weekly, monthly, tasks, config, tokens, external, users
+│   │   ├── models.py    # ORM models (User, DailyReport, WeeklyReport, MonthlyReport, Task…)
 │   │   ├── crud.py      # Centralized database operations
 │   │   ├── auth.py      # JWT creation/decoding, dependencies
+│   │   ├── crypto.py    # AES-GCM content encryption
+│   │   ├── key_cache.py # In-memory per-user key cache
 │   │   └── llm_client.py# OpenAI-compatible LLM client
-│   ├── tests/           # Pytest tests (crypto, CRUD encryption, key cache)
-│   └── main.py          # App entry, lifespan, static file serving
-├── scripts/           # Dev helper script, Docker publish
-├── Dockerfile         # Multi-stage build (Node 18 + Python 3.11)
-└── docker-compose.yml
+│   ├── tests/           # Pytest: crypto, CRUD encryption, key cache
+│   └── main.py          # App entry, lifespan, migrations, static file serving
+├── .github/workflows/ # release-image.yml (tag → ghcr.io)
+├── scripts/           # dev.sh (dev helper), docker-publish.sh (Docker Hub)
+├── Dockerfile         # Multi-stage build (Node 20 + Python 3.11)
+├── docker-compose.yml
+├── README.md          # Project intro + usage (users/operators)
+├── PRODUCT.md         # Product truth
+├── DESIGN.md          # Design system
+└── AGENTS.md          # This file
 ```
 
 ## Build, Test, and Development Commands
+
+User-facing installation and deployment steps live in `README.md`; this section is the working
+reference for agents (lint, test, release).
 
 ### Frontend (`frontend/`)
 
@@ -58,20 +69,27 @@ weekly-report/
 ### Dev Helper (project root)
 
 ```bash
-./scripts/dev start    # Start both frontend and backend
-./scripts/dev stop     # Stop all services
-./scripts/dev restart  # Restart all services
-./scripts/dev status   # Check if services are running
-./scripts/dev logs     # View recent logs
+bash scripts/dev.sh start    # Start both frontend and backend
+bash scripts/dev.sh stop     # Stop all services
+bash scripts/dev.sh restart  # Restart all services
+bash scripts/dev.sh status   # Check if services are running
+bash scripts/dev.sh logs     # View recent logs
 ```
+
+Logs, PIDs and port config live in `.dev/` (git-ignored).
 
 ### Docker
 
 ```bash
-docker compose up --build   # Build and run on :18001
-./scripts/docker-publish.sh [tag]  # Build and push to Docker Hub
-git tag v1.2.0 && git push origin v1.2.0  # Tag push publishes ghcr.io image (CI)
+docker compose up --build            # Build and run on :18001
+IMAGE=ghcr.io/hmilyld/weekly-report:latest docker compose up -d  # Use a published image
+./scripts/docker-publish.sh [tag]    # Build, smoke test, push to Docker Hub
+git tag -a v1.2.0 -m "v1.2.0" && git push origin v1.2.0   # Tag → CI builds + pushes ghcr.io
 ```
+
+`.github/workflows/release-image.yml` verifies the tag exists, builds, runs the container
+and checks `/api/v1/health` before pushing. `.dockerignore` must keep `**/data` and `**/*.db`
+excluded — the image is published publicly.
 
 ## Coding Style
 
@@ -103,9 +121,8 @@ The visual system is documented in `DESIGN.md` and is not re-decided per screen.
 
 ## Testing
 
-- **Backend:** Pytest in `backend/tests/`. Tests cover encryption, crypto utilities, and key caching.
-- **Frontend:** No test suite currently configured.
-- Run backend tests: `cd backend && uv run pytest`
+- **Backend:** Pytest in `backend/tests/` (`test_crypto.py`, `test_crud_encryption.py`, `test_key_cache.py`). Run: `cd backend && uv run pytest`.
+- **Frontend:** No test suite. Before committing UI work, run `pnpm lint`, `pnpm format:check` and `pnpm build`, and check the page at 1440px and 390px in both themes.
 
 ## Commit Conventions
 
@@ -131,8 +148,21 @@ Prefixes: `feat`, `fix`, `style`, `refactor`, `docs`. Description in Chinese is 
 
 ## Architecture Notes
 
-- **Auth:** JWT with 24h expiry. Password change invalidates old tokens via `password_version`. `require_admin` dependency protects admin-only endpoints.
-- **LLM config** is stored in the `AppConfig` DB table (singleton, id=1) and editable at runtime via the Settings page — no env vars needed for LLM setup.
-- **External API** (`/api/v1/external/`) uses `ApiToken` auth instead of JWT.
-- **Database migrations** run automatically on startup via `_migrate_db()` in `main.py`.
-- **SPA serving:** The backend serves `frontend/dist/` as a catch-all for non-API paths.
+- **Auth:** JWT with 24h expiry. Password change invalidates old tokens via `password_version`. `require_admin` protects admin-only endpoints. `last_login_at` is written on login and initial setup.
+- **Encryption at rest:** report/task content is AES-GCM encrypted per user; the key is derived from the login password and cached in memory (`key_cache`). A server restart empties the cache, so the UI shows a re-login modal instead of blank content. `_migrate_db()` + `migrate_user_encryption()` upgrade legacy plaintext rows on login.
+- **LLM config** lives in the `AppConfig` table (singleton, id=1), editable at runtime via Settings — no env vars needed.
+- **External API** (`/api/v1/external/`) authenticates with `X-API-Token` instead of JWT.
+- **Migrations** run automatically on startup via `_migrate_db()` in `main.py` (additive only).
+- **Timestamps** are stored as UTC without an offset; the frontend parses them with `parseServerDate()` before display.
+- **SPA serving:** the backend serves `frontend/dist/` as a catch-all for non-API paths.
+
+## Documentation Map
+
+| File | Owns | Keep out of it |
+|---|---|---|
+| `README.md` | Project intro, features, install/usage, env vars, API reference | Product rationale, design tokens, agent rules |
+| `PRODUCT.md` | Users, purpose, capabilities, constraints, principles | Visual system, commands |
+| `DESIGN.md` | Tokens, type, layout, components, do/don't | Product strategy, build commands |
+| `AGENTS.md` | Structure, commands, style, testing, commits, release | Marketing copy, design rationale |
+
+When behaviour changes, update the file that owns it — do not duplicate the same fact in two files.

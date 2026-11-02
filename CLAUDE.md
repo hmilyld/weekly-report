@@ -1,101 +1,12 @@
 # CLAUDE.md
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+This repository keeps one set of agent instructions. **Read [`AGENTS.md`](AGENTS.md) before
+making changes** — it owns the project structure, development commands, coding style, testing,
+commit conventions and architecture notes.
 
-## Project Overview
+Claude-specific notes:
 
-A weekly and monthly report auto-generation system (周报/月报自动生成系统). Users maintain daily work logs via a calendar UI, then an LLM generates weekly or monthly report summaries. The UI is entirely in Chinese. Supports multiple users with admin/user roles.
-
-## Tech Stack
-
-- **Frontend:** React 18, Vite 5, React Router 6, Axios, Lucide React icons — custom CSS (no Tailwind)
-- **Backend:** Python 3.11, FastAPI, SQLAlchemy, SQLite, httpx (LLM client)
-- **Auth:** JWT (python-jose + passlib/bcrypt), 24-hour expiry, multi-user with admin/user roles
-- **LLM:** OpenAI-compatible Chat Completion API (configurable at runtime via Settings page)
-
-## Development Commands
-
-### Frontend (`frontend/`)
-```bash
-cd frontend
-pnpm install          # install deps
-pnpm dev              # Vite dev server on :5173, proxies /api to :18001
-pnpm build            # production build (output goes to ../app/frontend/)
-pnpm lint             # ESLint
-pnpm lint:fix         # ESLint with auto-fix
-pnpm format           # Prettier (no semicolons, single quotes, 100-char width)
-pnpm format:check     # Prettier check
-pnpm generate:icons   # regenerate PWA SVG icons (in public/)
-```
-
-### Backend (`backend/`)
-```bash
-cd backend
-uv pip install -r requirements.txt   # install deps (use uv, not pip)
-uv run uvicorn main:app --reload --port 18001   # dev server
-uv run ruff check .              # lint
-uv run ruff format .             # format
-```
-
-### Docker
-```bash
-docker compose up --build   # multi-stage build, serves on :18001
-./scripts/docker-publish.sh [tag]  # 构建并推送到 Docker Hub (默认 tag=latest)
-```
-
-## Architecture
-
-### Backend (`backend/`)
-- `main.py` — FastAPI app entry, lifespan events, static file serving for SPA
-- `app/config.py` — pydantic-settings (JWT, DB, LLM defaults via environment)
-- `app/database.py` — SQLAlchemy engine, session factory, Base
-- `app/models.py` — ORM models: `User` (with role), `DailyReport`, `WeeklyReport`, `MonthlyReport`, `AppConfig`, `Task`
-- `app/models_token.py` — `ApiToken` model (64-char hex tokens for external API access)
-- `app/auth.py` — JWT creation/decoding, `get_current_user` dependency, `require_admin` dependency
-- `app/crud.py` — all database operations (centralized CRUD layer)
-- `app/llm_client.py` — httpx-based OpenAI-compatible client + system prompt for report generation
-- `app/routers/` — route modules: `auth`, `daily`, `weekly`, `monthly`, `config`, `tokens`, `external`, `users`
-
-All API routes are under `/api/v1/`. The backend serves the SPA as a catch-all for non-API paths.
-
-### Frontend (`frontend/src/`)
-- `App.jsx` — Router, auth gates, responsive layout (TopNav desktop / Sidebar mobile)
-- `api/index.js` — Axios instance + all API wrapper functions
-- `pages/` — Login, Setup (first-run), DailyReport (calendar view), WeeklyReport, MonthlyReport, Settings, UserManagement (admin)
-- `components/` — CalendarView (monthly grid), DailyEditModal
-- `contexts/AuthContext.jsx` — Current user state, `isAdmin` flag, `logout`, `refreshUser`
-- `contexts/ThemeContext.jsx` — System/Light/Dark theme cycling
-- `styles/global.css` — all styles, uses CSS custom properties for theming
-
-### PWA
-- Configured via `vite-plugin-pwa` in `vite.config.js`
-- SVG icons in `public/pwa-{192,512}x{192,512}.svg` — calendar + document design with AI sparkle
-- Run `pnpm generate:icons` to regenerate icons (script at `scripts/generate-pwa-icons.mjs`)
-- Service worker precaches app shell; API calls use NetworkFirst strategy
-
-### Database
-- **User** — multi-user auth system (id, username, password_hash, password_version, role)
-- **DailyReport** — one per user per date (unique: user_id + date)
-- **WeeklyReport** — one per user per week_start (unique: user_id + week_start)
-- **MonthlyReport** — one per user per year+month (unique: user_id + year + month)
-- **AppConfig** — singleton (id=1) holding LLM API URL, model, API key (admin-only)
-- **ApiToken** — tokens for external API authentication
-- **Task** — todo items per user (id, user_id, content, deadline, is_completed)
-
-## Code Style
-
-- **Frontend:** no semicolons, single quotes, 100-char line width, 2-space indent (ESLint + Prettier)
-- **Backend:** Ruff — 100-char line, 4-space indent, double quotes. RUF001/RUF002 ignored (intentional fullwidth CJK punctuation)
-- **EditorConfig:** UTF-8, LF line endings everywhere
-
-## Key Patterns
-
-- LLM config is stored in DB (`AppConfig` table) and editable via the Settings page (admin only) — no env vars needed at runtime
-- The weekly report generation calls the LLM with all daily reports for that week as context
-- The monthly report aggregates daily reports by project/module, merging related work across days
-- The frontend `app/` directory contains a pre-built dist committed to the repo (used by Docker)
-- External API endpoints (`/api/v1/external/`) use `ApiToken` auth instead of JWT
-- First user created via `/api/v1/auth/setup` gets admin role; subsequent users created by admin via `/api/v1/users`
-- `require_admin` dependency protects admin-only endpoints; `get_current_user` for user-scoped endpoints
-- `AuthContext` provides `user`, `isAdmin`, `logout`, `refreshUser` to the frontend
-- `_migrate_db()` in `main.py` runs automatically on startup for database migrations
+- Prefer the tools in the repo over ad-hoc shell: `pnpm` for the frontend, `uv` for the backend.
+- The UI is Chinese; keep copy in Chinese and follow `DESIGN.md` for any visual change.
+- Before finishing a task, run what the change touches: `pnpm lint`, `pnpm format:check`,
+  `pnpm build` (frontend) or `uv run ruff check .`, `uv run pytest` (backend).

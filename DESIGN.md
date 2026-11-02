@@ -186,7 +186,7 @@ Depth is tonal first and shadowed second.
 - Radius: `2px` (badges, chips), `4px` (buttons, inputs, small controls), `6px` (icon tiles), `10px` (panels, modals, calendar shell). Pills only for the scrollbar thumb.
 - Borders are always `1px`. The only 2px line in the product is the focus ring and the "today" inset ring.
 - The diagonal slash is the single decorative stroke: 18×2px at −45°, on the wordmark, and revealed inside an actionable calendar cell on hover/focus.
-- The app icon is the same 2×2 cell grid on an ink tile, last cell in signal blue: it is the wordmark mark enlarged, and stays legible at 16px. Maskable variants keep the grid inside the safe area on a full-bleed square.
+- The brand mark is a 2×2 grid of cells, the last one in signal blue. The wordmark renders it at 4px cells beside the name; the app icon is the same grid on an ink tile, which stays legible at 16px. Maskable icon variants keep the grid inside the safe area on a full-bleed square.
 
 ## Components
 
@@ -194,12 +194,15 @@ Depth is tonal first and shadowed second.
 - **Field.** Label + control + hint, with an optional tag beside the label. Inputs are 40px tall, 16px text (iOS zoom), `4px` radius, `1px` mid border; focus adds a 1px signal border and a 1px inset ring — no second outline. Errors replace the hint and set `aria-invalid`.
 - **Panel.** The only container. Header (title + icon + actions) / body / footer (right-aligned actions on a sunk ground). Nested panels are never allowed.
 - **Modal.** 560px (420px compact), sheet-style from the bottom below 768px. Focus is trapped, Esc closes, focus returns to the trigger, background scroll is locked, and the close button is a 40px icon button.
-- **Calendar cell.** Rest: white, mono day number, record chip, up to 4 lines of preview. Hover/focus: inset ground, plus in the empty area, slash at the corner. Today: 2px signal inset ring and a signal day number. Outside month: inset ground, muted text.
+- **Calendar cell.** A grid cell containing two sibling buttons — `day-open` (fills the cell) and `day-delete` (top-right, only on hover/focus, never nested inside the open button). Rest: white, mono day number, record chip, up to 4 lines of preview. Hover/focus: sunk ground, "＋ 记录" in the empty area, slash at the bottom-right corner. Today: 2px signal inset ring, signal day number, the add affordance visible without hovering. Outside month: inset ground, muted text.
 - **Week row.** Date column (mono + weekday + optional "今天" badge) / body / actions. Today tints the row and colours the date column; it never uses a coloured side stripe.
 - **Task row.** Toggle / text + deadline / actions. Overdue shows a danger deadline with "· 已逾期"; urgent (≤3 days) shows a warning deadline with "· 即将到期". Rows are divided by hairlines inside one panel, never separate cards.
 - **Tabs & segmented control.** Desktop: underlined text tabs with a mono count, 2px signal underline. Phone: segmented control with a raised white selected segment. Both use `aria-pressed`, not incomplete tab roles.
 - **Badge.** Mono, 11px, `2px` radius; neutral by default, `badge-accent` for roles and "today", `badge-danger` for destructive state.
+- **Report reader.** Panel whose header carries the cadence chip and the three report actions (编辑 / 复制 / 重新生成); body is prose at a 72ch measure with a mono meta line (生成于 · 模型 · 编辑于) under a dashed rule.
 - **Empty state.** Drawn icon tile, one line naming what is missing, one line naming the next step, and the action itself.
+- **Boot screen.** Centred wordmark mark, name and spinner on the page ground, filling the viewport. It is its own container — never the auth grid, which would park it in the left column.
+- **Auth screen.** Ink aside (mark, one headline, three numbered lines) and a form column capped at 360px; below 768px the aside is dropped and only the form remains.
 - **Toast.** Top centre, below the navigation, surface with mid border and `--shadow-md`, 3s.
 
 ## Do's and Don'ts
