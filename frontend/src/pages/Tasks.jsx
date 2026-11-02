@@ -202,7 +202,7 @@ function TaskComposer({ onAdd }) {
           className="input"
           value={content}
           onChange={(event) => setContent(event.target.value)}
-          placeholder="例如：把月报草稿发给 @lin 过一遍"
+          placeholder="例如：把月报草稿发给组长过一遍"
         />
       </Field>
       <Field label="截止日期" optional>

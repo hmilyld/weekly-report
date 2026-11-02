@@ -186,6 +186,7 @@ Depth is tonal first and shadowed second.
 - Radius: `2px` (badges, chips), `4px` (buttons, inputs, small controls), `6px` (icon tiles), `10px` (panels, modals, calendar shell). Pills only for the scrollbar thumb.
 - Borders are always `1px`. The only 2px line in the product is the focus ring and the "today" inset ring.
 - The diagonal slash is the single decorative stroke: 18×2px at −45°, on the wordmark, and revealed inside an actionable calendar cell on hover/focus.
+- The app icon is the same 2×2 cell grid on an ink tile, last cell in signal blue: it is the wordmark mark enlarged, and stays legible at 16px. Maskable variants keep the grid inside the safe area on a full-bleed square.
 
 ## Components
 

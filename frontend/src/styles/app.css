@@ -30,8 +30,8 @@
 
 .wordmark-mark {
   display: grid;
-  grid-template-columns: repeat(3, 3px);
-  grid-template-rows: repeat(2, 3px);
+  grid-template-columns: repeat(2, 4px);
+  grid-template-rows: repeat(2, 4px);
   gap: 2px;
   flex-shrink: 0;
 }
@@ -40,8 +40,7 @@
   background: var(--color-text);
 }
 
-.wordmark-mark i:nth-child(4),
-.wordmark-mark i:nth-child(6) {
+.wordmark-mark i:nth-child(4) {
   background: var(--color-accent);
 }
 
@@ -1054,8 +1053,7 @@
   background: var(--color-surface);
 }
 
-.auth-aside .wordmark-mark i:nth-child(4),
-.auth-aside .wordmark-mark i:nth-child(6) {
+.auth-aside .wordmark-mark i:nth-child(4) {
   background: var(--color-accent);
 }
 
