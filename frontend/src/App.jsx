@@ -76,8 +76,8 @@ function TopBar() {
   const { user, isAdmin, logout } = useAuth()
   const links = NAV.filter((item) => !item.adminOnly || isAdmin)
 
-  const handleLogout = () => {
-    logout()
+  const handleLogout = async () => {
+    await logout()
     navigate('/login')
   }
 
@@ -117,8 +117,8 @@ function MobileBar() {
   const navigate = useNavigate()
   const { user, logout } = useAuth()
 
-  const handleLogout = () => {
-    logout()
+  const handleLogout = async () => {
+    await logout()
     navigate('/login')
   }
 

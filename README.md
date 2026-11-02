@@ -170,7 +170,7 @@ docker compose pull && docker compose up -d
 | GET | `/auth/status` | 是否需要初始化 | ✗ |
 | POST | `/auth/setup` | 初始化第一个管理员账号 | ✗ |
 | POST | `/auth/login` | 登录获取 token | ✗ |
-| POST | `/auth/change-password` | 修改密码 | ✓ |
+| POST | `/auth/change-password` | 修改密码（需当前密码，返回新 token） | ✓ |
 | POST | `/auth/logout` | 退出并清除服务端密钥缓存 | ✓ |
 
 ### 日报

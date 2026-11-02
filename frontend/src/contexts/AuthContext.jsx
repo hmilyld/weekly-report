@@ -1,5 +1,5 @@
 import { createContext, useContext, useState, useEffect, useCallback } from 'react'
-import { getCurrentUser } from '../api'
+import { getCurrentUser, logout as logoutApi } from '../api'
 
 const AuthContext = createContext(null)
 
@@ -29,10 +29,21 @@ export function AuthProvider({ children }) {
     fetchUser()
   }, [fetchUser])
 
-  const logout = () => {
+  const logout = useCallback(async () => {
+    const token = localStorage.getItem('token')
+    if (token) {
+      // Sign out on the server first, while the token is still attached to
+      // requests: this clears the cached encryption key. Only then drop the
+      // local session. A failed call still ends the local session.
+      try {
+        await logoutApi()
+      } catch {
+        /* the local session ends regardless */
+      }
+    }
     localStorage.removeItem('token')
     setUser(null)
-  }
+  }, [])
 
   const isAdmin = user?.role === 'admin'
 

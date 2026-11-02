@@ -126,16 +126,18 @@ def login(body: LoginRequest, request: Request, db: Session = Depends(get_db)):
     return TokenResponse(access_token=token)
 
 
-@router.post("/change-password")
+@router.post("/change-password", response_model=TokenResponse)
 def change_password(
     body: PasswordChange,
     user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
     if not verify_password(body.old_password, user.password_hash):
+        # 402: the session is still valid, only the re-supplied password is wrong.
+        # (401 would make the client drop the session and ask for a full re-login.)
         raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Incorrect current password",
+            status_code=status.HTTP_402_PAYMENT_REQUIRED,
+            detail="当前密码不正确",
         )
     validate_password(body.new_password)
 
@@ -149,7 +151,14 @@ def change_password(
     new_hash = hash_password(body.new_password)
     crud.change_password(db, user, new_hash)
     key_cache.set(user.id, new_key)
-    return {"message": "Password changed successfully"}
+
+    # Changing the password bumps password_version, which invalidates the current
+    # token. Hand back a fresh one so the person who changed it stays signed in;
+    # every other session is signed out.
+    token = create_access_token(
+        {"sub": str(user.id), "username": user.username, "pwd_ver": user.password_version}
+    )
+    return TokenResponse(access_token=token)
 
 
 @router.post("/logout")

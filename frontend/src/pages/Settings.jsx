@@ -43,7 +43,7 @@ export default function SettingsPage() {
   const [testResult, setTestResult] = useState(null)
 
   /* Password */
-  const [pwd, setPwd] = useState({ next: '', confirm: '' })
+  const [pwd, setPwd] = useState({ current: '', next: '', confirm: '' })
   const [changingPwd, setChangingPwd] = useState(false)
 
   /* Tokens */
@@ -124,23 +124,34 @@ export default function SettingsPage() {
   }
 
   const handleChangePassword = async () => {
-    if (!pwd.next) {
-      toast.error('请输入新密码')
+    if (!pwd.current) {
+      toast.error('请输入当前密码')
       return
     }
-    if (pwd.next.length < 6) {
-      toast.error('密码至少 6 位')
+    if (pwd.next.length < 8) {
+      toast.error('新密码至少 8 位')
+      return
+    }
+    if (!/[A-Za-z]/.test(pwd.next) || !/\d/.test(pwd.next)) {
+      toast.error('新密码需要同时包含字母和数字')
+      return
+    }
+    if (pwd.next === pwd.current) {
+      toast.error('新密码不能与当前密码相同')
       return
     }
     if (pwd.next !== pwd.confirm) {
-      toast.error('两次密码不一致')
+      toast.error('两次输入的新密码不一致')
       return
     }
     setChangingPwd(true)
     try {
-      await changePassword(pwd.next)
+      const { data } = await changePassword(pwd.current, pwd.next)
+      // Changing the password invalidates every existing token; keep this
+      // session alive with the fresh one the server just issued.
+      if (data?.access_token) localStorage.setItem('token', data.access_token)
       toast.success('密码已修改，其他设备需要重新登录')
-      setPwd({ next: '', confirm: '' })
+      setPwd({ current: '', next: '', confirm: '' })
     } catch (err) {
       toast.error(err.response?.data?.detail || '修改失败')
     } finally {
@@ -275,7 +286,20 @@ export default function SettingsPage() {
         <PanelHeader title="修改密码" icon={KeyRound} />
         <PanelBody>
           <div className="form-stack">
-            <Field label="新密码" hint="至少 6 位；修改后其他设备上的登录会失效。">
+            <Field label="当前密码" hint="修改密码会用当前密码重新加密全部日报、周报、月报与待办。">
+              <input
+                className="input"
+                type="password"
+                placeholder="输入当前密码"
+                value={pwd.current}
+                onChange={(event) => setPwd({ ...pwd, current: event.target.value })}
+                autoComplete="current-password"
+              />
+            </Field>
+            <Field
+              label="新密码"
+              hint="至少 8 位，且同时包含字母和数字；修改后其他设备需要重新登录。"
+            >
               <input
                 className="input"
                 type="password"
@@ -303,6 +327,7 @@ export default function SettingsPage() {
             icon={KeyRound}
             onClick={handleChangePassword}
             loading={changingPwd}
+            disabled={!pwd.current || !pwd.next || !pwd.confirm}
           >
             修改密码
           </Button>

@@ -33,6 +33,8 @@ api.interceptors.response.use(
     return res
   },
   (err) => {
+    // 401 means the session itself is invalid; 402 is used by the API for a wrong
+    // password re-entry inside a valid session (e.g. changing the password).
     if (err.response?.status === 401) {
       // 如果有重新登录处理器，使用它（避免页面跳转）
       if (_showReLogin) {
@@ -53,8 +55,13 @@ export const setupAccount = (username, password) => api.post('/auth/setup', { us
 
 export const login = (username, password) => api.post('/auth/login', { username, password })
 
-export const changePassword = (newPassword) =>
-  api.post('/auth/change-password', { new_password: newPassword })
+export const logout = () => api.post('/auth/logout')
+
+// The backend re-derives the encryption key from the current password,
+// so it must be sent too (changing the password re-encrypts all content).
+// Returns a fresh access token: old tokens are invalidated by the change.
+export const changePassword = (oldPassword, newPassword) =>
+  api.post('/auth/change-password', { old_password: oldPassword, new_password: newPassword })
 
 // ─── Daily Reports ─────────────────────────────────────
 export const getDailyReportsWeek = (weekStart) => api.get(`/daily/week/${weekStart}`)

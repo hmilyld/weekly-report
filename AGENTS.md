@@ -149,6 +149,8 @@ Prefixes: `feat`, `fix`, `style`, `refactor`, `docs`. Description in Chinese is 
 ## Architecture Notes
 
 - **Auth:** JWT with 24h expiry. Password change invalidates old tokens via `password_version`. `require_admin` protects admin-only endpoints. `last_login_at` is written on login and initial setup.
+- **Password change** requires `old_password` (the key is re-derived from it), returns a fresh token, and every other session is invalidated by the `password_version` bump. A wrong current password answers `402` so the client shows an inline error instead of dropping the session; `401` always means "session invalid".
+- **Logout** calls `POST /auth/logout` while the token is still attached (it clears the server-side key cache) and only then drops the local session.
 - **Encryption at rest:** report/task content is AES-GCM encrypted per user; the key is derived from the login password and cached in memory (`key_cache`). A server restart empties the cache, so the UI shows a re-login modal instead of blank content. `_migrate_db()` + `migrate_user_encryption()` upgrade legacy plaintext rows on login.
 - **LLM config** lives in the `AppConfig` table (singleton, id=1), editable at runtime via Settings — no env vars needed.
 - **External API** (`/api/v1/external/`) authenticates with `X-API-Token` instead of JWT.
