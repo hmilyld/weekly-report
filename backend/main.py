@@ -109,7 +109,7 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(
     title="Weekly Report System",
-    version="1.0.0",
+    version="1.0.1",
     lifespan=lifespan,
 )
 

@@ -40,6 +40,9 @@ export default function Modal({
     else node?.focus()
 
     const onKeyDown = (event) => {
+      // Two dialogs can be open at once (a confirm over a form). Only the
+      // one that holds focus reacts to Esc and Tab.
+      if (!node || !node.contains(document.activeElement)) return
       if (event.key === 'Escape') {
         event.stopPropagation()
         requestClose()

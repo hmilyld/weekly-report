@@ -1,10 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import toast from 'react-hot-toast'
-import { Pencil, Trash2 } from 'lucide-react'
-import { getDailyReportsWeek, deleteDailyReport } from '../api'
+import { getDailyReportsWeek } from '../api'
 import { addDays, formatDate, formatWeekRange, getMonday } from '../utils/date'
-import { useConfirm } from './ui/ConfirmProvider'
-import Button from './ui/Button'
 import EmptyState from './ui/EmptyState'
 import PeriodBar from './ui/PeriodBar'
 
@@ -13,13 +10,13 @@ const WEEKDAYS = ['周一', '周二', '周三', '周四', '周五', '周六', '�
 /**
  * Phone view of the daily record: one week, one row per day.
  * The calendar is a desktop affordance; this is the same data at 390px.
+ * A row carries no action column: tapping the text opens the edit sheet,
+ * which is where a record is saved or deleted.
  */
 export default function WeekList({ onEditDate, refreshRef }) {
-  const confirm = useConfirm()
   const [monday, setMonday] = useState(() => getMonday(new Date()))
   const [reports, setReports] = useState([])
   const [loading, setLoading] = useState(true)
-  const [deletingDate, setDeletingDate] = useState(null)
 
   const weekDates = Array.from({ length: 7 }, (_, index) => addDays(monday, index))
 
@@ -42,26 +39,6 @@ export default function WeekList({ onEditDate, refreshRef }) {
   useEffect(() => {
     if (refreshRef) refreshRef.current = fetchReports
   }, [fetchReports, refreshRef])
-
-  const handleDelete = async (date) => {
-    const ok = await confirm({
-      title: '删除这条日报？',
-      body: `${date} 的记录将被移除，删除后无法恢复。`,
-      confirmLabel: '删除',
-      tone: 'danger',
-    })
-    if (!ok) return
-    setDeletingDate(date)
-    try {
-      await deleteDailyReport(date)
-      toast.success('已删除')
-      fetchReports()
-    } catch {
-      toast.error('删除失败')
-    } finally {
-      setDeletingDate(null)
-    }
-  }
 
   const todayStr = formatDate(new Date())
   const isThisWeek = formatDate(monday) === formatDate(getMonday(new Date()))
@@ -97,48 +74,26 @@ export default function WeekList({ onEditDate, refreshRef }) {
                 className={`week-row ${isToday ? 'is-today' : ''}`.trim()}
                 key={dateStr}
                 aria-current={isToday ? 'date' : undefined}
+                role="button"
+                tabIndex={0}
+                aria-label={`${dateStr}${report ? '，查看或编辑日报' : '，补记日报'}`}
+                onClick={() => onEditDate(dateStr, report?.content || '', Boolean(report))}
+                onKeyDown={(event) => {
+                  if (event.key === 'Enter' || event.key === ' ') {
+                    event.preventDefault()
+                    onEditDate(dateStr, report?.content || '', Boolean(report))
+                  }
+                }}
               >
                 <div className="week-date">
                   <span>{dateStr.slice(5)}</span>
                   <span className="weekday">{WEEKDAYS[index]}</span>
                   {isToday && <span className="badge badge-accent">今天</span>}
                 </div>
-                <div
-                  className="week-body"
-                  onClick={() => onEditDate(dateStr, report?.content || '')}
-                  role="button"
-                  tabIndex={0}
-                  onKeyDown={(event) => {
-                    if (event.key === 'Enter' || event.key === ' ') {
-                      event.preventDefault()
-                      onEditDate(dateStr, report?.content || '')
-                    }
-                  }}
-                >
+                <div className="week-body">
                   <span className={`week-text ${report ? '' : 'is-empty'}`.trim()}>
                     {report?.content || '还没有记录，点这里补记当天进展'}
                   </span>
-                </div>
-                <div className="week-actions">
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    iconOnly
-                    icon={Pencil}
-                    aria-label={`编辑 ${dateStr}`}
-                    onClick={() => onEditDate(dateStr, report?.content || '')}
-                  />
-                  {report && (
-                    <Button
-                      variant="danger"
-                      size="sm"
-                      iconOnly
-                      icon={Trash2}
-                      aria-label={`删除 ${dateStr}`}
-                      loading={deletingDate === dateStr}
-                      onClick={() => handleDelete(dateStr)}
-                    />
-                  )}
                 </div>
               </div>
             )

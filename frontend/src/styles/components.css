@@ -567,8 +567,12 @@
   background: var(--color-surface-inset);
 }
 
-.modal-footer .grow {
-  flex: 1;
+.modal-footer .modal-footer-lead {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-width: 0;
+  margin-right: auto;
 }
 
 @keyframes overlay-in {

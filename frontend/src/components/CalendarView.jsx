@@ -64,12 +64,8 @@ export default function CalendarView({ onEditDate, onDeleteDate, refreshRef }) {
 
   const handleDelete = async (event, dateStr) => {
     event.stopPropagation()
-    try {
-      await onDeleteDate(dateStr)
-      fetchReports()
-    } catch {
-      toast.error('删除失败')
-    }
+    // The page owns the confirm dialog and the refresh.
+    await onDeleteDate(dateStr)
   }
 
   const shiftMonth = (delta) => {
@@ -150,7 +146,7 @@ export default function CalendarView({ onEditDate, onDeleteDate, refreshRef }) {
                   <button
                     type="button"
                     className="day-open"
-                    onClick={() => onEditDate(dateStr, report?.content || '')}
+                    onClick={() => onEditDate(dateStr, report?.content || '', Boolean(report))}
                     aria-label={`${dateStr}${report ? '，已有日报' : '，暂无日报'}`}
                   >
                     <span className="day-head">

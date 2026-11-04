@@ -1,5 +1,5 @@
 import { useRef, useState } from 'react'
-import { Save } from 'lucide-react'
+import { Save, Trash2 } from 'lucide-react'
 import Modal from './ui/Modal'
 import Button from './ui/Button'
 
@@ -13,16 +13,28 @@ function describeDate(dateStr) {
 
 /**
  * Writing a daily record: one textarea, one save, keyboard-first.
- * Ctrl/Cmd+Enter saves, Esc closes without saving.
+ * Ctrl/Cmd+Enter saves, Esc closes without saving. An existing record
+ * can also be deleted here — the record row itself carries no actions.
+ * The page owns the confirmation, so `deleting` arrives as a prop.
  */
-export default function DailyEditModal({ date, content, onSave, onClose }) {
+export default function DailyEditModal({
+  date,
+  content,
+  hasReport = false,
+  deleting = false,
+  onSave,
+  onDelete,
+  onClose,
+}) {
   const [text, setText] = useState(content ?? '')
   const [saving, setSaving] = useState(false)
   const savingRef = useRef(false)
   const textareaRef = useRef(null)
 
+  const busy = saving || deleting
+
   const handleSave = async () => {
-    if (savingRef.current) return
+    if (savingRef.current || busy) return
     savingRef.current = true
     setSaving(true)
     try {
@@ -38,16 +50,29 @@ export default function DailyEditModal({ date, content, onSave, onClose }) {
 
   return (
     <Modal
-      title={content ? '编辑日报' : '记录今天的进展'}
+      title={hasReport ? '编辑日报' : '记录今天的进展'}
       description={describeDate(date)}
       onClose={onClose}
-      dismissible={!saving}
+      dismissible={!busy}
       footer={
         <>
-          <span className="hint grow">
-            {hasContent ? `${text.trim().length} 字` : 'Ctrl / ⌘ + Enter 保存'}
-          </span>
-          <Button variant="outline" onClick={onClose} disabled={saving}>
+          <div className="modal-footer-lead">
+            {hasReport && (
+              <Button
+                variant="danger"
+                icon={Trash2}
+                onClick={() => onDelete(date)}
+                loading={deleting}
+                disabled={saving}
+              >
+                删除日报
+              </Button>
+            )}
+            <span className="hint">
+              {hasContent ? `${text.trim().length} 字` : 'Ctrl / ⌘ + Enter 保存'}
+            </span>
+          </div>
+          <Button variant="outline" onClick={onClose} disabled={busy}>
             取消
           </Button>
           <Button
@@ -55,7 +80,7 @@ export default function DailyEditModal({ date, content, onSave, onClose }) {
             icon={Save}
             onClick={handleSave}
             loading={saving}
-            disabled={!isDirty}
+            disabled={!isDirty || deleting}
           >
             保存
           </Button>
@@ -75,7 +100,7 @@ export default function DailyEditModal({ date, content, onSave, onClose }) {
             handleSave()
           }
         }}
-        disabled={saving}
+        disabled={busy}
         aria-label="日报正文"
         autoFocus
       />

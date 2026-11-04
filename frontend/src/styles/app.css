@@ -628,12 +628,13 @@
 
 .week-row {
   display: grid;
-  grid-template-columns: 60px 1fr auto;
+  grid-template-columns: 60px 1fr;
   gap: var(--space-3);
   align-items: start;
   padding: var(--space-3) var(--space-4);
   border-bottom: 1px solid var(--color-border);
   background: var(--color-surface);
+  cursor: pointer;
   transition: background-color var(--transition-fast);
 }
 
@@ -643,6 +644,17 @@
 
 .week-row.is-today {
   background: var(--color-accent-tint);
+}
+
+/* Today keeps its tint, so its press state mixes toward the ground. */
+.week-row:hover:not(.is-today),
+.week-row:active:not(.is-today) {
+  background: var(--color-surface-hover);
+}
+
+.week-row.is-today:hover,
+.week-row.is-today:active {
+  background: color-mix(in srgb, var(--color-accent-tint) 82%, var(--color-surface-hover));
 }
 
 .week-date {
@@ -679,7 +691,6 @@
   flex-direction: column;
   gap: var(--space-1);
   min-width: 0;
-  cursor: pointer;
 }
 
 .week-text {
@@ -692,12 +703,6 @@
 
 .week-text.is-empty {
   color: var(--color-text-muted);
-}
-
-.week-actions {
-  display: flex;
-  align-items: center;
-  gap: 2px;
 }
 
 /* ─── Report reader ─────────────────────────────────────── */
@@ -1308,12 +1313,8 @@
   }
 
   .week-row {
-    grid-template-columns: 56px 1fr auto;
+    grid-template-columns: 56px 1fr;
     padding: var(--space-3);
-  }
-
-  .week-actions {
-    align-self: center;
   }
 
   .task-composer,
