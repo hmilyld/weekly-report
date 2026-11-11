@@ -59,6 +59,7 @@ export default function ReLoginModal({ onClose, onSuccess }) {
             value={username}
             onChange={(event) => setUsername(event.target.value)}
             autoFocus
+            data-autofocus
             autoComplete="username"
           />
         </Field>

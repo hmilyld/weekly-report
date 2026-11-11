@@ -35,7 +35,12 @@ export default function Modal({
     document.body.style.overflow = 'hidden'
 
     const node = dialogRef.current
-    const first = node?.querySelector(FOCUSABLE)
+    // A field can ask for the first cursor (the record textarea does);
+    // otherwise the first focusable control takes focus. A hidden or
+    // disabled field cannot answer, so it never swallows the focus.
+    const preferred = node?.querySelector('[data-autofocus]')
+    const usable = preferred && preferred.offsetParent !== null && !preferred.matches(':disabled')
+    const first = usable ? preferred : node?.querySelector(FOCUSABLE)
     if (first) first.focus()
     else node?.focus()
 
