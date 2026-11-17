@@ -70,32 +70,25 @@ export default function WeekList({ onEditDate, refreshRef }) {
             const report = reports.find((item) => item.date === dateStr)
             const isToday = dateStr === todayStr
             return (
-              <div
+              <button
+                type="button"
                 className={`week-row ${isToday ? 'is-today' : ''}`.trim()}
                 key={dateStr}
                 aria-current={isToday ? 'date' : undefined}
-                role="button"
-                tabIndex={0}
                 aria-label={`${dateStr}${report ? '，查看或编辑日报' : '，补记日报'}`}
                 onClick={() => onEditDate(dateStr, report?.content || '', Boolean(report))}
-                onKeyDown={(event) => {
-                  if (event.key === 'Enter' || event.key === ' ') {
-                    event.preventDefault()
-                    onEditDate(dateStr, report?.content || '', Boolean(report))
-                  }
-                }}
               >
-                <div className="week-date">
+                <span className="week-date">
                   <span>{dateStr.slice(5)}</span>
                   <span className="weekday">{WEEKDAYS[index]}</span>
                   {isToday && <span className="badge badge-accent">今天</span>}
-                </div>
-                <div className="week-body">
+                </span>
+                <span className="week-body">
                   <span className={`week-text ${report ? '' : 'is-empty'}`.trim()}>
                     {report?.content || '还没有记录，点这里补记当天进展'}
                   </span>
-                </div>
-              </div>
+                </span>
+              </button>
             )
           })}
         </div>

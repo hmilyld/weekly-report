@@ -6,39 +6,47 @@ import { setupAccount } from '../api'
 import { useAuth } from '../contexts/AuthContext'
 import Button from '../components/ui/Button'
 import Field from '../components/ui/Field'
+import PasswordInput from '../components/ui/PasswordInput'
 import Wordmark from '../components/ui/Wordmark'
 
+const validate = ({ username, password, confirm }) => {
+  const errors = {}
+  if (!username.trim()) errors.username = '请输入用户名'
+  else if (username.trim().length < 2) errors.username = '用户名至少 2 个字符'
+  if (!password) errors.password = '请设置密码'
+  else if (password.length < 8) errors.password = '密码至少 8 位'
+  else if (!/[A-Za-z]/.test(password) || !/\d/.test(password))
+    errors.password = '密码需同时包含字母和数字'
+  if (!confirm) errors.confirm = '请再次输入密码'
+  else if (password !== confirm) errors.confirm = '两次输入的密码不一致'
+  return errors
+}
+
 export default function Setup({ onComplete, authError }) {
-  const [username, setUsername] = useState('')
-  const [password, setPassword] = useState('')
-  const [confirm, setConfirm] = useState('')
+  const [form, setForm] = useState({ username: '', password: '', confirm: '' })
+  const [errors, setErrors] = useState({})
   const [loading, setLoading] = useState(false)
   const navigate = useNavigate()
   const { refreshUser } = useAuth()
 
+  const update = (key) => (event) => {
+    setForm((prev) => ({ ...prev, [key]: event.target.value }))
+    if (errors[key]) setErrors((prev) => ({ ...prev, [key]: undefined }))
+  }
+
   const handleSubmit = async (event) => {
     event.preventDefault()
-
-    if (!username.trim()) {
-      toast.error('请输入用户名')
-      return
-    }
-    if (username.trim().length < 2) {
-      toast.error('用户名至少 2 个字符')
-      return
-    }
-    if (password.length < 8) {
-      toast.error('密码至少 8 位')
-      return
-    }
-    if (password !== confirm) {
-      toast.error('两次密码不一致')
+    const next = validate(form)
+    setErrors(next)
+    if (Object.keys(next).length > 0) {
+      const first = Object.keys(next)[0]
+      event.currentTarget.querySelector(`[name="${first}"]`)?.focus()
       return
     }
 
     setLoading(true)
     try {
-      const { data } = await setupAccount(username.trim(), password)
+      const { data } = await setupAccount(form.username.trim(), form.password)
       localStorage.setItem('token', data.access_token)
       // Load the new admin into the auth context, otherwise the
       // admin-only entries stay hidden until a manual reload.
@@ -95,35 +103,40 @@ export default function Setup({ onComplete, authError }) {
             <span>无法连接后端 API。请确认服务已启动，且当前地址可以访问 /api。</span>
           </div>
         )}
-        <form className="auth-form" onSubmit={handleSubmit}>
-          <Field label="用户名" hint="至少 2 个字符">
+        <form className="auth-form" onSubmit={handleSubmit} noValidate>
+          <Field label="用户名" hint="至少 2 个字符" error={errors.username}>
             <input
               className="input"
               type="text"
+              required
+              name="username"
               placeholder="设置用户名"
-              value={username}
-              onChange={(event) => setUsername(event.target.value)}
+              value={form.username}
+              onChange={update('username')}
               autoFocus
               autoComplete="username"
+              autoCapitalize="none"
+              autoCorrect="off"
+              spellCheck={false}
             />
           </Field>
-          <Field label="密码" hint="至少 8 位">
-            <input
-              className="input"
-              type="password"
+          <Field label="密码" hint="至少 8 位，且同时包含字母和数字" error={errors.password}>
+            <PasswordInput
+              required
+              name="password"
               placeholder="设置密码"
-              value={password}
-              onChange={(event) => setPassword(event.target.value)}
+              value={form.password}
+              onChange={update('password')}
               autoComplete="new-password"
             />
           </Field>
-          <Field label="确认密码">
-            <input
-              className="input"
-              type="password"
+          <Field label="确认密码" error={errors.confirm}>
+            <PasswordInput
+              required
+              name="confirm"
               placeholder="再次输入密码"
-              value={confirm}
-              onChange={(event) => setConfirm(event.target.value)}
+              value={form.confirm}
+              onChange={update('confirm')}
               autoComplete="new-password"
             />
           </Field>

@@ -9,6 +9,7 @@ import Button from '../components/ui/Button'
 import Field from '../components/ui/Field'
 import Modal from '../components/ui/Modal'
 import PageHeader from '../components/ui/PageHeader'
+import PasswordInput from '../components/ui/PasswordInput'
 import { Panel, PanelBody, PanelHeader } from '../components/ui/Panel'
 
 export default function UserManagement() {
@@ -20,6 +21,7 @@ export default function UserManagement() {
   const [creating, setCreating] = useState(false)
   const [busyId, setBusyId] = useState(null)
   const [form, setForm] = useState({ username: '', password: '', role: 'user' })
+  const [formErrors, setFormErrors] = useState({})
   const [showCreate, setShowCreate] = useState(false)
 
   const loadUsers = useCallback(async () => {
@@ -41,20 +43,25 @@ export default function UserManagement() {
   const closeCreate = () => {
     setShowCreate(false)
     setForm({ username: '', password: '', role: 'user' })
+    setFormErrors({})
+  }
+
+  const updateForm = (key, value) => {
+    setForm((prev) => ({ ...prev, [key]: value }))
+    if (formErrors[key]) setFormErrors((prev) => ({ ...prev, [key]: undefined }))
   }
 
   const handleCreate = async (event) => {
     event?.preventDefault()
-    if (!form.username.trim()) {
-      toast.error('请输入用户名')
-      return
-    }
-    if (form.username.trim().length < 2) {
-      toast.error('用户名至少 2 个字符')
-      return
-    }
-    if (form.password.length < 8) {
-      toast.error('密码至少 8 位')
+    const errors = {}
+    if (!form.username.trim()) errors.username = '请输入用户名'
+    else if (form.username.trim().length < 2) errors.username = '用户名至少 2 个字符'
+    if (!form.password) errors.password = '请输入初始密码'
+    else if (form.password.length < 8) errors.password = '密码至少 8 位'
+    setFormErrors(errors)
+    if (Object.keys(errors).length > 0) {
+      const first = Object.keys(errors)[0]
+      event?.currentTarget?.querySelector(`[name="${first}"]`)?.focus()
       return
     }
     setCreating(true)
@@ -216,49 +223,54 @@ export default function UserManagement() {
                 取消
               </Button>
               <Button
+                type="submit"
+                form="create-user-form"
                 variant="primary"
                 icon={Plus}
-                onClick={handleCreate}
                 loading={creating}
-                disabled={!form.username || !form.password}
               >
                 创建
               </Button>
             </>
           }
         >
-          <form className="form-stack" onSubmit={handleCreate}>
-            <Field label="用户名" hint="至少 2 个字符">
+          <form id="create-user-form" className="form-stack" onSubmit={handleCreate} noValidate>
+            <Field label="用户名" hint="至少 2 个字符" error={formErrors.username}>
               <input
                 className="input"
                 type="text"
+                required
+                name="username"
                 placeholder="例如 zhangsan"
                 value={form.username}
-                onChange={(event) => setForm({ ...form, username: event.target.value })}
+                onChange={(event) => updateForm('username', event.target.value)}
                 autoComplete="off"
+                autoCapitalize="none"
+                autoCorrect="off"
+                spellCheck={false}
               />
             </Field>
-            <Field label="初始密码" hint="至少 8 位">
-              <input
-                className="input"
-                type="password"
+            <Field label="初始密码" hint="至少 8 位" error={formErrors.password}>
+              <PasswordInput
+                required
+                name="password"
                 placeholder="设置初始密码"
                 value={form.password}
-                onChange={(event) => setForm({ ...form, password: event.target.value })}
+                onChange={(event) => updateForm('password', event.target.value)}
                 autoComplete="new-password"
               />
             </Field>
             <Field label="角色" hint="管理员可以配置模型、管理账号与 Token。">
               <select
                 className="select"
+                name="role"
                 value={form.role}
-                onChange={(event) => setForm({ ...form, role: event.target.value })}
+                onChange={(event) => updateForm('role', event.target.value)}
               >
                 <option value="user">普通用户</option>
                 <option value="admin">管理员</option>
               </select>
             </Field>
-            <button type="submit" hidden aria-hidden="true" tabIndex={-1} />
           </form>
         </Modal>
       )}

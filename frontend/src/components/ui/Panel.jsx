@@ -14,11 +14,11 @@ export function PanelHeader({ title, icon: Icon, actions, meta, children }) {
   return (
     <div className="panel-header">
       {title && (
-        <h3>
+        <h2>
           {Icon && <Icon size={16} aria-hidden="true" />}
           {title}
           {meta}
-        </h3>
+        </h2>
       )}
       {children}
       {actions && <div className="row">{actions}</div>}

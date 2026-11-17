@@ -1,13 +1,21 @@
-import { useCallback, useEffect, useId, useRef } from 'react'
+import { useEffect, useId, useRef } from 'react'
 import { createPortal } from 'react-dom'
 import { X } from 'lucide-react'
+import { promoteToastLayer } from './toastLayer'
 
-const FOCUSABLE =
-  'a[href], button:not([disabled]), input:not([disabled]), textarea:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"])'
+/* Open dialogs in opening order. The browser fires `cancel` on every open
+   modal, not only the topmost, so this stack decides which one may act on a
+   close request — otherwise one Escape closes a confirm and the form under it. */
+const dialogStack = []
 
 /**
- * One modal for the product: focus is trapped, Esc closes, the page
- * behind stops scrolling, and focus returns to the trigger on close.
+ * One modal for the product, built on the native <dialog> element.
+ *
+ * The browser supplies what a hand-rolled overlay has to rebuild: the top
+ * layer, an inert page behind it, focus containment and its return to the
+ * trigger, Esc and the mobile back gesture, and light dismissal. The page
+ * underneath is held still with overscroll-behavior rather than by locking
+ * body scroll, which would remove the scrollbar and shift the layout.
  */
 export default function Modal({
   open = true,
@@ -20,97 +28,139 @@ export default function Modal({
   children,
 }) {
   const titleId = useId()
+  const descriptionId = useId()
   const dialogRef = useRef(null)
-  const restoreRef = useRef(null)
-
-  const requestClose = useCallback(() => {
-    if (dismissible) onClose?.()
-  }, [dismissible, onClose])
+  const onCloseRef = useRef(onClose)
 
   useEffect(() => {
-    if (!open) return undefined
+    onCloseRef.current = onClose
+  }, [onClose])
 
-    restoreRef.current = document.activeElement
-    const { overflow } = document.body.style
-    document.body.style.overflow = 'hidden'
-
+  // Open and close the native dialog, and report every close back to React:
+  // Esc, the back gesture and a backdrop press all arrive as `close`.
+  useEffect(() => {
     const node = dialogRef.current
-    // A field can ask for the first cursor (the record textarea does);
-    // otherwise the first focusable control takes focus. A hidden or
-    // disabled field cannot answer, so it never swallows the focus.
-    const preferred = node?.querySelector('[data-autofocus]')
-    const usable = preferred && preferred.offsetParent !== null && !preferred.matches(':disabled')
-    const first = usable ? preferred : node?.querySelector(FOCUSABLE)
-    if (first) first.focus()
-    else node?.focus()
+    if (!node) return undefined
 
-    const onKeyDown = (event) => {
-      // Two dialogs can be open at once (a confirm over a form). Only the
-      // one that holds focus reacts to Esc and Tab.
-      if (!node || !node.contains(document.activeElement)) return
-      if (event.key === 'Escape') {
-        event.stopPropagation()
-        requestClose()
-        return
-      }
-      if (event.key !== 'Tab' || !node) return
-      const items = Array.from(node.querySelectorAll(FOCUSABLE)).filter(
-        (el) => el.offsetParent !== null,
-      )
-      if (items.length === 0) return
-      const firstItem = items[0]
-      const lastItem = items[items.length - 1]
-      if (event.shiftKey && document.activeElement === firstItem) {
-        event.preventDefault()
-        lastItem.focus()
-      } else if (!event.shiftKey && document.activeElement === lastItem) {
-        event.preventDefault()
-        firstItem.focus()
-      }
+    const handleClose = () => onCloseRef.current?.()
+    node.addEventListener('close', handleClose)
+
+    // The browser restores focus to whatever was focused before showModal(),
+    // but only while the dialog is still connected. React removes the node as
+    // soon as the parent clears its state, so remember the target and put
+    // focus back on it ourselves.
+    const restoreRef = { current: document.activeElement }
+    if (open && !node.open) {
+      node.showModal()
+      dialogStack.push(node)
     }
+    if (!open && node.open) node.close()
+    // A dialog enters the top layer; toasts have to be moved above it again.
+    if (node.open) promoteToastLayer()
 
-    document.addEventListener('keydown', onKeyDown, true)
     return () => {
-      document.removeEventListener('keydown', onKeyDown, true)
-      document.body.style.overflow = overflow
-      if (restoreRef.current instanceof HTMLElement) restoreRef.current.focus()
+      node.removeEventListener('close', handleClose)
+      const index = dialogStack.indexOf(node)
+      if (index !== -1) dialogStack.splice(index, 1)
+      if (node.open) node.close()
+      const target = restoreRef.current
+      if (target instanceof HTMLElement && target.isConnected && target !== document.body) {
+        target.focus()
+      }
     }
-  }, [open, requestClose])
+  }, [open])
+
+  useEffect(() => {
+    const node = dialogRef.current
+    if (!node) return undefined
+
+    // A non-dismissible dialog still has to survive Esc and the back gesture.
+    // The browser fires `cancel` on every open modal, not just the topmost, so
+    // only the last one in document order may act on it; otherwise one Escape
+    // would close a confirm and the form underneath it.
+    const handleCancel = (event) => {
+      const isTopmost = dialogStack[dialogStack.length - 1] === node
+      if (!dismissible || !isTopmost) event.preventDefault()
+      // Otherwise the browser closes it and the `close` listener reports in.
+    }
+    node.addEventListener('cancel', handleCancel)
+
+    // Safari does not implement closedby: dismiss on a press and release that
+    // both land outside the dialog, so a text selection ending on the backdrop
+    // does not close it.
+    const supportsClosedBy = 'closedBy' in HTMLDialogElement.prototype
+    let pressedOutside = false
+    const isOutside = (event) => {
+      const rect = node.getBoundingClientRect()
+      return (
+        event.clientX < rect.left ||
+        event.clientX > rect.right ||
+        event.clientY < rect.top ||
+        event.clientY > rect.bottom
+      )
+    }
+    const handlePointerDown = (event) => {
+      pressedOutside = dismissible && isOutside(event)
+    }
+    const handlePointerUp = (event) => {
+      if (pressedOutside && isOutside(event)) node.close()
+      pressedOutside = false
+    }
+    if (!supportsClosedBy) {
+      node.addEventListener('pointerdown', handlePointerDown)
+      node.addEventListener('pointerup', handlePointerUp)
+    }
+
+    return () => {
+      node.removeEventListener('cancel', handleCancel)
+      if (!supportsClosedBy) {
+        node.removeEventListener('pointerdown', handlePointerDown)
+        node.removeEventListener('pointerup', handlePointerUp)
+      }
+    }
+  }, [dismissible])
+
+  // The browser focuses the first focusable control on open; a field that asks
+  // for the cursor takes precedence, as long as it is actually usable.
+  useEffect(() => {
+    const node = dialogRef.current
+    if (!node || !open) return
+    const preferred = node.querySelector('[data-autofocus]')
+    const usable = preferred && preferred.offsetParent !== null && !preferred.matches(':disabled')
+    if (usable) preferred.focus()
+  }, [open])
 
   if (!open) return null
 
   return createPortal(
-    <div
-      className="modal-overlay"
-      onMouseDown={(event) => {
-        if (event.target === event.currentTarget) requestClose()
-      }}
+    <dialog
+      ref={dialogRef}
+      className={`modal ${size === 'sm' ? 'modal-sm' : ''}`.trim()}
+      aria-labelledby={title ? titleId : undefined}
+      aria-describedby={description ? descriptionId : undefined}
+      /* React 18 does not know `closedby` yet; spread it as a DOM attribute. */
+      {...{ closedby: dismissible ? 'any' : 'none' }}
     >
-      <div
-        ref={dialogRef}
-        className={`modal ${size === 'sm' ? 'modal-sm' : ''}`.trim()}
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby={title ? titleId : undefined}
-        tabIndex={-1}
-      >
-        {(title || dismissible) && (
-          <div className="modal-header">
-            <div className="modal-title">
-              {title && <h3 id={titleId}>{title}</h3>}
-              {description && <p>{description}</p>}
-            </div>
-            {dismissible && (
-              <button className="icon-btn" onClick={requestClose} aria-label="关闭">
-                <X size={18} />
-              </button>
-            )}
+      {(title || dismissible) && (
+        <div className="modal-header">
+          <div className="modal-title">
+            {title && <h2 id={titleId}>{title}</h2>}
+            {description && <p id={descriptionId}>{description}</p>}
           </div>
-        )}
-        <div className="modal-body">{children}</div>
-        {footer && <div className="modal-footer">{footer}</div>}
-      </div>
-    </div>,
+          {dismissible && (
+            <button
+              className="icon-btn"
+              onClick={() => dialogRef.current?.close()}
+              aria-label="关闭"
+            >
+              <X size={18} />
+            </button>
+          )}
+        </div>
+      )}
+      <div className="modal-body">{children}</div>
+      {footer && <div className="modal-footer">{footer}</div>}
+    </dialog>,
     document.body,
   )
 }

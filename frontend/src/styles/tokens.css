@@ -59,12 +59,12 @@
   --color-overlay: rgba(17, 17, 17, 0.42);
 
   --color-border: #e6ebf2;
-  --color-border-strong: #d3dae6;
-  --color-border-focus: #aeb9c8;
+  --color-border-strong: #818997;
+  --color-border-focus: #6b7178;
 
   --color-text: var(--ink);
   --color-text-secondary: #565d68;
-  --color-text-muted: #6e757f;
+  --color-text-muted: #626a76;
 
   --color-accent: var(--signal);
   --color-accent-hover: var(--signal-hover);
@@ -132,8 +132,6 @@
 
   /* ─── Layers ───────────────────────────────────────────── */
   --layer-nav: 20;
-  --layer-sticky: 30;
-  --layer-overlay: 100;
   --layer-toast: 200;
 
   /* ─── Safe areas ───────────────────────────────────────── */
@@ -142,9 +140,15 @@
   --safe-left: env(safe-area-inset-left, 0px);
   --safe-right: env(safe-area-inset-right, 0px);
 
-  /* ─── Focus ────────────────────────────────────────────── */
-  --focus-ring: 0 0 0 2px var(--color-surface), 0 0 0 4px var(--color-accent);
+  /* Both schemes are supported, so the UA themes its own surfaces
+     (scrollbars, form controls, the canvas) before any script runs.
+     Never pinned to a single value here; the blocks below do that. */
+  color-scheme: light dark;
+}
 
+/* A pinned theme overrides the system preference. The dark tokens live in
+   the block below, so pinning light only has to pin the scheme itself. */
+:root[data-theme='light'] {
   color-scheme: light;
 }
 
@@ -170,12 +174,12 @@
   --color-overlay: rgba(0, 0, 0, 0.62);
 
   --color-border: #262c37;
-  --color-border-strong: #333b48;
-  --color-border-focus: #4a5361;
+  --color-border-strong: #646e7d;
+  --color-border-focus: #828c9b;
 
   --color-text: var(--ink);
   --color-text-secondary: #a7aeb9;
-  --color-text-muted: #838c99;
+  --color-text-muted: #9099a6;
 
   --color-accent: var(--signal);
   --color-accent-hover: var(--signal-hover);
@@ -224,12 +228,12 @@
     --color-overlay: rgba(0, 0, 0, 0.62);
 
     --color-border: #262c37;
-    --color-border-strong: #333b48;
-    --color-border-focus: #4a5361;
+    --color-border-strong: #646e7d;
+    --color-border-focus: #828c9b;
 
     --color-text: var(--ink);
     --color-text-secondary: #a7aeb9;
-    --color-text-muted: #838c99;
+    --color-text-muted: #9099a6;
 
     --color-accent: var(--signal);
     --color-accent-hover: var(--signal-hover);

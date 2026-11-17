@@ -1,5 +1,13 @@
 import { useEffect, useState } from 'react'
-import { BrowserRouter, NavLink, Navigate, Route, Routes, useNavigate } from 'react-router-dom'
+import {
+  BrowserRouter,
+  NavLink,
+  Navigate,
+  Route,
+  Routes,
+  useLocation,
+  useNavigate,
+} from 'react-router-dom'
 import { Toaster } from 'react-hot-toast'
 import {
   Calendar,
@@ -21,6 +29,7 @@ import useMediaQuery from './hooks/useMediaQuery'
 import ReLoginModal from './components/ReLoginModal'
 import Wordmark from './components/ui/Wordmark'
 import { ConfirmProvider } from './components/ui/ConfirmProvider'
+import { registerToastLayer } from './components/ui/toastLayer'
 
 import DailyReport from './pages/DailyReport'
 import Login from './pages/Login'
@@ -154,6 +163,23 @@ function TabBar() {
   )
 }
 
+/* ─── Document title ───────────────────────────────────── */
+/* Set from the route itself so the login and setup screens get their own
+   title too, and so leaving the shell does not leave a stale one behind. */
+const AUTH_TITLES = { '/login': '登录', '/setup': '创建管理员账户' }
+
+function RouteTitle() {
+  const { pathname } = useLocation()
+
+  useEffect(() => {
+    const route = NAV.find((item) => item.to === pathname)
+    const label = route?.desktopLabel ?? AUTH_TITLES[pathname]
+    document.title = label ? `${label} · 日周报管理系统` : '日周报管理系统'
+  }, [pathname])
+
+  return null
+}
+
 /* ─── Shell ────────────────────────────────────────────── */
 
 function AppLayout() {
@@ -165,8 +191,18 @@ function AppLayout() {
     return () => setReLoginHandler(null)
   }, [])
 
+  // The toast stack has to reach above a modal dialog, which lives in the
+  // browser's top layer where z-index cannot follow.
+  useEffect(() => {
+    const container = document.querySelector('.toast-container')
+    if (container) registerToastLayer(container)
+  }, [])
+
   return (
     <div className="app-shell">
+      <a className="skip-link" href="#main-content">
+        跳到主要内容
+      </a>
       {isDesktop ? (
         <TopBar />
       ) : (
@@ -175,7 +211,7 @@ function AppLayout() {
           <TabBar />
         </>
       )}
-      <main className="app-main">
+      <main className="app-main" id="main-content" tabIndex={-1}>
         <Routes>
           <Route path="/" element={<DailyReport />} />
           <Route path="/weekly" element={<WeeklyReport />} />
@@ -272,6 +308,7 @@ export default function App() {
               }}
               containerClassName="toast-container"
             />
+            <RouteTitle />
             <Routes>
               <Route
                 path="/setup"
