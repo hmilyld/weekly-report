@@ -42,7 +42,11 @@ export function ConfirmProvider({ children }) {
           onClose={() => settle(false)}
           footer={
             <>
-              <Button variant="outline" onClick={() => settle(false)}>
+              <Button
+                variant="outline"
+                onClick={() => settle(false)}
+                data-autofocus={request.tone === 'danger' ? '' : undefined}
+              >
                 {request.cancelLabel || '取消'}
               </Button>
               <Button

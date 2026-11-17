@@ -28,6 +28,7 @@ import { copyText } from '../utils/clipboard'
 import { formatDateTime } from '../utils/date'
 import Button from '../components/ui/Button'
 import Field from '../components/ui/Field'
+import PasswordInput from '../components/ui/PasswordInput'
 import PageHeader from '../components/ui/PageHeader'
 import { Panel, PanelBody, PanelFooter, PanelHeader } from '../components/ui/Panel'
 
@@ -44,6 +45,7 @@ export default function SettingsPage() {
 
   /* Password */
   const [pwd, setPwd] = useState({ current: '', next: '', confirm: '' })
+  const [pwdErrors, setPwdErrors] = useState({})
   const [changingPwd, setChangingPwd] = useState(false)
 
   /* Tokens */
@@ -123,25 +125,32 @@ export default function SettingsPage() {
     }
   }
 
-  const handleChangePassword = async () => {
-    if (!pwd.current) {
-      toast.error('请输入当前密码')
-      return
-    }
-    if (pwd.next.length < 8) {
-      toast.error('新密码至少 8 位')
-      return
-    }
-    if (!/[A-Za-z]/.test(pwd.next) || !/\d/.test(pwd.next)) {
-      toast.error('新密码需要同时包含字母和数字')
-      return
-    }
-    if (pwd.next === pwd.current) {
-      toast.error('新密码不能与当前密码相同')
-      return
-    }
-    if (pwd.next !== pwd.confirm) {
-      toast.error('两次输入的新密码不一致')
+  const updatePwd = (key, value) => {
+    setPwd((prev) => ({ ...prev, [key]: value }))
+    if (pwdErrors[key]) setPwdErrors((prev) => ({ ...prev, [key]: undefined }))
+  }
+
+  const handleChangePassword = async (event) => {
+    const form = event?.currentTarget
+    event?.preventDefault()
+    const errors = {}
+    if (!pwd.current) errors.current = '请输入当前密码'
+    if (!pwd.next) errors.next = '请输入新密码'
+    else if (pwd.next.length < 8) errors.next = '新密码至少 8 位'
+    else if (!/[A-Za-z]/.test(pwd.next) || !/\d/.test(pwd.next))
+      errors.next = '新密码需要同时包含字母和数字'
+    else if (pwd.next === pwd.current) errors.next = '新密码不能与当前密码相同'
+    if (!pwd.confirm) errors.confirm = '请再次输入新密码'
+    else if (pwd.next !== pwd.confirm) errors.confirm = '两次输入的新密码不一致'
+    setPwdErrors(errors)
+    if (Object.keys(errors).length > 0) {
+      const fieldName = {
+        current: 'current_password',
+        next: 'new_password',
+        confirm: 'confirm_password',
+      }
+      const first = fieldName[Object.keys(errors)[0]]
+      form?.querySelector(`[name="${first}"]`)?.focus()
       return
     }
     setChangingPwd(true)
@@ -153,7 +162,15 @@ export default function SettingsPage() {
       toast.success('密码已修改，其他设备需要重新登录')
       setPwd({ current: '', next: '', confirm: '' })
     } catch (err) {
-      toast.error(err.response?.data?.detail || '修改失败')
+      // 402 means the session is fine and only the re-supplied password is
+      // wrong, so the message belongs on that field, not in a toast. Anything
+      // else is a failure of the operation as a whole.
+      if (err.response?.status === 402) {
+        setPwdErrors({ current: err.response?.data?.detail || '当前密码不正确' })
+        form?.querySelector('[name="current_password"]')?.focus()
+      } else {
+        toast.error(err.response?.data?.detail || '修改失败')
+      }
     } finally {
       setChangingPwd(false)
     }
@@ -214,124 +231,151 @@ export default function SettingsPage() {
       {isAdmin && (
         <Panel className="page-section">
           <PanelHeader title="大模型配置" icon={Zap} />
-          <PanelBody>
-            {loadingConfig ? (
-              <div className="loading-block">
-                <span className="spinner" aria-hidden="true" />
-                正在读取配置…
-              </div>
-            ) : (
-              <div className="form-stack">
-                <Field label="API 地址" hint="以 /chat/completions 结尾的完整 OpenAI 兼容地址">
-                  <input
-                    className="input"
-                    type="url"
-                    placeholder="http://localhost:11434/v1/chat/completions"
-                    value={config.llm_api_url}
-                    onChange={(event) => setConfig({ ...config, llm_api_url: event.target.value })}
-                  />
-                </Field>
-                <Field label="模型名称" hint="与接口返回的模型标识一致，例如 llama2、gpt-4o-mini">
-                  <input
-                    className="input"
-                    type="text"
-                    placeholder="llama2"
-                    value={config.llm_model_name}
-                    onChange={(event) =>
-                      setConfig({ ...config, llm_model_name: event.target.value })
-                    }
-                  />
-                </Field>
-                <Field
-                  label="API Key"
-                  optional
-                  hint="留空则不发送 Authorization 头；已保存的密钥显示为掩码。"
-                >
-                  <input
-                    className="input"
-                    type="password"
-                    placeholder="留空则不发送 Authorization 头"
-                    value={config.api_key}
-                    onChange={(event) => setConfig({ ...config, api_key: event.target.value })}
-                  />
-                </Field>
-                {testResult && (
-                  <div
-                    className={`notice ${testResult.success ? 'notice-success' : 'notice-danger'}`}
-                    role="status"
+          <form
+            onSubmit={(event) => {
+              event.preventDefault()
+              handleSaveConfig()
+            }}
+            noValidate
+          >
+            <PanelBody>
+              {loadingConfig ? (
+                <div className="loading-block">
+                  <span className="spinner" aria-hidden="true" />
+                  正在读取配置…
+                </div>
+              ) : (
+                <div className="form-stack">
+                  <Field label="API 地址" hint="以 /chat/completions 结尾的完整 OpenAI 兼容地址">
+                    <input
+                      className="input"
+                      type="url"
+                      name="llm_api_url"
+                      placeholder="http://localhost:11434/v1/chat/completions"
+                      value={config.llm_api_url}
+                      onChange={(event) =>
+                        setConfig({ ...config, llm_api_url: event.target.value })
+                      }
+                      autoComplete="off"
+                      autoCapitalize="none"
+                      autoCorrect="off"
+                      spellCheck={false}
+                    />
+                  </Field>
+                  <Field label="模型名称" hint="与接口返回的模型标识一致，例如 llama2、gpt-4o-mini">
+                    <input
+                      className="input"
+                      type="text"
+                      name="llm_model_name"
+                      placeholder="llama2"
+                      value={config.llm_model_name}
+                      onChange={(event) =>
+                        setConfig({ ...config, llm_model_name: event.target.value })
+                      }
+                      autoComplete="off"
+                      autoCapitalize="none"
+                      autoCorrect="off"
+                      spellCheck={false}
+                    />
+                  </Field>
+                  <Field
+                    label="API Key"
+                    optional
+                    hint="留空则不发送 Authorization 头；已保存的密钥显示为掩码。"
                   >
-                    {testResult.success ? (
-                      <CheckCircle2 size={16} aria-hidden="true" />
-                    ) : (
-                      <XCircle size={16} aria-hidden="true" />
-                    )}
-                    <span>{testResult.message}</span>
-                  </div>
-                )}
-              </div>
-            )}
-          </PanelBody>
-          <PanelFooter>
-            <Button variant="outline" icon={Zap} onClick={handleTest} loading={testing}>
-              测试连接
-            </Button>
-            <Button variant="primary" icon={Save} onClick={handleSaveConfig} loading={saving}>
-              保存配置
-            </Button>
-          </PanelFooter>
+                    <PasswordInput
+                      name="api_key"
+                      placeholder="留空则不发送 Authorization 头"
+                      value={config.api_key}
+                      onChange={(event) => setConfig({ ...config, api_key: event.target.value })}
+                      autoComplete="off"
+                    />
+                  </Field>
+                  {testResult && (
+                    <div
+                      className={`notice ${testResult.success ? 'notice-success' : 'notice-danger'}`}
+                      role="status"
+                    >
+                      {testResult.success ? (
+                        <CheckCircle2 size={16} aria-hidden="true" />
+                      ) : (
+                        <XCircle size={16} aria-hidden="true" />
+                      )}
+                      <span>{testResult.message}</span>
+                    </div>
+                  )}
+                </div>
+              )}
+            </PanelBody>
+            <PanelFooter>
+              <Button
+                type="button"
+                variant="outline"
+                icon={Zap}
+                onClick={handleTest}
+                loading={testing}
+              >
+                测试连接
+              </Button>
+              <Button type="submit" variant="primary" icon={Save} loading={saving}>
+                保存配置
+              </Button>
+            </PanelFooter>
+          </form>
         </Panel>
       )}
 
       <Panel className="page-section">
         <PanelHeader title="修改密码" icon={KeyRound} />
-        <PanelBody>
-          <div className="form-stack">
-            <Field label="当前密码" hint="修改密码会用当前密码重新加密全部日报、周报、月报与待办。">
-              <input
-                className="input"
-                type="password"
-                placeholder="输入当前密码"
-                value={pwd.current}
-                onChange={(event) => setPwd({ ...pwd, current: event.target.value })}
-                autoComplete="current-password"
-              />
-            </Field>
-            <Field
-              label="新密码"
-              hint="至少 8 位，且同时包含字母和数字；修改后其他设备需要重新登录。"
-            >
-              <input
-                className="input"
-                type="password"
-                placeholder="输入新密码"
-                value={pwd.next}
-                onChange={(event) => setPwd({ ...pwd, next: event.target.value })}
-                autoComplete="new-password"
-              />
-            </Field>
-            <Field label="确认新密码">
-              <input
-                className="input"
-                type="password"
-                placeholder="再次输入新密码"
-                value={pwd.confirm}
-                onChange={(event) => setPwd({ ...pwd, confirm: event.target.value })}
-                autoComplete="new-password"
-              />
-            </Field>
-          </div>
-        </PanelBody>
-        <PanelFooter>
-          <Button
-            variant="primary"
-            icon={KeyRound}
-            onClick={handleChangePassword}
-            loading={changingPwd}
-            disabled={!pwd.current || !pwd.next || !pwd.confirm}
-          >
-            修改密码
-          </Button>
-        </PanelFooter>
+        <form onSubmit={handleChangePassword} noValidate>
+          <PanelBody>
+            <div className="form-stack">
+              <Field
+                label="当前密码"
+                hint="修改密码会用当前密码重新加密全部日报、周报、月报与待办。"
+                error={pwdErrors.current}
+              >
+                <PasswordInput
+                  required
+                  name="current_password"
+                  placeholder="输入当前密码"
+                  value={pwd.current}
+                  onChange={(event) => updatePwd('current', event.target.value)}
+                  autoComplete="current-password"
+                />
+              </Field>
+              <Field
+                label="新密码"
+                hint="至少 8 位，且同时包含字母和数字；修改后其他设备需要重新登录。"
+                error={pwdErrors.next}
+              >
+                <PasswordInput
+                  required
+                  name="new_password"
+                  placeholder="输入新密码"
+                  value={pwd.next}
+                  onChange={(event) => updatePwd('next', event.target.value)}
+                  autoComplete="new-password"
+                />
+              </Field>
+              <Field label="确认新密码" error={pwdErrors.confirm}>
+                <PasswordInput
+                  required
+                  name="confirm_password"
+                  placeholder="再次输入新密码"
+                  value={pwd.confirm}
+                  onChange={(event) => updatePwd('confirm', event.target.value)}
+                  autoComplete="new-password"
+                />
+              </Field>
+            </div>
+          </PanelBody>
+          <PanelFooter>
+            <Button type="submit" variant="primary" icon={KeyRound} loading={changingPwd}>
+              修改密码
+            </Button>
+          </PanelFooter>
+        </form>
       </Panel>
 
       <Panel className="page-section">
@@ -360,27 +404,33 @@ export default function SettingsPage() {
             </div>
           )}
 
-          <div className="row token-create">
+          {/* A real form, so Enter submits natively: the browser already
+              suppresses implicit submission while an IME is composing, which a
+              keydown handler has to reproduce by hand. */}
+          <form
+            className="row token-create"
+            onSubmit={(event) => {
+              event.preventDefault()
+              handleCreateToken()
+            }}
+          >
             <input
               className="input"
               type="text"
+              name="token-name"
               placeholder="Token 名称，例如 ci-bot"
               value={tokenName}
               onChange={(event) => setTokenName(event.target.value)}
-              onKeyDown={(event) => {
-                if (event.key === 'Enter') handleCreateToken()
-              }}
               aria-label="Token 名称"
+              autoComplete="off"
+              autoCapitalize="none"
+              autoCorrect="off"
+              spellCheck={false}
             />
-            <Button
-              variant="primary"
-              icon={Plus}
-              onClick={handleCreateToken}
-              loading={creatingToken}
-            >
+            <Button type="submit" variant="primary" icon={Plus} loading={creatingToken}>
               创建
             </Button>
-          </div>
+          </form>
         </PanelBody>
 
         {loadingTokens ? (

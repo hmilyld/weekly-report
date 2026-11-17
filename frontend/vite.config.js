@@ -83,23 +83,19 @@ export default defineConfig({
         globPatterns: ['**/*.{js,css,html,svg,png,woff2}'],
         runtimeCaching: [
           {
-            urlPattern: /^https:\/\/fonts\.(googleapis|gstatic)\.com\/.*/i,
+            // The app loads its fonts from fonts.loli.net (see index.html), so
+            // the pattern has to match that host, not fonts.googleapis.com.
+            urlPattern: /^https:\/\/fonts\.loli\.net\/.*/i,
             handler: 'CacheFirst',
             options: {
               cacheName: 'google-fonts',
               expiration: { maxEntries: 10, maxAgeSeconds: 60 * 60 * 24 * 365 },
             },
           },
-          {
-            urlPattern: /^\/api\/.*/i,
-            handler: 'NetworkFirst',
-            options: {
-              cacheName: 'api-cache',
-              networkTimeoutSeconds: 5,
-              expiration: { maxEntries: 50, maxAgeSeconds: 60 * 60 },
-            },
-          },
         ],
+        // No runtime cache for /api: report bodies are AES-GCM encrypted at
+        // rest on the server, so a plaintext copy in Cache Storage would
+        // outlive the promise that data stays encrypted per account.
       },
     }),
   ],

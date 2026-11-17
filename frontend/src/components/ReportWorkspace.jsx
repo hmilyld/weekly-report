@@ -98,6 +98,8 @@ export default function ReportWorkspace({
               value={draft}
               onChange={(event) => setDraft(event.target.value)}
               onKeyDown={(event) => {
+                // Escape belongs to the IME while a candidate window is open.
+                if (event.nativeEvent.isComposing || event.nativeEvent.keyCode === 229) return
                 if ((event.metaKey || event.ctrlKey) && event.key === 'Enter') {
                   event.preventDefault()
                   submitEdit()

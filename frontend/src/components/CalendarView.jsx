@@ -82,11 +82,12 @@ export default function CalendarView({ onEditDate, onDeleteDate, refreshRef }) {
   const isCurrentMonth = (date) => date.getMonth() === month
   const isCurrentMonthToday = year === today.getFullYear() && month === today.getMonth()
 
-  // Arrow keys walk the grid, as they would in any calendar.
+  // Arrow keys walk the grid, as they would in any calendar. The focusable
+  // nodes are the day-open buttons inside each cell, never the cell itself.
   const onGridKeyDown = (event) => {
     const step = { ArrowLeft: -1, ArrowRight: 1, ArrowUp: -7, ArrowDown: 7 }[event.key]
     if (!step) return
-    const buttons = Array.from(gridRef.current?.querySelectorAll('.day') || [])
+    const buttons = Array.from(gridRef.current?.querySelectorAll('.day-open') || [])
     const index = buttons.indexOf(document.activeElement)
     if (index === -1) return
     event.preventDefault()

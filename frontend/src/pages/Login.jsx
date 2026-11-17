@@ -6,19 +6,28 @@ import { login } from '../api'
 import { useAuth } from '../contexts/AuthContext'
 import Button from '../components/ui/Button'
 import Field from '../components/ui/Field'
+import PasswordInput from '../components/ui/PasswordInput'
 import Wordmark from '../components/ui/Wordmark'
 
 export default function Login() {
   const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
+  const [errors, setErrors] = useState({})
   const [loading, setLoading] = useState(false)
   const navigate = useNavigate()
   const { refreshUser } = useAuth()
 
   const handleSubmit = async (event) => {
     event.preventDefault()
-    if (!username || !password) {
-      toast.error('请输入用户名和密码')
+    const next = {}
+    if (!username.trim()) next.username = '请输入用户名'
+    if (!password) next.password = '请输入密码'
+    setErrors(next)
+    if (Object.keys(next).length > 0) {
+      // Move focus to the first field that needs attention, so the keyboard and
+      // screen-reader user lands on the problem instead of on an alert.
+      const first = Object.keys(next)[0]
+      event.currentTarget.querySelector(`[name="${first}"]`)?.focus()
       return
     }
     setLoading(true)
@@ -70,26 +79,36 @@ export default function Login() {
           <h1>登录</h1>
           <p>使用你的账号继续记录日报。</p>
         </div>
-        <form className="auth-form" onSubmit={handleSubmit}>
-          <Field label="用户名">
+        <form className="auth-form" onSubmit={handleSubmit} noValidate>
+          <Field label="用户名" error={errors.username}>
             <input
               className="input"
               type="text"
+              required
+              name="username"
               placeholder="请输入用户名"
               value={username}
-              onChange={(event) => setUsername(event.target.value)}
+              onChange={(event) => {
+                setUsername(event.target.value)
+                if (errors.username) setErrors((prev) => ({ ...prev, username: undefined }))
+              }}
               autoFocus
               autoComplete="username"
-              inputMode="text"
+              autoCapitalize="none"
+              autoCorrect="off"
+              spellCheck={false}
             />
           </Field>
-          <Field label="密码">
-            <input
-              className="input"
-              type="password"
+          <Field label="密码" error={errors.password}>
+            <PasswordInput
+              required
+              name="password"
               placeholder="请输入密码"
               value={password}
-              onChange={(event) => setPassword(event.target.value)}
+              onChange={(event) => {
+                setPassword(event.target.value)
+                if (errors.password) setErrors((prev) => ({ ...prev, password: undefined }))
+              }}
               autoComplete="current-password"
             />
           </Field>

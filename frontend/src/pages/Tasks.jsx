@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useId, useRef, useState } from 'react'
 import toast from 'react-hot-toast'
 import { CalendarClock, Check, CheckCircle2, Circle, Pencil, Plus, Trash2, X } from 'lucide-react'
 import { createTask, deleteTask, getCompletedTasks, getTasks, updateTask } from '../api'
@@ -39,29 +39,42 @@ const todayInput = () => {
 function TaskEditor({ task, onSave, onCancel }) {
   const [content, setContent] = useState(task.content)
   const [deadline, setDeadline] = useState(task.deadline || '')
+  const [error, setError] = useState('')
+  // Two rows can be in edit mode at once, so the message id must not be a
+  // constant: a duplicated id makes the second field describe the first row's
+  // error.
+  const errorId = useId()
 
   const submit = (event) => {
     event.preventDefault()
     if (!content.trim()) {
-      toast.error('待办内容不能为空')
+      setError('待办内容不能为空')
+      event.currentTarget.querySelector('[name="content"]')?.focus()
       return
     }
     onSave(content.trim(), deadline || null)
   }
 
   return (
-    <form className="task-edit" onSubmit={submit}>
+    <form className="task-edit" onSubmit={submit} noValidate>
       <input
         className="input"
+        name="content"
         value={content}
-        onChange={(event) => setContent(event.target.value)}
+        onChange={(event) => {
+          setContent(event.target.value)
+          if (error) setError('')
+        }}
         placeholder="待办内容"
         aria-label="待办内容"
+        aria-invalid={error ? true : undefined}
+        aria-describedby={error ? errorId : undefined}
         autoFocus
       />
       <input
         className="input"
         type="date"
+        name="deadline"
         value={deadline}
         min={todayInput()}
         onChange={(event) => setDeadline(event.target.value)}
@@ -71,6 +84,11 @@ function TaskEditor({ task, onSave, onCancel }) {
         <Button type="submit" variant="primary" size="sm" icon={Check} iconOnly aria-label="保存" />
         <Button variant="ghost" size="sm" icon={X} iconOnly aria-label="取消" onClick={onCancel} />
       </div>
+      {error && (
+        <p className="field-error task-edit-error" id={errorId} role="alert">
+          {error}
+        </p>
+      )}
     </form>
   )
 }
@@ -173,12 +191,14 @@ function TaskRow({ task, onToggle, onEdit, onDelete }) {
 function TaskComposer({ onAdd }) {
   const [content, setContent] = useState('')
   const [deadline, setDeadline] = useState('')
+  const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
 
   const submit = async (event) => {
     event.preventDefault()
     if (!content.trim()) {
-      toast.error('请输入待办内容')
+      setError('这件待办还没有内容，写一句要做的事')
+      event.currentTarget.querySelector('[name="content"]')?.focus()
       return
     }
     setLoading(true)
@@ -196,12 +216,16 @@ function TaskComposer({ onAdd }) {
   }
 
   return (
-    <form className="task-composer" onSubmit={submit}>
-      <Field label="要做的事">
+    <form className="task-composer" onSubmit={submit} noValidate>
+      <Field label="要做的事" error={error}>
         <input
           className="input"
+          name="content"
           value={content}
-          onChange={(event) => setContent(event.target.value)}
+          onChange={(event) => {
+            setContent(event.target.value)
+            if (error) setError('')
+          }}
           placeholder="例如：把月报草稿发给组长过一遍"
         />
       </Field>
@@ -209,6 +233,7 @@ function TaskComposer({ onAdd }) {
         <input
           className="input"
           type="date"
+          name="deadline"
           value={deadline}
           min={todayInput()}
           onChange={(event) => setDeadline(event.target.value)}

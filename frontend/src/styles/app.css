@@ -440,6 +440,25 @@
   box-shadow: inset 0 0 0 2px var(--color-accent);
 }
 
+/* The ring above is a box-shadow, which Forced Colors Mode strips; the
+   outline keeps "today" visible without relying on colour alone. */
+@media (forced-colors: active) {
+  .day.is-today {
+    outline: 2px solid Highlight;
+    outline-offset: -2px;
+  }
+
+  /* Record-type chips are colour-only squares. */
+  .chip-band,
+  .legend-swatch-today {
+    border: 1px solid CanvasText;
+  }
+
+  .day-slash {
+    background: CanvasText;
+  }
+}
+
 .day-head {
   display: flex;
   align-items: center;
@@ -529,7 +548,7 @@
 }
 
 .day:hover .day-add,
-.day:focus-visible .day-add {
+.day:focus-within .day-add {
   opacity: 1;
   color: var(--color-text-secondary);
 }
@@ -550,7 +569,7 @@
 }
 
 .day:hover .day-slash,
-.day:focus-visible .day-slash {
+.day:focus-within .day-slash {
   transform: rotate(-45deg) scaleX(1);
 }
 
@@ -631,9 +650,14 @@
   grid-template-columns: 60px 1fr;
   gap: var(--space-3);
   align-items: start;
+  width: 100%;
   padding: var(--space-3) var(--space-4);
+  border: none;
   border-bottom: 1px solid var(--color-border);
   background: var(--color-surface);
+  color: inherit;
+  font: inherit;
+  text-align: left;
   cursor: pointer;
   transition: background-color var(--transition-fast);
 }
@@ -893,6 +917,10 @@
   border-bottom: none;
 }
 
+.task-edit-error {
+  grid-column: 1 / -1;
+}
+
 .pagination {
   display: flex;
   align-items: center;
@@ -1134,7 +1162,8 @@
   display: flex;
   align-items: center;
   gap: var(--space-3);
-  color: color-mix(in srgb, var(--color-surface) 55%, transparent);
+  /* 55% sank to 3.82:1 on the dark aside; 65% clears 4.5:1 in both schemes. */
+  color: color-mix(in srgb, var(--color-surface) 65%, transparent);
   font-family: var(--font-mono);
   font-size: var(--text-2xs);
 }
@@ -1363,16 +1392,19 @@
   }
 
   /* Sheets, not floating dialogs, on a phone. */
-  .modal-overlay {
-    align-items: flex-end;
-    padding: 0;
-  }
-
   .modal {
+    inset: auto 0 0 0;
+    width: 100%;
     max-width: 100%;
     max-height: 92dvh;
+    margin: 0;
     border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+    border-bottom: none;
     animation: sheet-in var(--duration-slow) var(--ease-out);
+  }
+
+  .modal-sm {
+    max-width: 100%;
   }
 
   /* A phone has no Ctrl key, and the footer needs its width for actions. */
