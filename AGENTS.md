@@ -10,7 +10,7 @@ weekly-report/
 │   ├── src/
 │   │   ├── api/         # Axios instance + API wrappers
 │   │   ├── components/  # CalendarView, WeekList, DailyEditModal, ReportWorkspace
-│   │   │   └── ui/        # Button, Field, Panel, Modal, ConfirmProvider, PeriodBar…
+│   │   │   └── ui/        # Button, Field, PasswordInput, Panel, Modal, ConfirmProvider, PeriodBar…
 │   │   ├── contexts/    # AuthContext, ThemeContext
 │   │   ├── hooks/       # Custom hooks (useMediaQuery)
 │   │   ├── pages/       # DailyReport, WeeklyReport, MonthlyReport, Tasks, Settings, UserManagement…
@@ -114,9 +114,10 @@ excluded — the image is published publicly.
 The visual system is documented in `DESIGN.md` and is not re-decided per screen.
 
 - **No literal values in page code.** Colours, sizes, radii, shadows, and durations come from the tokens in `src/styles/tokens.css`. Inline `style={{}}` is only for one-off layout a component cannot express.
-- **One component vocabulary.** Use `components/ui/` (`Button`, `Field`, `Panel`, `Modal`, `EmptyState`, `PeriodBar`) instead of new ad-hoc markup. Destructive actions go through `useConfirm()`, never `window.confirm`.
+- **One component vocabulary.** Use `components/ui/` (`Button`, `Field`, `PasswordInput`, `Panel`, `Modal`, `EmptyState`, `PeriodBar`) instead of new ad-hoc markup. Destructive actions go through `useConfirm()`, never `window.confirm`.
 - **Styling layers:** `tokens.css` (values) → `base.css` (reset, focus, browser surfaces) → `components.css` (button/field/panel/modal/tabs/state) → `app.css` (shell, navigation, page surfaces). Add rules to the layer that owns them.
-- **Theme by re-pointing tokens**, not by duplicating rules under `[data-theme='dark']`.
+- **Theme by re-pointing tokens**, not by duplicating rules under `[data-theme='dark']`. A pinned theme also updates `<meta name="color-scheme">` and both `theme-color` tags (see `ThemeContext`).
+- **Overlays use the platform.** `Modal` is a native `<dialog>` opened with `showModal()`; do not add `role="dialog"`, `aria-modal`, a focus trap, or an Esc handler, and never lock scroll with `overflow: hidden` on `body`.
 - **Every interactive component ships default, hover, focus-visible, active, disabled, and loading.** Icon-only buttons need `aria-label`.
 
 ## Testing
