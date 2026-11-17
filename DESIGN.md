@@ -7,11 +7,11 @@ colors:
   paper-inset: '#fafbfd'
   paper-sunk: '#f0f3f8'
   rule-hair: '#e6ebf2'
-  rule-mid: '#d3dae6'
-  rule-bold: '#aeb9c8'
+  rule-mid: '#818997'
+  rule-bold: '#6b7178'
   ink: '#111111'
   ink-secondary: '#565d68'
-  ink-muted: '#6e757f'
+  ink-muted: '#626a76'
   signal: '#0057ff'
   signal-hover: '#0046cc'
   signal-tint: '#eef3ff'
@@ -142,8 +142,8 @@ The palette is restrained by design: two neutrals, one signal, three semantic st
 
 - **Blueprint** (`#f4f6f9`) — the page ground. Everything that is not a working surface.
 - **Surface / Paper Inset / Paper Sunk** (`#ffffff`, `#fafbfd`, `#f0f3f8`) — three tonal steps for panels, quiet fills, and pressed/selected states. Depth comes from these steps, not from shadows.
-- **Rule Hair / Mid / Bold** (`#e6ebf2`, `#d3dae6`, `#aeb9c8`) — the grid. Hair draws the calendar and panel divisions; mid draws control borders; bold draws the heaviest dividers and the empty-cell plus.
-- **Ink** (`#111111`) and its two steps (`#565d68`, `#6e757f`) — text, and the fill of the primary button.
+- **Rule Hair / Mid / Bold** (`#e6ebf2`, `#818997`, `#6b7178`) — the grid. Hair draws the calendar and panel divisions; mid draws control borders; bold draws the heaviest dividers and the empty-cell plus. Mid and bold sit at or above 3:1 against the surface they border, because a field's edge is the only thing that says "this is a control" (WCAG 1.4.11); hair is decoration and may stay light.
+- **Ink** (`#111111`) and its two steps (`#565d68`, `#626a76`) — text, and the fill of the primary button. The muted step keeps 4.5:1 on every ground it is used on, including the tinted `--color-surface-sunk`.
 - **Signal** (`#0057ff`) — current navigation item, focus ring, the today ring, weekly band, primary generative action. Its tint (`#eef3ff`) marks selected or "today" rows.
 - **Cyan** (`#0fa3b9`) — the monthly band only.
 - **Danger / Warning / Success** (`#c4271d`, `#9a5b00`, `#0b7a3e`) — destructive actions, overdue deadlines, urgent deadlines (within 3 days), and completed state.
@@ -151,6 +151,8 @@ The palette is restrained by design: two neutrals, one signal, three semantic st
 **The Signal Rule.** Signal blue means "this is where you are" or "this is the action that produces something". It never fills a surface larger than a button, a row tint, or a 2px line.
 
 **The Band Rule.** One colour per cadence, used identically in the calendar chip, the summary rail, and the legend: ink for a written daily record, signal for weekly, cyan for monthly.
+
+**The Scheme Rule.** Light and dark are the same token vocabulary re-pointed under `[data-theme='dark']` and `prefers-color-scheme: dark`, never a second palette. `color-scheme` on `:root` is `light dark`; a pinned theme only flips it to `light` or `dark`, and `<meta name="color-scheme">`, the two `theme-color` tags and `localStorage.theme_mode` follow it in the same tick. That is what makes the UA's own surfaces — scrollbars, date pickers, autofill, the canvas before first paint — match the page instead of the OS.
 
 ## Typography
 
@@ -191,11 +193,12 @@ Depth is tonal first and shadowed second.
 ## Components
 
 - **Button.** Variants: primary (ink block, the one loud control per view), accent (signal, the generative action), outline (default), ghost (secondary in toolbars and footers), danger (destructive, icon or text), danger-solid (confirming a destructive dialog). Sizes: 40px, 32px (compact), 44px (auth). Every button carries default/hover/focus/active/disabled/loading; loading swaps the label for one spinner without changing width.
-- **Field.** Label + control + hint, with an optional tag beside the label. Inputs are 40px tall, 16px text (iOS zoom), `4px` radius, `1px` mid border; focus adds a 1px signal border and a 1px inset ring — no second outline. Errors replace the hint and set `aria-invalid`.
-- **Panel.** The only container. Header (title + icon + actions) / body / footer (right-aligned actions on a sunk ground). Nested panels are never allowed.
-- **Modal.** 560px (420px compact), sheet-style from the bottom below 768px. Focus is trapped, Esc closes, focus returns to the trigger, background scroll is locked, and the close button is a 40px icon button. Focus opens on the dialog's first focusable control unless a field carries `data-autofocus` — a hidden or disabled field does not count. A confirm may open over a form: only the dialog holding focus answers Esc and Tab.
+- **Field.** Label + control + hint, with an optional tag beside the label. Inputs are 40px tall, 16px text (iOS zoom), `4px` radius, `1px` mid border; focus adds a 1px signal border and a 1px inset ring — no second outline. Errors replace the hint, set `aria-invalid` and tint the field; the message is linked with `aria-describedby` and focus moves to the first invalid field on submit. Password fields carry a reveal switch (`aria-pressed`) inside the box.
+- **Panel.** The only container. Header (`h2` + icon + actions) / body / footer (right-aligned actions on a sunk ground). Nested panels are never allowed.
+- **Modal.** A native `<dialog>` opened with `showModal()`, 560px (420px compact), sheet-style from the bottom below 768px. The browser supplies the top layer, an inert page behind it, focus containment and its return to the trigger, Esc, the back gesture, and light dismissal (`closedby="any"`, with a pointer fallback for Safari). Scroll chaining is held with `overscroll-behavior` on `dialog:modal` and `::backdrop`; body scroll is never locked, because removing the scrollbar shifts the layout. `role`, `aria-modal`, focus traps and Esc handlers are deliberately absent. Focus opens on the dialog's first focusable control unless a field carries `data-autofocus` — a hidden or disabled field does not count. In a destructive confirm the safe action (取消) takes focus. A confirm may open over a form: each is its own dialog in the top layer.
+
 - **Calendar cell.** A grid cell containing two sibling buttons — `day-open` (fills the cell) and `day-delete` (top-right, only on hover/focus, never nested inside the open button). Rest: white, mono day number, record chip, up to 4 lines of preview. Hover/focus: sunk ground, "＋ 记录" in the empty area, slash at the bottom-right corner. Today: 2px signal inset ring, signal day number, the add affordance visible without hovering. Outside month: inset ground, muted text.
-- **Week row.** Date column (mono + weekday + optional "今天" badge) / body. The whole row is the target: tapping it opens the edit sheet, which carries 保存 and 删除. No action column, so the text gets the full width. Today tints the row and colours the date column; it never uses a coloured side stripe.
+- **Week row.** Date column (mono + weekday + optional "今天" badge) / body. The whole row is one native `<button>`: tapping it opens the edit sheet, which carries 保存 and 删除. No action column, so the text gets the full width. Today tints the row and colours the date column; it never uses a coloured side stripe.
 - **Task row.** Toggle / text + deadline / actions. Overdue shows a danger deadline with "· 已逾期"; urgent (≤3 days) shows a warning deadline with "· 即将到期". Rows are divided by hairlines inside one panel, never separate cards.
 - **Tabs & segmented control.** Desktop: underlined text tabs with a mono count, 2px signal underline. Phone: segmented control with a raised white selected segment. Both use `aria-pressed`, not incomplete tab roles.
 - **Badge.** Mono, 11px, `2px` radius; neutral by default, `badge-accent` for roles and "today", `badge-danger` for destructive state.
