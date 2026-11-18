@@ -10,7 +10,7 @@ from app import crud
 from app.crypto import derive_key, generate_salt
 from app.encryption_utils import ContentDecryptionError, EncryptionKeyMissingError
 from app.key_cache import key_cache
-from app.models import Base, DailyReport, Task
+from app.models import AppConfig, Base, DailyReport, Task
 
 
 @pytest.fixture()
@@ -143,6 +143,34 @@ class TestPlaintextNeverFlushed:
         row = crud.get_daily_report(db_session, user.id, date(2025, 2, 3))
         assert row.content == ""
         assert row.content_encrypted is not None
+
+
+class TestApiKeyNeverFlushed:
+    """Decrypted config views must not leak plaintext into the api_key column."""
+
+    def test_read_config_then_commit_keeps_column_encrypted(self, db_session, user, encryption_key):
+        key_cache.set(user.id, encryption_key)
+        db_session.add(AppConfig(id=1, api_key=crud.encrypt_api_key("sk-secret-key")))
+        db_session.commit()
+
+        cfg = crud.get_app_config(db_session)
+        assert cfg.api_key == "sk-secret-key"
+        # A later commit in the same session (as in report generation) must not
+        # flush the decrypted view back into the column.
+        crud.save_weekly_report(
+            db_session, user.id, date(2025, 1, 6), date(2025, 1, 12), "text", "m"
+        )
+        db_session.expire_all()
+        raw = db_session.get(AppConfig, 1).api_key
+        assert raw.startswith("ek1:")
+        assert crud.decrypt_api_key(raw) == "sk-secret-key"
+
+    def test_update_config_returns_plaintext_without_dirtying(self, db_session):
+        crud.update_app_config(db_session, api_key="sk-another-key")
+        db_session.expire_all()
+        raw = db_session.get(AppConfig, 1).api_key
+        assert raw.startswith("ek1:")
+        assert crud.decrypt_api_key(raw) == "sk-another-key"
 
 
 class TestApiKeyStorage:

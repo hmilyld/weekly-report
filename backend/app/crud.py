@@ -6,6 +6,7 @@ import logging
 from datetime import UTC, date, datetime, timedelta
 
 from sqlalchemy.orm import Session
+from sqlalchemy.orm.attributes import set_committed_value
 
 from . import models
 from .crypto import decrypt_content
@@ -390,9 +391,11 @@ def get_app_config(db: Session) -> models.AppConfig:
         db.add(config)
         db.commit()
         db.refresh(config)
-    # Decrypt API key if it's encrypted
+    # Decrypt API key if it's encrypted. set_committed_value keeps the attribute
+    # clean so a later commit in the same session never flushes plaintext back
+    # into the api_key column.
     if config.api_key:
-        config.api_key = decrypt_api_key(config.api_key)
+        set_committed_value(config, "api_key", decrypt_api_key(config.api_key))
     return config
 
 
@@ -416,8 +419,10 @@ def update_app_config(
     config.updated_at = datetime.now(UTC)
     db.commit()
     db.refresh(config)
-    # Return with decrypted API key
-    config.api_key = decrypt_api_key(config.api_key) if config.api_key else None
+    # Return with decrypted API key (clean attribute — never flushed back).
+    set_committed_value(
+        config, "api_key", decrypt_api_key(config.api_key) if config.api_key else None
+    )
     return config
 
 

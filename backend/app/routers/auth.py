@@ -129,15 +129,17 @@ def login(body: LoginRequest, request: Request, db: Session = Depends(get_db)):
             logger.exception("Failed to unwrap DEK for user %d at login", user.id)
     else:
         # Legacy user: one-time migration, only possible now that we have the
-        # password to derive the old key. Failure rolls back; retry next login.
+        # password to derive the old key. Failure rolls back and must NOT lock
+        # the account out: authentication is decoupled from content keys.
+        # wrapped_dek stays NULL — reads are flagged, writes answer 409 — and
+        # the next login retries. The failing record is identified in the log.
         try:
             migrate_user_to_dek(db, user, body.password)
-        except Exception as err:
-            logger.exception("Envelope migration failed for user %d", user.id)
-            raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail="加密迁移失败，数据未改动，请重试登录；若持续失败请联系管理员。",
-            ) from err
+        except Exception:
+            logger.exception(
+                "Envelope migration failed for user %d; login proceeds without a content key",
+                user.id,
+            )
 
     return TokenResponse(access_token=token)
 

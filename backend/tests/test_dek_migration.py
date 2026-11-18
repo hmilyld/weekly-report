@@ -6,7 +6,6 @@ import os
 from datetime import date
 
 import pytest
-from cryptography.exceptions import InvalidTag
 from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
@@ -137,7 +136,8 @@ class TestMigrateUserToDek:
     def test_failure_rolls_back_everything(self, db_session, user, legacy_key):
         _seed_legacy_data(db_session, user, legacy_key)
         before = _ciphertext_snapshot(db_session, user)
-        with pytest.raises(InvalidTag):
+        # The error must identify the failing record for operator repair.
+        with pytest.raises(ContentDecryptionError, match="weekly_reports"):
             migrate_user_to_dek(db_session, user, "WrongPassword789")
         db_session.expire_all()
         user = crud.get_user_by_username(db_session, "legacyuser")

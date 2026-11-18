@@ -9,18 +9,62 @@
   survives restarts (the legacy scheme depended on the JWT secret).
 """
 
+import glob
 import logging
 import os
+import sqlite3
+from datetime import UTC, datetime
 
 from sqlalchemy.orm import Session
 
 from .auth import derive_user_key
+from .config import settings
 from .envelope import CONFIG_SECRET_PREFIX, ensure_user_dek, unwrap_dek, wrap_dek
 from .key_cache import key_cache
 from .models import AppConfig, DailyReport, MonthlyReport, Task, User, WeeklyReport
 from .reencrypt import reencrypt_user_data
 
 logger = logging.getLogger(__name__)
+
+
+def backup_before_envelope_migration(db: Session) -> str | None:
+    """One-time consistent DB snapshot before the irreversible envelope upgrade.
+
+    Taken while any legacy user (wrapped_dek NULL) still exists, using the
+    SQLite online backup API so concurrent writers cannot tear the snapshot.
+    Skipped for non-SQLite URLs, and once a pre-envelope-*.db file exists in
+    the data directory. The snapshot holds legacy ciphertext (decryptable with
+    the old login passwords) — it is created 0600 and must be protected like
+    the database itself. Returns the backup path, or None when not taken.
+    """
+    url = settings.database_url
+    if not url.startswith("sqlite:///"):
+        return None
+    db_path = url.replace("sqlite:///", "")
+    if not db_path or db_path == ":memory:":
+        return None
+    has_legacy = db.query(User).filter(User.wrapped_dek.is_(None)).first() is not None
+    if not has_legacy:
+        return None
+    data_dir = os.path.dirname(db_path) or "."
+    if glob.glob(os.path.join(data_dir, "pre-envelope-*.db")):
+        return None  # snapshot already taken for this data directory
+
+    stamp = datetime.now(UTC).strftime("%Y%m%d-%H%M%S")
+    backup_path = os.path.join(data_dir, f"pre-envelope-{stamp}.db")
+    fd = os.open(backup_path, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+    os.close(fd)
+    source = sqlite3.connect(db_path)
+    try:
+        target = sqlite3.connect(backup_path)
+        try:
+            source.backup(target)
+        finally:
+            target.close()
+    finally:
+        source.close()
+    logger.info("Pre-migration backup saved to %s", backup_path)
+    return backup_path
 
 
 def _cleanup_plaintext_content(db: Session) -> None:
@@ -95,6 +139,10 @@ def migrate_user_to_dek(db: Session, user: User, password: str) -> bytes:
     except Exception:
         db.rollback()
         raise
+    # Cache the DEK that actually won in the DB, not the locally generated one:
+    # a concurrent login may have committed its own migration first.
+    db.refresh(user)
+    dek = unwrap_dek(user.wrapped_dek, user.id)
     key_cache.set(user.id, dek)
     logger.info("Migrated user %d to envelope encryption (%d records)", user.id, count)
     return dek

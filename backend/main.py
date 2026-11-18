@@ -12,7 +12,11 @@ from fastapi.staticfiles import StaticFiles
 from app.database import Base, SessionLocal, engine
 from app.encryption_utils import ContentDecryptionError, EncryptionKeyMissingError
 from app.envelope import get_kek, load_all_user_deks
-from app.migration import _cleanup_plaintext_content, migrate_app_config_secret
+from app.migration import (
+    _cleanup_plaintext_content,
+    backup_before_envelope_migration,
+    migrate_app_config_secret,
+)
 from app.models import AppConfig
 from app.models_token import ApiToken  # noqa: F401 — ensure table is created
 from app.routers import auth, config, daily, external, monthly, tasks, tokens, users, weekly
@@ -81,6 +85,17 @@ def _init_db():
         Base.metadata.create_all(bind=engine)
         print("✅ Database tables created/verified")
         _migrate_db()
+        # One-time safety snapshot BEFORE any destructive upgrade step, so the
+        # irreversible envelope migration always has a rollback point.
+        backup_db = SessionLocal()
+        try:
+            backup_path = backup_before_envelope_migration(backup_db)
+        finally:
+            backup_db.close()
+        if backup_path:
+            print(
+                f"✅ Pre-migration backup saved: {backup_path} (0600, keep until upgrade verified)"
+            )
         _cleanup_plaintext_content(SessionLocal())
     except Exception as e:
         print(f"❌ Database init failed: {e}")
@@ -143,8 +158,8 @@ async def encryption_key_missing_handler(request: Request, exc: EncryptionKeyMis
         status_code=409,
         content={
             "code": "encryption_key_missing",
-            "detail": "服务端加密密钥不可用，已拒绝写入。请先在网页端登录一次以完成加密迁移；"
-            "若已登录，请检查 ENCRYPTION_MASTER_KEY 配置。",
+            "detail": "服务端加密密钥不可用，已拒绝写入。该账号尚未完成加密迁移（或迁移失败）："
+            "请重试登录；若持续失败，请检查服务端日志与 ENCRYPTION_MASTER_KEY 配置。",
         },
     )
 
