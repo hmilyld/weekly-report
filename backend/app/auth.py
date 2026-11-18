@@ -20,6 +20,24 @@ security = HTTPBearer()
 # Dual-auth variant: does not raise when the Authorization header is absent.
 _bearer_or_token = HTTPBearer(auto_error=False)
 
+# Don't rewrite last_used_at on every token request: SQLite commits are
+# fsync-bound and Android polls frequently. Update at most this often.
+TOKEN_USAGE_UPDATE_INTERVAL_SECONDS = 300
+
+
+def _last_used_is_stale(last_used: datetime | None, now: datetime) -> bool:
+    """True when the token's usage timestamp is old enough to be rewritten.
+
+    SQLite stores datetimes without an offset (UTC by convention), so a value
+    read back is naive and must be compared as UTC.
+    """
+    if last_used is None:
+        return True
+    if last_used.tzinfo is None:
+        last_used = last_used.replace(tzinfo=UTC)
+    return (now - last_used).total_seconds() > TOKEN_USAGE_UPDATE_INTERVAL_SECONDS
+
+
 # ─── Password validation ────────────────────────────────
 
 _WEAK_PASSWORDS = {
@@ -125,8 +143,10 @@ def _user_from_api_token(raw_token: str, db: Session) -> User:
     api_token = db.query(ApiToken).filter(ApiToken.token == raw_token).first()
     if not api_token:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid API token")
-    api_token.last_used_at = datetime.now(UTC)
-    db.commit()
+    now = datetime.now(UTC)
+    if _last_used_is_stale(api_token.last_used_at, now):
+        api_token.last_used_at = now
+        db.commit()
     user = db.query(User).filter(User.id == api_token.user_id).first()
     if not user:
         raise HTTPException(

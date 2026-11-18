@@ -9,7 +9,11 @@ from sqlalchemy.orm import Session
 from .. import crud
 from ..auth import get_authenticated_user
 from ..database import get_db
-from ..encryption_utils import decrypt_daily_entries, update_report_content
+from ..encryption_utils import (
+    ContentDecryptionError,
+    decrypt_daily_entries,
+    update_report_content,
+)
 from ..llm_client import generate_weekly_report
 from ..models import User
 from ..schemas import WeeklyReportResponse, WeeklyReportUpdate
@@ -108,6 +112,12 @@ def _generate(db: Session, user_id: int, week_start: date, force: bool = True) -
     if not force:
         existing = crud.get_weekly_report(db, user_id, week_start)
         if existing:
+            # Never hand back an empty string for an undecryptable report:
+            # the client would mistake it for "no content".
+            if getattr(existing, "_decryption_failed", False):
+                raise ContentDecryptionError(
+                    "Existing weekly report cannot be decrypted; refusing to return empty content"
+                )
             return existing, False
 
     # Gather daily reports

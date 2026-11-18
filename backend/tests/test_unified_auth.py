@@ -1,6 +1,6 @@
 """Unified auth: data routes accept JWT or X-API-Token; admin stays JWT-only."""
 
-from datetime import date
+from datetime import UTC, date, datetime, timedelta
 
 from app import crud
 from app.auth import create_access_token
@@ -116,3 +116,37 @@ class TestDualAuth:
         r = client.get("/api/v1/daily", headers=headers)
         assert r.status_code == 200
         assert [x["content"] for x in r.json()["reports"]] == ["owner data"]
+
+
+class TestTokenUsageThrottle:
+    def test_last_used_at_not_rewritten_within_interval(self, api_env):
+        client, db = api_env
+        user = _make_user(db)
+        token = _api_token(db, user)
+        headers = {"X-API-Token": token}
+
+        client.get("/api/v1/daily", headers=headers)
+        db.expire_all()
+        first = db.query(ApiToken).filter(ApiToken.token == token).first().last_used_at
+        assert first is not None
+
+        client.get("/api/v1/daily", headers=headers)
+        db.expire_all()
+        second = db.query(ApiToken).filter(ApiToken.token == token).first().last_used_at
+        assert second == first  # within the interval → no extra write
+
+    def test_last_used_at_rewritten_when_stale(self, api_env):
+        client, db = api_env
+        user = _make_user(db)
+        token = _api_token(db, user)
+        row = db.query(ApiToken).filter(ApiToken.token == token).first()
+        row.last_used_at = datetime.now(UTC) - timedelta(hours=2)
+        db.commit()
+
+        client.get("/api/v1/daily", headers={"X-API-Token": token})
+        db.expire_all()
+        updated = db.query(ApiToken).filter(ApiToken.token == token).first().last_used_at
+        # SQLite returns naive UTC datetimes.
+        naive_now = datetime.now(UTC).replace(tzinfo=None)
+        assert updated is not None
+        assert (naive_now - updated).total_seconds() < 60

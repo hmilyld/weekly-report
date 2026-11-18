@@ -1,4 +1,4 @@
-"""API Token model for external integrations."""
+"""API Token model for token-based data access (web automation, Android client)."""
 
 import secrets
 from datetime import UTC, datetime

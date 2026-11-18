@@ -11,7 +11,8 @@ Android 客户端与网页端使用**同一套 `/api/v1` 数据接口**，认证
 X-API-Token: <token>
 ```
 
-- Token 仅具备**数据权限**：可读写日报 / 周报 / 月报 / 待办；调用 `/auth`、`/config`、`/users`、`/tokens` 会返回 `403`。
+- Token 仅具备**数据权限**：可读写日报 / 周报 / 月报 / 待办；调用 `/auth/change-password`、`/auth/logout`、`/config`、`/users`、`/tokens` 会返回 `403`（`/auth/login`、`/auth/status`、`/auth/setup` 本身无需认证）。
+- 若同时携带 JWT 与 Token，以 JWT 为准；JWT 无效时不会回退到 Token。客户端固定用一种认证方式即可。
 - 当前版本 Token 为长期有效、明文存储（加固计划见 README）。在 Android 端应存入 `EncryptedSharedPreferences` / Keystore，不要写入日志或明文备份。
 
 ## 2. 端点
@@ -61,6 +62,7 @@ POST /api/v1/weekly/2026-11-16?force=false
 
 - `force` 默认 `true`：总是调用模型重新生成。
 - `force=false` 且该周已有周报：直接返回现有内容，`generated=false`，不消耗模型调用。
+- `force=false` 但已有周报无法解密：返回 `409`（`decryption_failed`），不会把空内容当结果返回。
 - 生成失败返回 `502`（模型配置或网络问题）；该周无日报或全为空返回 `400`。
 
 ## 5. 读取失败的表示（重要）

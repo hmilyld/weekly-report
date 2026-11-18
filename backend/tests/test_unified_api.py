@@ -96,6 +96,19 @@ class TestWeeklyForce:
         assert second.json()["generated"] is False
         assert second.json()["content"] == "初版"
 
+    def test_force_false_fails_loudly_when_existing_unreadable(self, api_env, monkeypatch):
+        client, db = api_env
+        user = _make_user(db)
+        h = _headers(user)
+        client.post("/api/v1/daily", json={"date": "2026-11-16", "content": "日报"}, headers=h)
+        monkeypatch.setattr(weekly_router, "generate_weekly_report", lambda db, entries: "初版")
+        client.post("/api/v1/weekly/2026-11-16", headers=h)
+
+        key_cache.remove(user.id)  # existing report becomes undecryptable
+        r = client.post("/api/v1/weekly/2026-11-16?force=false", headers=h)
+        assert r.status_code == 409
+        assert r.json()["code"] == "decryption_failed"
+
     def test_force_true_regenerates(self, api_env, monkeypatch):
         client, db = api_env
         user = _make_user(db)

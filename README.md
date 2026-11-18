@@ -212,7 +212,7 @@ KEK ──AES-256-GCM 包裹──> users.wrapped_dek（存库，绑定用户身
 
 所有接口前缀为 `/api/v1`。认证方式：
 
-- **数据接口**（日报/周报/月报/待办）同时接受 `Authorization: Bearer <JWT>` 与 `X-API-Token: <Token>`，两者都带时以 JWT 为准；
+- **数据接口**（日报/周报/月报/待办）同时接受 `Authorization: Bearer <JWT>` 与 `X-API-Token: <Token>`；两者都带时以 JWT 为准，且 JWT 无效时**不会**回退到 Token；
 - **认证/管理接口**（`/auth`、`/config`、`/users`、`/tokens`）仅接受 JWT——API Token 只能读写内容数据，无法管理账号、配置或其他 Token；
 - 完整机器可读接口定义见 `/openapi.json`（交互文档 `/docs`）。
 
@@ -309,7 +309,7 @@ curl http://localhost:18001/api/v1/tasks/pending \
 
 > - 旧的 `/api/v1/external/*` 已移除，请改用上表中的同义接口（第三方脚本需按新文档重指向；完整定义见 `/openapi.json`）。
 > - 写入接口在账号尚未完成加密迁移（升级后从未登录过）时返回 `409`（`code: encryption_key_missing`），不会落明文；在网页端登录一次即永久解决。内容无法解密时读取/生成接口返回 `409`（`code: decryption_failed`）。
-> - 数据接口的响应带 `_decryption_failed` 字段，客户端应据此提示用户而不是把空内容当成"没有数据"。
+> - 数据接口的**读取**响应带 `_decryption_failed` 字段，客户端应据此提示用户而不是把空内容当成"没有数据"；周报 `force=false` 遇到无法解密的已有报告时返回 409。
 
 ### 健康检查
 
