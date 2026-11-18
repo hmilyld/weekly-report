@@ -210,7 +210,11 @@ KEK ──AES-256-GCM 包裹──> users.wrapped_dek（存库，绑定用户身
 
 ## API 接口
 
-除特别标注外，均需要 `Authorization: Bearer <token>`。所有接口前缀为 `/api/v1`。
+所有接口前缀为 `/api/v1`。认证方式：
+
+- **数据接口**（日报/周报/月报/待办）同时接受 `Authorization: Bearer <JWT>` 与 `X-API-Token: <Token>`，两者都带时以 JWT 为准；
+- **认证/管理接口**（`/auth`、`/config`、`/users`、`/tokens`）仅接受 JWT——API Token 只能读写内容数据，无法管理账号、配置或其他 Token；
+- 完整机器可读接口定义见 `/openapi.json`（交互文档 `/docs`）。
 
 ### 认证
 
@@ -228,15 +232,15 @@ KEK ──AES-256-GCM 包裹──> users.wrapped_dek（存库，绑定用户身
 |---|---|---|
 | GET | `/daily?start_date=&end_date=` | 按日期范围查询 |
 | GET | `/daily/week/{week_start}` | 按周查询 |
-| POST | `/daily` | 创建/覆盖某天的日报 |
+| POST | `/daily` | 创建/覆盖某天日报（`date` 可省略，默认今天；`append=true` 追加） |
 | DELETE | `/daily/{date}` | 删除某天的日报 |
 
 ### 周报 / 月报
 
 | 方法 | 路径 | 说明 |
 |---|---|---|
-| GET | `/weekly` · `/weekly/{week_start}` | 查询周报 |
-| POST | `/weekly/{week_start}` | 生成/重新生成 |
+| GET | `/weekly` · `/weekly/{week_start}` | 查询周报（`/weekly` 返回最近 12 条） |
+| POST | `/weekly/{week_start}?force=` | 生成/重新生成；`force=false` 且已存在则不调用模型，返回 `generated=false` |
 | PUT | `/weekly/{week_start}` | 编辑正文 |
 | GET | `/monthly` · `/monthly/{year}/{month}` | 查询月报 |
 | POST | `/monthly/{year}/{month}` | 生成/重新生成 |
@@ -246,7 +250,8 @@ KEK ──AES-256-GCM 包裹──> users.wrapped_dek（存库，绑定用户身
 
 | 方法 | 路径 | 说明 |
 |---|---|---|
-| GET | `/tasks` | 未完成待办 |
+| GET | `/tasks` | 全部待办 |
+| GET | `/tasks/pending` | 未完成待办（支持 API Token） |
 | GET | `/tasks/completed?offset=&limit=` | 已完成待办（分页） |
 | POST | `/tasks` | 新建待办（内容 + 可选截止日期） |
 | PUT | `/tasks/{id}` | 更新内容、截止日期或完成状态 |
@@ -278,19 +283,33 @@ KEK ──AES-256-GCM 包裹──> users.wrapped_dek（存库，绑定用户身
 | POST | `/tokens` | 创建 Token（完整值只返回一次） |
 | DELETE | `/tokens/{id}` | 删除 Token |
 
-### 外部接口（`X-API-Token` 认证）
+### API Token 调用示例
 
-| 方法 | 路径 | 说明 |
-|---|---|---|
-| POST | `/external/daily` | 写入某天日报（可指定 `date`、`append`） |
-| GET | `/external/daily/current-week` | 读取本周日报 |
-| GET | `/external/weekly/recent` | 读取本周与上周周报 |
-| POST | `/external/weekly/generate` | 生成当周周报 |
-| GET | `/external/tasks/pending` | 读取未完成待办 |
-| POST | `/external/tasks` | 新建待办 |
-| GET | `/external/docs` | 接口说明 |
+API Token 与 JWT 使用**同一套数据接口**，创建方式见网页端「系统配置 → API Token」。Token 仅具数据权限，不能访问认证/管理接口。
 
-> 写入接口在账号尚未完成加密迁移（升级后从未登录过）时返回 `409`（`code: encryption_key_missing`），不会落明文；在网页端登录一次即永久解决。内容无法解密时读取/生成接口返回 `409`（`code: decryption_failed`）。
+```bash
+# 追加一条今天的日报（无需登录）
+curl -X POST http://localhost:18001/api/v1/daily \
+  -H "X-API-Token: <你的Token>" \
+  -H "Content-Type: application/json" \
+  -d '{"content":"今天完成了 xxx","append":true}'
+
+# 读取本周日报（自行计算周一的日期）
+curl "http://localhost:18001/api/v1/daily?start_date=2026-11-16&end_date=2026-11-22" \
+  -H "X-API-Token: <你的Token>"
+
+# 生成周报；已存在时不覆盖（返回 generated=false）
+curl -X POST "http://localhost:18001/api/v1/weekly/2026-11-16?force=false" \
+  -H "X-API-Token: <你的Token>"
+
+# 未完成待办
+curl http://localhost:18001/api/v1/tasks/pending \
+  -H "X-API-Token: <你的Token>"
+```
+
+> - 旧的 `/api/v1/external/*` 已移除，请改用上表中的同义接口（第三方脚本需按新文档重指向；完整定义见 `/openapi.json`）。
+> - 写入接口在账号尚未完成加密迁移（升级后从未登录过）时返回 `409`（`code: encryption_key_missing`），不会落明文；在网页端登录一次即永久解决。内容无法解密时读取/生成接口返回 `409`（`code: decryption_failed`）。
+> - 数据接口的响应带 `_decryption_failed` 字段，客户端应据此提示用户而不是把空内容当成"没有数据"。
 
 ### 健康检查
 
@@ -316,3 +335,4 @@ KEK ──AES-256-GCM 包裹──> users.wrapped_dek（存库，绑定用户身
 | `PRODUCT.md` | 产品定位、用户、能力与约束（改需求前先读） |
 | `DESIGN.md` | 设计系统：令牌、排版、组件、交互规则（改界面前先读） |
 | `AGENTS.md` | 仓库结构与开发约定、提交规范、发布流程（给人和 AI 协作用） |
+| `docs/android-api.md` | Android / Token 客户端对接：认证、端点、日报/周报语义、错误码 |

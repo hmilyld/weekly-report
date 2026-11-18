@@ -483,12 +483,13 @@ export default function SettingsPage() {
             <ExternalLink size={14} aria-hidden="true" />
             使用示例
           </p>
-          <pre className="code-block">{`curl -X POST ${apiBase}/api/v1/external/daily \\
+          <pre className="code-block">{`curl -X POST ${apiBase}/api/v1/daily \\
   -H "X-API-Token: <你的Token>" \\
   -H "Content-Type: application/json" \\
-  -d '{"content":"今天完成了 xxx","date":"2026-06-10","append":false}'`}</pre>
+  -d '{"content":"今天完成了 xxx","append":true}'`}</pre>
           <p className="field-hint usage-hint">
-            date 与 append 为可选参数：date 默认当天，append 默认 false（覆盖当天内容）。
+            date 与 append 为可选参数：date 默认当天，append 默认 false（覆盖当天内容）。Token
+            仅可访问日报/周报/月报/待办接口，不能修改账号或系统配置。
           </p>
         </PanelBody>
       </Panel>

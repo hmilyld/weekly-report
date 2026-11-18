@@ -3,7 +3,7 @@
 import re
 from datetime import UTC, datetime, timedelta
 
-from fastapi import Depends, HTTPException, status
+from fastapi import Depends, Header, HTTPException, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from jose import JWTError, jwt
 from passlib.context import CryptContext
@@ -13,9 +13,12 @@ from .config import settings
 from .crypto import derive_key
 from .database import get_db
 from .models import User
+from .models_token import ApiToken
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 security = HTTPBearer()
+# Dual-auth variant: does not raise when the Authorization header is absent.
+_bearer_or_token = HTTPBearer(auto_error=False)
 
 # ─── Password validation ────────────────────────────────
 
@@ -89,11 +92,9 @@ def decode_token(token: str) -> dict:
         ) from err
 
 
-def get_current_user(
-    credentials: HTTPAuthorizationCredentials = Depends(security),
-    db: Session = Depends(get_db),
-) -> User:
-    payload = decode_token(credentials.credentials)
+def _user_from_jwt(raw_token: str, db: Session) -> User:
+    """Resolve a user from a JWT, enforcing password-version invalidation."""
+    payload = decode_token(raw_token)
     user_id = payload.get("sub")
     if user_id is None:
         raise HTTPException(
@@ -117,6 +118,51 @@ def get_current_user(
             detail="Password has been changed. Please log in again.",
         )
     return user
+
+
+def _user_from_api_token(raw_token: str, db: Session) -> User:
+    """Resolve a user from an X-API-Token value, recording its last use."""
+    api_token = db.query(ApiToken).filter(ApiToken.token == raw_token).first()
+    if not api_token:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid API token")
+    api_token.last_used_at = datetime.now(UTC)
+    db.commit()
+    user = db.query(User).filter(User.id == api_token.user_id).first()
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED, detail="Token owner not found"
+        )
+    return user
+
+
+def get_current_user(
+    credentials: HTTPAuthorizationCredentials = Depends(security),
+    db: Session = Depends(get_db),
+) -> User:
+    """JWT-only dependency (admin/auth endpoints). Rejects API tokens."""
+    return _user_from_jwt(credentials.credentials, db)
+
+
+def get_authenticated_user(
+    credentials: HTTPAuthorizationCredentials | None = Depends(_bearer_or_token),
+    x_api_token: str | None = Header(default=None, alias="X-API-Token"),
+    db: Session = Depends(get_db),
+) -> User:
+    """Dual-auth dependency for data endpoints: JWT or X-API-Token.
+
+    JWT wins when both are supplied. Admin/config endpoints keep
+    `get_current_user`/`require_admin`, so API tokens are structurally
+    limited to data access.
+    """
+    if credentials is not None:
+        return _user_from_jwt(credentials.credentials, db)
+    if x_api_token:
+        return _user_from_api_token(x_api_token, db)
+    raise HTTPException(
+        status_code=status.HTTP_401_UNAUTHORIZED,
+        detail="Not authenticated",
+        headers={"WWW-Authenticate": "Bearer"},
+    )
 
 
 def require_admin(user: User = Depends(get_current_user)) -> User:

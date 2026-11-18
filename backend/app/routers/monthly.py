@@ -8,7 +8,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from .. import crud
-from ..auth import get_current_user
+from ..auth import get_authenticated_user
 from ..database import get_db
 from ..encryption_utils import decrypt_daily_entries, update_report_content
 from ..llm_client import generate_monthly_report
@@ -28,7 +28,7 @@ def _get_month_bounds(year: int, month: int) -> tuple[date, date]:
 
 @router.get("")
 def list_monthly_reports(
-    user: User = Depends(get_current_user),
+    user: User = Depends(get_authenticated_user),
     db: Session = Depends(get_db),
 ):
     """List all saved monthly reports."""
@@ -55,7 +55,7 @@ def list_monthly_reports(
 def get_monthly_report(
     year: int,
     month: int,
-    user: User = Depends(get_current_user),
+    user: User = Depends(get_authenticated_user),
     db: Session = Depends(get_db),
 ):
     """Get the monthly report for a given month. Returns 404 if not generated yet."""
@@ -77,7 +77,7 @@ def get_monthly_report(
 def generate_monthly_report_endpoint(
     year: int,
     month: int,
-    user: User = Depends(get_current_user),
+    user: User = Depends(get_authenticated_user),
     db: Session = Depends(get_db),
 ):
     """Generate (or regenerate) the monthly report for a given month."""
@@ -89,7 +89,7 @@ def update_monthly_report(
     year: int,
     month: int,
     body: MonthlyReportUpdate,
-    user: User = Depends(get_current_user),
+    user: User = Depends(get_authenticated_user),
     db: Session = Depends(get_db),
 ):
     """Update the content of an existing monthly report."""

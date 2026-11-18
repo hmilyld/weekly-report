@@ -3,11 +3,11 @@
 import logging
 from datetime import date, timedelta
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 
 from .. import crud
-from ..auth import get_current_user
+from ..auth import get_authenticated_user
 from ..database import get_db
 from ..encryption_utils import decrypt_daily_entries, update_report_content
 from ..llm_client import generate_weekly_report
@@ -26,7 +26,7 @@ def _get_week_bounds(week_start: date) -> tuple[date, date]:
 
 @router.get("")
 def list_weekly_reports(
-    user: User = Depends(get_current_user),
+    user: User = Depends(get_authenticated_user),
     db: Session = Depends(get_db),
 ):
     """List all saved weekly reports."""
@@ -52,7 +52,7 @@ def list_weekly_reports(
 @router.get("/{week_start}")
 def get_weekly_report(
     week_start: date,
-    user: User = Depends(get_current_user),
+    user: User = Depends(get_authenticated_user),
     db: Session = Depends(get_db),
 ):
     """Get the weekly report for a given week. Returns 404 if not generated yet."""
@@ -73,18 +73,25 @@ def get_weekly_report(
 @router.post("/{week_start}", response_model=WeeklyReportResponse)
 def generate_weekly_report_endpoint(
     week_start: date,
-    user: User = Depends(get_current_user),
+    force: bool = Query(True),
+    user: User = Depends(get_authenticated_user),
     db: Session = Depends(get_db),
 ):
-    """Generate (or regenerate) the weekly report for a given week."""
-    return _generate(db, user.id, week_start)
+    """Generate (or regenerate) the weekly report for a given week.
+
+    force=false returns the existing report without calling the LLM
+    (`generated=false` in the response).
+    """
+    report, generated = _generate(db, user.id, week_start, force)
+    response = WeeklyReportResponse.model_validate(report)
+    return response.model_copy(update={"generated": generated})
 
 
 @router.put("/{week_start}", response_model=WeeklyReportResponse)
 def update_weekly_report(
     week_start: date,
     body: WeeklyReportUpdate,
-    user: User = Depends(get_current_user),
+    user: User = Depends(get_authenticated_user),
     db: Session = Depends(get_db),
 ):
     """Update the content of an existing weekly report."""
@@ -95,8 +102,13 @@ def update_weekly_report(
     return report
 
 
-def _generate(db: Session, user_id: int, week_start: date) -> WeeklyReportResponse:
+def _generate(db: Session, user_id: int, week_start: date, force: bool = True) -> tuple:
     week_start, week_end = _get_week_bounds(week_start)
+
+    if not force:
+        existing = crud.get_weekly_report(db, user_id, week_start)
+        if existing:
+            return existing, False
 
     # Gather daily reports
     dailies = crud.get_daily_reports_by_week(db, user_id, week_start)
@@ -121,4 +133,4 @@ def _generate(db: Session, user_id: int, week_start: date) -> WeeklyReportRespon
     report = crud.save_weekly_report(
         db, user_id, week_start, week_end, weekly_content, config.llm_model_name
     )
-    return report
+    return report, True

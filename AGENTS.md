@@ -20,7 +20,7 @@ weekly-report/
 │   └── scripts/         # generate-pwa-icons.mjs
 ├── backend/           # Python FastAPI + SQLAlchemy + SQLite
 │   ├── app/
-│   │   ├── routers/     # auth, daily, weekly, monthly, tasks, config, tokens, external, users
+│   │   ├── routers/     # auth, daily, weekly, monthly, tasks, config, tokens, users
 │   │   ├── models.py    # ORM models (User, DailyReport, WeeklyReport, MonthlyReport, Task…)
 │   │   ├── crud.py      # Centralized database operations
 │   │   ├── auth.py      # JWT creation/decoding, dependencies
@@ -126,7 +126,7 @@ The visual system is documented in `DESIGN.md` and is not re-decided per screen.
 
 ## Testing
 
-- **Backend:** Pytest in `backend/tests/` (`test_crypto.py`, `test_envelope.py`, `test_dek_migration.py`, `test_pre_migration_backup.py`, `test_crud_encryption.py`, `test_key_cache.py`). Run: `cd backend && uv run pytest`. `tests/conftest.py` sets a fixed `ENCRYPTION_MASTER_KEY` so tests never touch dev key files.
+- **Backend:** Pytest in `backend/tests/` (`test_crypto.py`, `test_envelope.py`, `test_dek_migration.py`, `test_pre_migration_backup.py`, `test_crud_encryption.py`, `test_key_cache.py`, `test_login_migration.py`, `test_unified_auth.py`, `test_unified_api.py`). Run: `cd backend && uv run pytest`. `tests/conftest.py` sets a fixed `ENCRYPTION_MASTER_KEY` and provides the `api_env` TestClient fixture used by router-level tests.
 - **Frontend:** No test suite. Before committing UI work, run `pnpm lint`, `pnpm format:check` and `pnpm build`, and check the page at 1440px and 390px in both themes.
 
 ## Commit Conventions
@@ -158,7 +158,8 @@ Prefixes: `feat`, `fix`, `style`, `refactor`, `docs`. Description in Chinese is 
 - **Logout** calls `POST /auth/logout` while the token is still attached, then drops the local session. It does NOT clear `key_cache`: the DEK is a server-side key shared by all devices of the account, recoverable from the DB at any time.
 - **Encryption at rest (envelope):** `ENCRYPTION_MASTER_KEY` → HKDF → KEK wraps a random per-user DEK (`users.wrapped_dek`, AAD-bound). Startup unwraps all DEKs into `key_cache`, so restarts need no login. Content is AES-GCM under the DEK with `content_version=2` and AAD binding table+user; `content_salt` is deprecated (no longer written). Writes without a DEK raise `EncryptionKeyMissingError` → HTTP 409, never plaintext. Legacy users (`wrapped_dek` NULL) migrate once at login via `migrate_user_to_dek()` (single transaction, idempotent, rollback on failure); migration failure does NOT block login — reads are flagged, writes 409, and the failing table/record id is logged. While legacy users exist, startup takes a one-time `data/pre-envelope-*.db` snapshot (SQLite backup API, 0600) as a rollback point. The legacy password-derived KDF in `auth.derive_user_key` is FROZEN — changing its parameters destroys legacy data. Decrypted views (content AND `AppConfig.api_key`) use `set_committed_value` so plaintext is never autoflushed back into mapped columns.
 - **LLM config** lives in the `AppConfig` table (singleton, id=1), editable at runtime via Settings — no env vars needed. The API key is envelope-wrapped (`ek1:` prefix) with legacy JWT-secret-derived fallback on read; startup re-wraps legacy values.
-- **External API** (`/api/v1/external/`) authenticates with `X-API-Token` instead of JWT. Works after restarts without any login; unmigrated accounts get 409 on writes.
+- **Unified API / dual auth:** one route set serves both clients. Data endpoints (`/daily`, `/weekly`, `/monthly`, `/tasks`) use `get_authenticated_user` (Bearer JWT or `X-API-Token`; JWT wins when both are present). Auth/config/user/token endpoints keep `get_current_user`/`require_admin`, so API tokens are structurally limited to data access. The old `/api/v1/external/*` surface was removed — clients use the canonical routes (`POST /daily` accepts optional `date` + `append`; `POST /weekly/{week_start}?force=false` returns `generated=false` without an LLM call; `GET /tasks/pending`). Machine-readable contract: `/openapi.json`.
+- **API Token security (current):** tokens are stored in plaintext, never expire, and have no scopes (hardening deferred — see README). Treat a token as equivalent to data access for that account.
 - **Migrations** run automatically on startup via `_migrate_db()` in `main.py` (additive only).
 - **Timestamps** are stored as UTC without an offset; the frontend parses them with `parseServerDate()` before display.
 - **SPA serving:** the backend serves `frontend/dist/` as a catch-all for non-API paths.

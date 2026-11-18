@@ -19,7 +19,7 @@ from app.migration import (
 )
 from app.models import AppConfig
 from app.models_token import ApiToken  # noqa: F401 — ensure table is created
-from app.routers import auth, config, daily, external, monthly, tasks, tokens, users, weekly
+from app.routers import auth, config, daily, monthly, tasks, tokens, users, weekly
 
 
 def _migrate_db():
@@ -210,7 +210,6 @@ app.include_router(weekly.router)
 app.include_router(monthly.router)
 app.include_router(config.router)
 app.include_router(tokens.router)
-app.include_router(external.router)
 app.include_router(tasks.router)
 app.include_router(users.router)
 
@@ -229,9 +228,18 @@ if not STATIC_DIR.exists():
 if STATIC_DIR.exists():
     app.mount("/assets", StaticFiles(directory=str(STATIC_DIR / "assets")), name="assets")
 
-    @app.get("/{full_path:path}")
-    async def serve_spa(full_path: str):
-        """Catch-all: serve index.html for SPA routing."""
+    @app.api_route("/{full_path:path}", methods=["GET", "POST", "PUT", "DELETE", "PATCH"])
+    async def serve_spa(full_path: str, request: Request):
+        """SPA catch-all.
+
+        Unknown API paths answer JSON 404 — never the HTML shell — so clients
+        calling removed endpoints (e.g. the old /api/v1/external/*) fail
+        clearly instead of parsing a web page.
+        """
+        if full_path == "api" or full_path.startswith("api/"):
+            return JSONResponse(status_code=404, content={"detail": "Not Found"})
+        if request.method != "GET":
+            return JSONResponse(status_code=405, content={"detail": "Method Not Allowed"})
         file_path = STATIC_DIR / full_path
         # Resolve and verify the path is within STATIC_DIR (prevent traversal)
         if file_path.is_file():

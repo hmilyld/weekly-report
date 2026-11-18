@@ -1,5 +1,6 @@
 """Pydantic schemas for request / response validation."""
 
+import datetime as dt
 from datetime import date, datetime
 
 from pydantic import BaseModel, Field, field_validator
@@ -53,8 +54,12 @@ class ChangeRoleRequest(BaseModel):
 
 
 class DailyReportCreate(BaseModel):
-    date: date
+    # date omitted → today (token/automation clients omit it).
+    # dt.date: the field name `date` shadows the imported type inside the class.
+    date: dt.date | None = None
     content: str = Field(default="", max_length=50000)
+    # append=True appends to the existing entry with a newline separator
+    append: bool = False
 
 
 class DailyReportUpdate(BaseModel):
@@ -85,6 +90,8 @@ class WeeklyReportResponse(BaseModel):
     content: str
     model_name: str
     generated_at: datetime
+    # False when an existing report was returned without calling the LLM
+    generated: bool = True
 
 
 class WeeklyReportGenerate(BaseModel):

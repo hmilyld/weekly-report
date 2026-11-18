@@ -4,7 +4,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session
 
 from .. import crud
-from ..auth import get_current_user
+from ..auth import get_authenticated_user
 from ..database import get_db
 from ..models import User
 from ..schemas import TaskCreate, TaskResponse, TaskUpdate
@@ -14,7 +14,7 @@ router = APIRouter(prefix="/api/v1/tasks", tags=["tasks"])
 
 @router.get("")
 def list_tasks(
-    user: User = Depends(get_current_user),
+    user: User = Depends(get_authenticated_user),
     db: Session = Depends(get_db),
 ):
     """List all tasks for the current user."""
@@ -45,7 +45,7 @@ def list_tasks(
 def list_completed_tasks(
     offset: int = Query(0, ge=0),
     limit: int = Query(20, ge=1, le=100),
-    user: User = Depends(get_current_user),
+    user: User = Depends(get_authenticated_user),
     db: Session = Depends(get_db),
 ):
     """List completed tasks with pagination."""
@@ -76,10 +76,36 @@ def list_completed_tasks(
     }
 
 
+@router.get("/pending")
+def list_pending_tasks(
+    user: User = Depends(get_authenticated_user),
+    db: Session = Depends(get_db),
+):
+    """List incomplete tasks (canonical equivalent of the old /external/tasks/pending)."""
+    tasks = crud.get_pending_tasks(db, user.id)
+    has_decryption_failed = any(getattr(t, "_decryption_failed", False) for t in tasks)
+    return {
+        "tasks": [
+            {
+                "id": t.id,
+                "user_id": t.user_id,
+                "content": t.content,
+                "deadline": str(t.deadline) if t.deadline else None,
+                "is_completed": t.is_completed,
+                "created_at": t.created_at.isoformat(),
+                "updated_at": t.updated_at.isoformat(),
+                "_decryption_failed": getattr(t, "_decryption_failed", False),
+            }
+            for t in tasks
+        ],
+        "_decryption_failed": has_decryption_failed,
+    }
+
+
 @router.post("", response_model=TaskResponse, status_code=status.HTTP_201_CREATED)
 def create_task(
     body: TaskCreate,
-    user: User = Depends(get_current_user),
+    user: User = Depends(get_authenticated_user),
     db: Session = Depends(get_db),
 ):
     """Create a new task."""
@@ -93,7 +119,7 @@ def create_task(
 def update_task(
     task_id: int,
     body: TaskUpdate,
-    user: User = Depends(get_current_user),
+    user: User = Depends(get_authenticated_user),
     db: Session = Depends(get_db),
 ):
     """Update a task."""
@@ -111,7 +137,7 @@ def update_task(
 @router.delete("/{task_id}")
 def delete_task(
     task_id: int,
-    user: User = Depends(get_current_user),
+    user: User = Depends(get_authenticated_user),
     db: Session = Depends(get_db),
 ):
     """Delete a task."""
