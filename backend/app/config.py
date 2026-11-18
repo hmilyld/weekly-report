@@ -1,5 +1,6 @@
 """Application configuration using pydantic-settings."""
 
+import base64
 import os
 import secrets
 
@@ -20,11 +21,46 @@ def _default_jwt_secret() -> str:
     return secret
 
 
+def _default_encryption_master_key() -> str:
+    """Resolve the envelope-encryption master key (base64, 32 bytes decoded).
+
+    Production: ENCRYPTION_MASTER_KEY is mandatory — refuse to start without it.
+    Development: generate once and persist to <data dir>/.encryption_key (0600),
+    so restarts keep existing ciphertext readable.
+    """
+    secret = os.getenv("ENCRYPTION_MASTER_KEY")
+    if secret:
+        return secret
+    env = os.getenv("ENV", os.getenv("ENVIRONMENT", "development"))
+    if env == "production":
+        raise ValueError(
+            "ENCRYPTION_MASTER_KEY environment variable is required in production. "
+            'Generate one with: python -c "import base64, secrets; '
+            'print(base64.b64encode(secrets.token_bytes(32)).decode())"'
+        )
+    db_url = os.getenv("DATABASE_URL", "sqlite:///./data/weekly_report.db")
+    key_dir = os.path.dirname(db_url.replace("sqlite:///", "")) or "."
+    os.makedirs(key_dir, exist_ok=True)
+    key_file = os.path.join(key_dir, ".encryption_key")
+    if os.path.exists(key_file):
+        with open(key_file, encoding="ascii") as f:
+            return f.read().strip()
+    key = base64.b64encode(secrets.token_bytes(32)).decode()
+    fd = os.open(key_file, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+    with os.fdopen(fd, "w", encoding="ascii") as f:
+        f.write(key + "\n")
+    print(f"⚠️  ENCRYPTION_MASTER_KEY not set — generated dev key at {key_file} (keep it safe)")
+    return key
+
+
 class Settings(BaseSettings):
     # JWT
     jwt_secret_key: str = _default_jwt_secret()
     jwt_algorithm: str = "HS256"
     jwt_expire_minutes: int = 1440  # 24 hours
+
+    # Envelope encryption (master key → KEK → per-user DEK)
+    encryption_master_key: str = _default_encryption_master_key()
 
     # Database
     database_url: str = os.getenv("DATABASE_URL", "sqlite:///./data/weekly_report.db")

@@ -2,20 +2,30 @@
 
 import base64
 import hashlib
+import logging
 from datetime import UTC, date, datetime, timedelta
 
 from sqlalchemy.orm import Session
 
 from . import models
-from .crypto import decrypt_content, encrypt_content, generate_salt
-from .key_cache import key_cache
+from .crypto import decrypt_content
+from .encryption_utils import (
+    decrypt_model_content,
+    decrypt_record_content,
+    encrypt_model_content,
+)
+from .envelope import CONFIG_SECRET_PREFIX, unwrap_config_secret, wrap_config_secret
+
+logger = logging.getLogger(__name__)
 
 
-def _get_api_key_encryption_key() -> bytes:
-    """Derive encryption key for API key storage from JWT secret."""
+def _get_legacy_api_key_encryption_key() -> bytes:
+    """LEGACY: derive the old API-key encryption key from the JWT secret.
+
+    Kept only to read pre-envelope values; new writes use envelope wrapping.
+    """
     from .config import settings
 
-    # Use JWT secret as base, derive a separate key for API key encryption
     return hashlib.pbkdf2_hmac(
         "sha256",
         settings.jwt_secret_key.encode(),
@@ -25,53 +35,57 @@ def _get_api_key_encryption_key() -> bytes:
     )
 
 
+def _looks_like_legacy_encrypted(value: str) -> bool:
+    """True if value matches the legacy base64('ct:nonce:tag') format."""
+    try:
+        decoded = base64.b64decode(value, validate=True).decode("utf-8")
+    except Exception:
+        return False
+    return decoded.count(":") == 2
+
+
 def encrypt_api_key(api_key: str) -> str | None:
-    """Encrypt API key for storage."""
+    """Envelope-encrypt the LLM API key for storage (survives restarts)."""
     if not api_key:
         return None
-    key = _get_api_key_encryption_key()
-    encrypted = encrypt_content(api_key, key)
-    return base64.b64encode(
-        f"{encrypted['ciphertext']}:{encrypted['nonce']}:{encrypted['tag']}".encode()
-    ).decode()
+    return wrap_config_secret(api_key)
 
 
 def decrypt_api_key(encrypted_api_key: str) -> str | None:
-    """Decrypt API key from storage."""
+    """Decrypt a stored LLM API key (envelope format, with legacy fallback)."""
     if not encrypted_api_key:
         return None
+    if encrypted_api_key.startswith(CONFIG_SECRET_PREFIX):
+        try:
+            return unwrap_config_secret(encrypted_api_key)
+        except Exception:
+            logger.error(
+                "Failed to unwrap LLM API key — check ENCRYPTION_MASTER_KEY; "
+                "re-save the key in Settings to repair."
+            )
+            return None
+    if not _looks_like_legacy_encrypted(encrypted_api_key):
+        # Very old installs stored the key as plaintext; pass through so it
+        # keeps working and gets re-wrapped by migrate_app_config_secret().
+        return encrypted_api_key
     try:
         decoded = base64.b64decode(encrypted_api_key).decode()
         ciphertext, nonce, tag = decoded.split(":")
-        key = _get_api_key_encryption_key()
         return decrypt_content(
             {"ciphertext": ciphertext, "nonce": nonce, "tag": tag},
-            key,
+            _get_legacy_api_key_encryption_key(),
         )
     except Exception:
-        # If decryption fails, return as-is (backward compatibility)
-        return encrypted_api_key
+        logger.warning(
+            "Legacy LLM API key could not be decrypted (JWT secret changed?); "
+            "re-save the key in Settings."
+        )
+        return None
 
 
 def _encrypt_and_set_content(model, content: str, user_id: int) -> None:
     """Encrypt content and set all encryption fields on a model instance."""
-    key = key_cache.get(user_id)
-    if key:
-        salt = generate_salt()
-        encrypted = encrypt_content(content, key)
-        model.content = ""
-        model.content_encrypted = encrypted["ciphertext"]
-        model.content_salt = salt.hex()
-        model.content_nonce = encrypted["nonce"]
-        model.content_tag = encrypted["tag"]
-        model.content_version = 1
-    else:
-        model.content = content
-        model.content_encrypted = None
-        model.content_salt = None
-        model.content_nonce = None
-        model.content_tag = None
-        model.content_version = None
+    encrypt_model_content(model, content, user_id)
 
 
 def _save_encrypted_report(
@@ -173,30 +187,12 @@ def get_daily_report(db: Session, user_id: int, report_date: date) -> models.Dai
 
 
 def _decrypt_model_content(model, user_id: int):
-    """Decrypt content_encrypted field back into content on a model instance.
+    """Decrypt content_encrypted back into content on a model instance.
 
-    If decryption fails (e.g., key not in cache after server restart),
-    sets _decryption_failed attribute for frontend to detect.
+    Delegates to encryption_utils.decrypt_model_content; on failure sets
+    _decryption_failed for the frontend to detect.
     """
-    if not model.content_encrypted:
-        return
-    key = key_cache.get(user_id)
-    if not key:
-        # Key not in cache - mark as decryption failed
-        model._decryption_failed = True
-        return
-    try:
-        model.content = decrypt_content(
-            {
-                "ciphertext": model.content_encrypted,
-                "nonce": model.content_nonce or "",
-                "tag": model.content_tag or "",
-            },
-            key,
-        )
-        model._decryption_failed = False
-    except Exception:
-        model._decryption_failed = True
+    decrypt_model_content(model, user_id)
 
 
 def get_daily_reports_by_week(
@@ -239,47 +235,16 @@ def get_daily_reports_range(
 def upsert_daily_report(
     db: Session, user_id: int, report_date: date, content: str
 ) -> models.DailyReport:
-    key = key_cache.get(user_id)
     existing = get_daily_report(db, user_id, report_date)
     if existing:
-        existing.content = content
-        if key:
-            salt = generate_salt()
-            encrypted = encrypt_content(content, key)
-            existing.content = ""
-            existing.content_encrypted = encrypted["ciphertext"]
-            existing.content_salt = salt.hex()
-            existing.content_nonce = encrypted["nonce"]
-            existing.content_tag = encrypted["tag"]
-            existing.content_version = 1
-        else:
-            existing.content_encrypted = None
-            existing.content_salt = None
-            existing.content_nonce = None
-            existing.content_tag = None
-            existing.content_version = None
-        from datetime import datetime
-
+        encrypt_model_content(existing, content, user_id)
         existing.updated_at = datetime.now(UTC)
         db.commit()
         db.refresh(existing)
         _decrypt_model_content(existing, user_id)
         return existing
-    if key:
-        salt = generate_salt()
-        encrypted = encrypt_content(content, key)
-        report = models.DailyReport(
-            user_id=user_id,
-            date=report_date,
-            content="",
-            content_encrypted=encrypted["ciphertext"],
-            content_salt=salt.hex(),
-            content_nonce=encrypted["nonce"],
-            content_tag=encrypted["tag"],
-            content_version=1,
-        )
-    else:
-        report = models.DailyReport(user_id=user_id, date=report_date, content=content)
+    report = models.DailyReport(user_id=user_id, date=report_date, content="")
+    encrypt_model_content(report, content, user_id)
     db.add(report)
     db.commit()
     db.refresh(report)
@@ -297,24 +262,16 @@ def delete_daily_report(db: Session, user_id: int, report_date: date) -> bool:
 
 
 def get_daily_report_decrypted(db: Session, user_id: int, report_date: date) -> str | None:
+    """Return decrypted content, or None if no report exists.
+
+    Raises ContentDecryptionError when the report is encrypted but unreadable —
+    callers (e.g. append mode) must not silently treat that as empty content.
+    """
     report = get_daily_report(db, user_id, report_date)
     if not report:
         return None
     if report.content_encrypted:
-        key = key_cache.get(user_id)
-        if not key:
-            return None
-        try:
-            return decrypt_content(
-                {
-                    "ciphertext": report.content_encrypted,
-                    "nonce": report.content_nonce or "",
-                    "tag": report.content_tag or "",
-                },
-                key,
-            )
-        except Exception:
-            return None
+        return decrypt_record_content(report, user_id)
     return report.content
 
 
@@ -540,22 +497,8 @@ def create_task(
     # Validate deadline is not in the past
     if deadline and deadline < date.today():
         raise ValueError("截止日期不能早于今天")
-    key = key_cache.get(user_id)
-    if key:
-        salt = generate_salt()
-        encrypted = encrypt_content(content, key)
-        task = models.Task(
-            user_id=user_id,
-            content="",
-            content_encrypted=encrypted["ciphertext"],
-            content_salt=salt.hex(),
-            content_nonce=encrypted["nonce"],
-            content_tag=encrypted["tag"],
-            content_version=1,
-            deadline=deadline,
-        )
-    else:
-        task = models.Task(user_id=user_id, content=content, deadline=deadline)
+    task = models.Task(user_id=user_id, content="", deadline=deadline)
+    encrypt_model_content(task, content, user_id)
     db.add(task)
     db.commit()
     db.refresh(task)
@@ -582,23 +525,7 @@ def update_task(
     if not task:
         return None
     if content is not None:
-        key = key_cache.get(user_id)
-        if key:
-            salt = generate_salt()
-            encrypted = encrypt_content(content, key)
-            task.content = ""
-            task.content_encrypted = encrypted["ciphertext"]
-            task.content_salt = salt.hex()
-            task.content_nonce = encrypted["nonce"]
-            task.content_tag = encrypted["tag"]
-            task.content_version = 1
-        else:
-            task.content = content
-            task.content_encrypted = None
-            task.content_salt = None
-            task.content_nonce = None
-            task.content_tag = None
-            task.content_version = None
+        encrypt_model_content(task, content, user_id)
     if deadline is not None:
         task.deadline = deadline
     if is_completed is not None:
@@ -624,6 +551,10 @@ def delete_task(db: Session, user_id: int, task_id: int) -> bool:
 
 
 def get_task_decrypted(db: Session, user_id: int, task_id: int) -> str | None:
+    """Return decrypted task content, or None if the task does not exist.
+
+    Raises ContentDecryptionError when encrypted content is unreadable.
+    """
     task = (
         db.query(models.Task)
         .filter(models.Task.id == task_id, models.Task.user_id == user_id)
@@ -632,18 +563,5 @@ def get_task_decrypted(db: Session, user_id: int, task_id: int) -> str | None:
     if not task:
         return None
     if task.content_encrypted:
-        key = key_cache.get(user_id)
-        if not key:
-            return None
-        try:
-            return decrypt_content(
-                {
-                    "ciphertext": task.content_encrypted,
-                    "nonce": task.content_nonce or "",
-                    "tag": task.content_tag or "",
-                },
-                key,
-            )
-        except Exception:
-            return None
+        return decrypt_record_content(task, user_id)
     return task.content

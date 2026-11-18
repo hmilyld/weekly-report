@@ -19,10 +19,10 @@ def list_tasks(
 ):
     """List all tasks for the current user."""
     tasks = crud.get_tasks(db, user.id)
-    
+
     # Check if any task has decryption failed
-    has_decryption_failed = any(getattr(t, '_decryption_failed', False) for t in tasks)
-    
+    has_decryption_failed = any(getattr(t, "_decryption_failed", False) for t in tasks)
+
     return {
         "tasks": [
             {
@@ -33,7 +33,7 @@ def list_tasks(
                 "is_completed": t.is_completed,
                 "created_at": t.created_at.isoformat(),
                 "updated_at": t.updated_at.isoformat(),
-                "_decryption_failed": getattr(t, '_decryption_failed', False),
+                "_decryption_failed": getattr(t, "_decryption_failed", False),
             }
             for t in tasks
         ],
@@ -51,10 +51,10 @@ def list_completed_tasks(
     """List completed tasks with pagination."""
     tasks = crud.get_completed_tasks(db, user.id, offset, limit)
     total = crud.get_completed_tasks_count(db, user.id)
-    
+
     # Check if any task has decryption failed
-    has_decryption_failed = any(getattr(t, '_decryption_failed', False) for t in tasks)
-    
+    has_decryption_failed = any(getattr(t, "_decryption_failed", False) for t in tasks)
+
     return {
         "tasks": [
             {
@@ -65,7 +65,7 @@ def list_completed_tasks(
                 "is_completed": t.is_completed,
                 "created_at": t.created_at.isoformat(),
                 "updated_at": t.updated_at.isoformat(),
-                "_decryption_failed": getattr(t, '_decryption_failed', False),
+                "_decryption_failed": getattr(t, "_decryption_failed", False),
             }
             for t in tasks
         ],

@@ -14,6 +14,7 @@ services:
       - ./data:/app/data
     environment:
       - JWT_SECRET_KEY=${JWT_SECRET_KEY:?请在 .env 文件中设置 JWT_SECRET_KEY}
+      - ENCRYPTION_MASTER_KEY=${ENCRYPTION_MASTER_KEY:?请在 .env 文件中设置 ENCRYPTION_MASTER_KEY（base64 的 32 字节密钥，须与数据库一起备份）}
       - DATABASE_URL=sqlite:///./data/weekly_report.db
     restart: unless-stopped
     healthcheck:

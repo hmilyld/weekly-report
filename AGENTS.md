@@ -24,10 +24,14 @@ weekly-report/
 │   │   ├── models.py    # ORM models (User, DailyReport, WeeklyReport, MonthlyReport, Task…)
 │   │   ├── crud.py      # Centralized database operations
 │   │   ├── auth.py      # JWT creation/decoding, dependencies
-│   │   ├── crypto.py    # AES-GCM content encryption
-│   │   ├── key_cache.py # In-memory per-user key cache
+│   │   ├── crypto.py    # AES-GCM primitives (+ legacy frozen KDF for migration)
+│   │   ├── envelope.py  # Envelope encryption: master key → KEK → per-user DEK
+│   │   ├── encryption_utils.py # Centralized content encrypt/decrypt (version 2 + AAD)
+│   │   ├── key_cache.py # In-memory per-user DEK cache (restored from DB at startup)
+│   │   ├── migration.py # Startup hygiene + one-time legacy→DEK migration on login
+│   │   ├── reencrypt.py # Legacy→DEK re-encryption (single transaction, no commit)
 │   │   └── llm_client.py# OpenAI-compatible LLM client
-│   ├── tests/           # Pytest: crypto, CRUD encryption, key cache
+│   ├── tests/           # Pytest: crypto, envelope, DEK migration, CRUD encryption, key cache
 │   └── main.py          # App entry, lifespan, migrations, static file serving
 ├── .github/workflows/ # release-image.yml (tag → ghcr.io)
 ├── scripts/           # dev.sh (dev helper), docker-publish.sh (Docker Hub)
@@ -122,7 +126,7 @@ The visual system is documented in `DESIGN.md` and is not re-decided per screen.
 
 ## Testing
 
-- **Backend:** Pytest in `backend/tests/` (`test_crypto.py`, `test_crud_encryption.py`, `test_key_cache.py`). Run: `cd backend && uv run pytest`.
+- **Backend:** Pytest in `backend/tests/` (`test_crypto.py`, `test_envelope.py`, `test_dek_migration.py`, `test_crud_encryption.py`, `test_key_cache.py`). Run: `cd backend && uv run pytest`. `tests/conftest.py` sets a fixed `ENCRYPTION_MASTER_KEY` so tests never touch dev key files.
 - **Frontend:** No test suite. Before committing UI work, run `pnpm lint`, `pnpm format:check` and `pnpm build`, and check the page at 1440px and 390px in both themes.
 
 ## Commit Conventions
@@ -150,11 +154,11 @@ Prefixes: `feat`, `fix`, `style`, `refactor`, `docs`. Description in Chinese is 
 ## Architecture Notes
 
 - **Auth:** JWT with 24h expiry. Password change invalidates old tokens via `password_version`. `require_admin` protects admin-only endpoints. `last_login_at` is written on login and initial setup.
-- **Password change** requires `old_password` (the key is re-derived from it), returns a fresh token, and every other session is invalidated by the `password_version` bump. A wrong current password answers `402` so the client shows an inline error instead of dropping the session; `401` always means "session invalid".
-- **Logout** calls `POST /auth/logout` while the token is still attached (it clears the server-side key cache) and only then drops the local session.
-- **Encryption at rest:** report/task content is AES-GCM encrypted per user; the key is derived from the login password and cached in memory (`key_cache`). A server restart empties the cache, so the UI shows a re-login modal instead of blank content. `_migrate_db()` + `migrate_user_encryption()` upgrade legacy plaintext rows on login.
-- **LLM config** lives in the `AppConfig` table (singleton, id=1), editable at runtime via Settings — no env vars needed.
-- **External API** (`/api/v1/external/`) authenticates with `X-API-Token` instead of JWT.
+- **Password change** requires `old_password`, returns a fresh token, and every other session is invalidated by the `password_version` bump. Content ciphertext is NEVER touched (the DEK is independent of the password). A wrong current password answers `402` so the client shows an inline error instead of dropping the session; `401` always means "session invalid".
+- **Logout** calls `POST /auth/logout` while the token is still attached, then drops the local session. It does NOT clear `key_cache`: the DEK is a server-side key shared by all devices of the account, recoverable from the DB at any time.
+- **Encryption at rest (envelope):** `ENCRYPTION_MASTER_KEY` → HKDF → KEK wraps a random per-user DEK (`users.wrapped_dek`, AAD-bound). Startup unwraps all DEKs into `key_cache`, so restarts need no login. Content is AES-GCM under the DEK with `content_version=2` and AAD binding table+user; `content_salt` is deprecated (no longer written). Writes without a DEK raise `EncryptionKeyMissingError` → HTTP 409, never plaintext. Legacy users (`wrapped_dek` NULL) migrate once at login via `migrate_user_to_dek()` (single transaction, idempotent, rollback on failure); the legacy password-derived KDF in `auth.derive_user_key` is FROZEN — changing its parameters destroys legacy data. Decrypted views use `set_committed_value` so plaintext is never autoflushed back into the `content` column.
+- **LLM config** lives in the `AppConfig` table (singleton, id=1), editable at runtime via Settings — no env vars needed. The API key is envelope-wrapped (`ek1:` prefix) with legacy JWT-secret-derived fallback on read; startup re-wraps legacy values.
+- **External API** (`/api/v1/external/`) authenticates with `X-API-Token` instead of JWT. Works after restarts without any login; unmigrated accounts get 409 on writes.
 - **Migrations** run automatically on startup via `_migrate_db()` in `main.py` (additive only).
 - **Timestamps** are stored as UTC without an offset; the frontend parses them with `parseServerDate()` before display.
 - **SPA serving:** the backend serves `frontend/dist/` as a catch-all for non-API paths.

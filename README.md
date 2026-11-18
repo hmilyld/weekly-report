@@ -12,7 +12,7 @@
 - **多用户** — 管理员创建/删除用户、切换角色；每个用户的数据互相隔离，列表显示最近登录时间
 - **系统配置** — 管理员在线修改大模型地址、模型名称、API Key，支持连接测试
 - **API Token** — 用 Token 从脚本或外部服务写入日报、读取周报与待办，无需登录
-- **安全** — JWT 登录保护；日报/周报/月报/待办内容按用户密钥加密存储；改密后旧 token 失效
+- **安全** — JWT 登录保护；日报/周报/月报/待办内容信封加密存储（重启后无需重新登录）；改密不影响数据；改密后旧 token 失效
 
 ### 角色权限
 
@@ -29,8 +29,9 @@
 ## 快速开始（Docker）
 
 ```bash
-# 1. 生成 JWT 密钥并写入 .env
+# 1. 生成 JWT 密钥与加密主密钥，写入 .env
 echo "JWT_SECRET_KEY=$(python3 -c 'import secrets; print(secrets.token_urlsafe(64))')" > .env
+echo "ENCRYPTION_MASTER_KEY=$(python3 -c 'import base64, secrets; print(base64.b64encode(secrets.token_bytes(32)).decode())')" >> .env
 
 # 2. 启动（默认使用 Docker Hub 镜像）
 docker compose up -d
@@ -39,6 +40,7 @@ docker compose up -d
 ```
 
 - 数据库落在 `./data/weekly_report.db`，升级镜像不会丢失。
+- **备份必须同时包含数据库和 `ENCRYPTION_MASTER_KEY`**，丢失主密钥 = 内容永久不可读（见「安全与备份」）。
 - 想用 GitHub 镜像：`IMAGE=ghcr.io/hmilyld/weekly-report:latest docker compose up -d`
 - 本地改代码后重建：`docker compose up -d --build`
 
@@ -63,6 +65,7 @@ docker run -d \
   -p 18001:18001 \
   -v $(pwd)/data:/app/data \
   -e JWT_SECRET_KEY=your-secret-key-here \
+  -e ENCRYPTION_MASTER_KEY=your-base64-32-byte-key-here \
   weekly-report:latest
 ```
 
@@ -109,7 +112,7 @@ pnpm generate:icons   # 重新生成应用图标（SVG；装了 ffmpeg 时同时
 
 升级后启动后端会自动补齐新增字段与表（`main.py` 里的 `_migrate_db()`），无需手动执行脚本。旧版单用户数据库会保留原有数据，并把第一个用户提升为管理员。
 
-> 从加密改造之前的版本升级时，首次登录会顺带把历史明文内容重新加密。
+> **信封加密迁移**：从旧版本（密钥由登录密码派生）升级时，每个账号在升级后的**首次登录**会一次性完成迁移——生成随机数据密钥（DEK）、把全部内容重新加密到 DEK 下、用主密钥包裹 DEK 存库。迁移在单个事务内完成，失败自动回滚、下次登录重试。迁移完成后，重启服务不再需要任何人登录即可读取内容；尚未登录过的账号在迁移前仍保持旧行为（重启后需登录一次）。
 
 ---
 
@@ -138,10 +141,15 @@ git push origin v1.2.0
 ### 升级已部署的实例
 
 ```bash
+# 0. 先备份！数据库 + ENCRYPTION_MASTER_KEY 一起备份
+cp data/weekly_report.db data/weekly_report.db.bak-$(date +%F)
+
 docker compose pull && docker compose up -d
 ```
 
-数据库结构变更是增量的（只加字段/表），旧数据保留；回滚到旧镜像也安全。
+数据库结构变更是增量的（只加字段/表），旧数据保留。
+
+> ⚠️ **信封加密版本不可回滚**：升级到信封加密版本并完成登录后，数据用新的 DEK 加密，旧版本镜像无法解密。升级前务必备份数据库；如需回退，只能恢复升级前的备份。
 
 ---
 
@@ -150,12 +158,49 @@ docker compose pull && docker compose up -d
 | 变量 | 必填 | 默认值 | 说明 |
 |---|---|---|---|
 | `JWT_SECRET_KEY` | 生产必填 | 开发环境随机生成 | JWT 签名密钥；生产缺失会启动失败 |
+| `ENCRYPTION_MASTER_KEY` | 生产必填 | 开发环境自动生成并持久化到 `data/.encryption_key`（0600） | 信封加密主密钥，base64 编码、解码后必须 32 字节；生产缺失或格式错误会启动失败。**必须与数据库一起备份** |
 | `DATABASE_URL` | 否 | `sqlite:///./data/weekly_report.db` | 数据库连接串 |
 | `CORS_ORIGINS` | 否 | `*` | 允许的来源，逗号分隔 |
 | `ENV` / `ENVIRONMENT` | 否 | `development` | 设为 `production` 时启用 HSTS 等更严格的默认值 |
 | `IMAGE` | 否 | `hmilyld/weekly-report:latest` | `docker compose` 使用的镜像 |
 
-大模型地址、模型名与 API Key 不通过环境变量配置，保存在数据库里，登录后在「系统配置」页面修改。
+大模型地址、模型名与 API Key 不通过环境变量配置，保存在数据库里，登录后在「系统配置」页面修改。API Key 同样用主密钥信封加密存储，重启后不会失效。
+
+---
+
+## 安全与备份
+
+### 加密如何工作（信封加密）
+
+```
+ENCRYPTION_MASTER_KEY ──HKDF──> KEK（仅进程内存）
+KEK ──AES-256-GCM 包裹──> users.wrapped_dek（存库，绑定用户身份）
+启动时解包 ──> 每用户一个随机 DEK ──AES-256-GCM──> 日报/周报/月报/待办内容
+```
+
+- 登录密码**只用于认证**，不再派生内容密钥：改密不重加密任何数据，密文保持不变。
+- 服务重启后自动从数据库恢复所有密钥，**无需任何人重新登录**；API Token 写入在重启后照常加密。
+- 没有可用密钥时写入会被拒绝（HTTP 409 `encryption_key_missing`），**绝不静默落明文**。
+- 内容密文绑定所属表与用户（AAD），无法跨账号/跨表挪用。
+
+### 它防住什么、不防什么
+
+| 威胁 | 是否防住 |
+|---|---|
+| 数据库文件 / 备份泄露 | ✅ 没有主密钥无法解密 |
+| 长期离线备份 | ✅（前提：主密钥妥善保管） |
+| 主机被入侵（含 env 与进程内存） | ❌ 服务端生成周报必须读明文，这不是零知识系统 |
+| 登录密码泄露 | ❌ 密码用于认证，泄露后可登录读取 |
+
+### 备份要求
+
+**数据库和 `ENCRYPTION_MASTER_KEY` 必须一起备份。** 只备份数据库而丢失主密钥，内容将永久不可读；反之亦然。建议把 `.env`（或密钥管理系统中的主密钥）与 `data/weekly_report.db` 纳入同一备份策略。
+
+开发环境未设置主密钥时会自动生成 `data/.encryption_key`（权限 0600），它同样需要随数据库一起备份。
+
+### 主密钥轮换
+
+泄露主密钥时：生成新主密钥 → 用旧主密钥解包每个用户的 DEK → 用新主密钥重新包裹写回。内容密文无需改动（DEK 不变）。当前版本未提供自动化轮换命令，需通过脚本完成。
 
 ---
 
@@ -171,7 +216,7 @@ docker compose pull && docker compose up -d
 | POST | `/auth/setup` | 初始化第一个管理员账号 | ✗ |
 | POST | `/auth/login` | 登录获取 token | ✗ |
 | POST | `/auth/change-password` | 修改密码（需当前密码，返回新 token） | ✓ |
-| POST | `/auth/logout` | 退出并清除服务端密钥缓存 | ✓ |
+| POST | `/auth/logout` | 退出登录（不影响同账号其他设备） | ✓ |
 
 ### 日报
 
@@ -240,6 +285,8 @@ docker compose pull && docker compose up -d
 | GET | `/external/tasks/pending` | 读取未完成待办 |
 | POST | `/external/tasks` | 新建待办 |
 | GET | `/external/docs` | 接口说明 |
+
+> 写入接口在账号尚未完成加密迁移（升级后从未登录过）时返回 `409`（`code: encryption_key_missing`），不会落明文；在网页端登录一次即永久解决。内容无法解密时读取/生成接口返回 `409`（`code: decryption_failed`）。
 
 ### 健康检查
 

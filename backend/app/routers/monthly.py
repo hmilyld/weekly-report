@@ -33,7 +33,7 @@ def list_monthly_reports(
 ):
     """List all saved monthly reports."""
     reports = crud.get_monthly_reports(db, user.id)
-    has_decryption_failed = any(getattr(r, '_decryption_failed', False) for r in reports)
+    has_decryption_failed = any(getattr(r, "_decryption_failed", False) for r in reports)
     return {
         "reports": [
             {
@@ -43,7 +43,7 @@ def list_monthly_reports(
                 "content": r.content,
                 "model_name": r.model_name,
                 "generated_at": r.generated_at.isoformat(),
-                "_decryption_failed": getattr(r, '_decryption_failed', False),
+                "_decryption_failed": getattr(r, "_decryption_failed", False),
             }
             for r in reports
         ],
@@ -69,7 +69,7 @@ def get_monthly_report(
         "content": report.content,
         "model_name": report.model_name,
         "generated_at": report.generated_at.isoformat(),
-        "_decryption_failed": getattr(report, '_decryption_failed', False),
+        "_decryption_failed": getattr(report, "_decryption_failed", False),
     }
 
 
@@ -122,17 +122,8 @@ def _generate(db: Session, user_id: int, year: int, month: int) -> MonthlyReport
         ) from e
 
     config = crud.get_app_config(db)
+    # save_monthly_report encrypts with the user's DEK and decrypts for return.
     report = crud.save_monthly_report(
         db, user_id, year, month, monthly_content, config.llm_model_name
     )
-
-    from ..encryption_utils import encrypt_model_content
-
-    encrypt_model_content(report, monthly_content, user_id)
-    db.commit()
-    db.refresh(report)
-
-    from ..crud import _decrypt_model_content
-
-    _decrypt_model_content(report, user_id)
     return report

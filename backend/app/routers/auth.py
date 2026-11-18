@@ -1,5 +1,6 @@
 """Auth router: login, setup, password change."""
 
+import logging
 import time
 from collections import defaultdict
 from threading import Lock
@@ -11,17 +12,18 @@ from sqlalchemy.orm import Session
 from .. import crud
 from ..auth import (
     create_access_token,
-    derive_user_key,
     get_current_user,
     hash_password,
     validate_password,
     verify_password,
 )
 from ..database import get_db
-from ..key_cache import key_cache
-from ..migration import migrate_user_encryption
+from ..envelope import ensure_user_dek, provision_user_dek
+from ..migration import migrate_user_to_dek
 from ..models import User
 from ..schemas import LoginRequest, PasswordChange, TokenResponse
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/v1/auth", tags=["auth"])
 
@@ -92,6 +94,7 @@ def initial_setup(body: SetupRequest, db: Session = Depends(get_db)):
 
     user = crud.create_user(db, body.username.strip(), hash_password(body.password), role="admin")
     crud.touch_last_login(db, user)
+    provision_user_dek(db, user)
     token = create_access_token({"sub": str(user.id), "username": user.username, "pwd_ver": 0})
     return TokenResponse(access_token=token)
 
@@ -116,12 +119,25 @@ def login(body: LoginRequest, request: Request, db: Session = Depends(get_db)):
 
     crud.touch_last_login(db, user)
 
-    key = derive_user_key(body.password, user)
-    key_cache.set(user.id, key)
-
-    # Always check for and encrypt any plaintext content
-    # (e.g., content written via API token while not logged in)
-    migrate_user_encryption(db, user.id, key)
+    # Content keys are decoupled from the login password (envelope encryption).
+    # Migrated users: the DEK is normally already cached from startup; unwrap
+    # on demand. A failure here must not block authentication itself.
+    if user.wrapped_dek:
+        try:
+            ensure_user_dek(db, user)
+        except Exception:
+            logger.exception("Failed to unwrap DEK for user %d at login", user.id)
+    else:
+        # Legacy user: one-time migration, only possible now that we have the
+        # password to derive the old key. Failure rolls back; retry next login.
+        try:
+            migrate_user_to_dek(db, user, body.password)
+        except Exception as err:
+            logger.exception("Envelope migration failed for user %d", user.id)
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="加密迁移失败，数据未改动，请重试登录；若持续失败请联系管理员。",
+            ) from err
 
     return TokenResponse(access_token=token)
 
@@ -141,16 +157,11 @@ def change_password(
         )
     validate_password(body.new_password)
 
-    old_key = derive_user_key(body.old_password, user)
-    new_key = derive_user_key(body.new_password, user)
-
-    from ..reencrypt import reencrypt_user_data
-
-    reencrypt_user_data(db, user.id, old_key, new_key)
-
+    # Envelope encryption: content is encrypted with a per-user DEK that is
+    # independent of the login password, so changing the password only updates
+    # the hash and bumps password_version — ciphertext is never touched.
     new_hash = hash_password(body.new_password)
     crud.change_password(db, user, new_hash)
-    key_cache.set(user.id, new_key)
 
     # Changing the password bumps password_version, which invalidates the current
     # token. Hand back a fresh one so the person who changed it stays signed in;
@@ -163,5 +174,7 @@ def change_password(
 
 @router.post("/logout")
 def logout(user: User = Depends(get_current_user)):
-    key_cache.remove(user.id)
+    # The DEK is a server-side key recoverable from the DB at any time; it is
+    # NOT per-session. Clearing it here would break every other device of the
+    # same account, so logout only ends the session (client drops the token).
     return {"message": "Logged out successfully"}

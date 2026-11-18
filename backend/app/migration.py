@@ -1,40 +1,26 @@
-"""Encryption migration for user data.
+"""Encryption migrations.
 
-This module handles encrypting plaintext content whenever a user logs in.
-It checks all content tables for unencrypted records and encrypts them.
+- _cleanup_plaintext_content: startup hygiene for a historical bug where
+  plaintext was left alongside ciphertext. Runs without any user key.
+- migrate_user_to_dek: one-time per-user upgrade from password-derived keys
+  to envelope encryption (random DEK wrapped by the server KEK). Runs at
+  login, because only then is the legacy password-derived key available.
+- migrate_app_config_secret: re-wrap the LLM API key with the KEK so it
+  survives restarts (the legacy scheme depended on the JWT secret).
 """
 
 import logging
+import os
 
 from sqlalchemy.orm import Session
 
-from .crypto import decrypt_content, encrypt_content, generate_salt
-from .models import DailyReport, MonthlyReport, Task, User, WeeklyReport
+from .auth import derive_user_key
+from .envelope import CONFIG_SECRET_PREFIX, ensure_user_dek, unwrap_dek, wrap_dek
+from .key_cache import key_cache
+from .models import AppConfig, DailyReport, MonthlyReport, Task, User, WeeklyReport
+from .reencrypt import reencrypt_user_data
 
 logger = logging.getLogger(__name__)
-
-# Filter condition for unencrypted records: has content but version is not 1
-_UNENCRYPTED_FILTER = lambda Model: (
-    Model.content.isnot(None),
-    Model.content != "",
-    Model.content_version.is_(None),
-)
-
-
-def _encrypt_records(records, key: bytes) -> int:
-    """Encrypt plaintext records. Returns count of encrypted records."""
-    encrypted_count = 0
-    for record in records:
-        salt = generate_salt()
-        encrypted = encrypt_content(record.content, key)
-        record.content = ""
-        record.content_encrypted = encrypted["ciphertext"]
-        record.content_salt = salt.hex()
-        record.content_nonce = encrypted["nonce"]
-        record.content_tag = encrypted["tag"]
-        record.content_version = 1
-        encrypted_count += 1
-    return encrypted_count
 
 
 def _cleanup_plaintext_content(db: Session) -> None:
@@ -55,13 +41,17 @@ def _cleanup_plaintext_content(db: Session) -> None:
 
     total_cleaned = 0
     for table_name, model in tables:
-        # Find records with content_version=1, content non-empty, and encrypted data present
-        records = db.query(model).filter(
-            model.content_version == 1,
-            model.content.isnot(None),
-            model.content != "",
-            model.content_encrypted.isnot(None),
-        ).all()
+        # Find records with encrypted data present but content not cleared
+        records = (
+            db.query(model)
+            .filter(
+                model.content_version.isnot(None),
+                model.content.isnot(None),
+                model.content != "",
+                model.content_encrypted.isnot(None),
+            )
+            .all()
+        )
 
         for record in records:
             record.content = ""
@@ -69,7 +59,7 @@ def _cleanup_plaintext_content(db: Session) -> None:
 
         if records:
             logger.info(
-                "Cleaned plaintext from %d %s records (content_version=1 but content not empty)",
+                "Cleaned plaintext from %d %s records (encrypted but content not empty)",
                 len(records),
                 table_name,
             )
@@ -79,135 +69,57 @@ def _cleanup_plaintext_content(db: Session) -> None:
         logger.info("Total cleaned %d records with stale plaintext content", total_cleaned)
 
 
-def _fix_old_format_records(db: Session, user_id: int, key: bytes) -> None:
-    """Re-encrypt records that were encrypted with the old format (tag='').
+def migrate_user_to_dek(db: Session, user: User, password: str) -> bytes:
+    """One-time migration of a legacy user to envelope encryption.
 
-    The original encrypt_content() returned tag='' with the GCM tag embedded
-    in the ciphertext. The current code separates tag from ciphertext. This
-    function re-encrypts old-format records to the new format.
-
-    This requires the user's decryption key (runs on login).
+    Derives the legacy password-based key, re-encrypts ALL of the user's
+    content under a fresh random DEK, and stores the wrapped DEK — in a
+    single transaction. On any failure nothing is committed: wrapped_dek
+    stays NULL and the next login retries. Idempotent once wrapped_dek is set.
     """
-    total_fixed = 0
-    tables = [
-        ("daily_reports", DailyReport),
-        ("weekly_reports", WeeklyReport),
-        ("monthly_reports", MonthlyReport),
-        ("tasks", Task),
-    ]
+    if user.wrapped_dek:
+        dek = ensure_user_dek(db, user)
+        if dek is None:  # pragma: no cover — wrapped_dek set implies a DEK
+            dek = unwrap_dek(user.wrapped_dek, user.id)
+            key_cache.set(user.id, dek)
+        return dek
 
-    for table_name, model in tables:
-        # Find records encrypted with old format: content_version=1, has encrypted data, but tag is empty
-        records = db.query(model).filter(
-            model.user_id == user_id,
-            model.content_version == 1,
-            model.content_encrypted.isnot(None),
-            model.content_tag.is_(None),
-        ).all()
-
-        # Also find records where content_tag is empty string (not NULL)
-        records += db.query(model).filter(
-            model.user_id == user_id,
-            model.content_version == 1,
-            model.content_encrypted.isnot(None),
-            model.content_tag == "",
-        ).all()
-
-        # Deduplicate (in case both queries return the same records)
-        seen_ids = set()
-        unique_records = []
-        for r in records:
-            if r.id not in seen_ids:
-                seen_ids.add(r.id)
-                unique_records.append(r)
-
-        for record in unique_records:
-            try:
-                # Decrypt with old format (tag embedded in ciphertext)
-                plaintext = decrypt_content(
-                    {
-                        "ciphertext": record.content_encrypted,
-                        "nonce": record.content_nonce or "",
-                        "tag": record.content_tag or "",
-                    },
-                    key,
-                )
-                # Re-encrypt with new format (tag separate)
-                new_encrypted = encrypt_content(plaintext, key)
-                new_salt = generate_salt()
-                record.content = ""
-                record.content_encrypted = new_encrypted["ciphertext"]
-                record.content_salt = new_salt.hex()
-                record.content_nonce = new_encrypted["nonce"]
-                record.content_tag = new_encrypted["tag"]
-                record.content_version = 1
-                total_fixed += 1
-            except Exception as e:
-                logger.warning(
-                    "Failed to re-encrypt %s record id=%d: %s",
-                    table_name,
-                    record.id,
-                    e,
-                )
-
-        if unique_records:
-            logger.info(
-                "Re-encrypted %d %s records from old format (tag='') to new format",
-                len(unique_records),
-                table_name,
-            )
-
-    if total_fixed > 0:
-        db.commit()
-        logger.info("Total re-encrypted %d records to new format", total_fixed)
-
-
-def migrate_user_encryption(db: Session, user_id: int, key: bytes) -> None:
-    """Check and encrypt any plaintext content for a user.
-
-    This is called on every login to ensure API-token-written plaintext
-    content gets encrypted when the user logs in via UI.
-
-    Handles three cases:
-    1. Records with plaintext content (content_version is NULL) → encrypt them
-    2. Records with old encryption format (content_tag='') → re-encrypt to new format
-    """
-    total_encrypted = 0
-
-    # Case 1: Encrypt plaintext records (content_version is NULL)
-    daily_reports = db.query(DailyReport).filter(
-        DailyReport.user_id == user_id,
-        *_UNENCRYPTED_FILTER(DailyReport),
-    ).all()
-    total_encrypted += _encrypt_records(daily_reports, key)
-
-    weekly_reports = db.query(WeeklyReport).filter(
-        WeeklyReport.user_id == user_id,
-        *_UNENCRYPTED_FILTER(WeeklyReport),
-    ).all()
-    total_encrypted += _encrypt_records(weekly_reports, key)
-
-    monthly_reports = db.query(MonthlyReport).filter(
-        MonthlyReport.user_id == user_id,
-        *_UNENCRYPTED_FILTER(MonthlyReport),
-    ).all()
-    total_encrypted += _encrypt_records(monthly_reports, key)
-
-    tasks = db.query(Task).filter(
-        Task.user_id == user_id,
-        *_UNENCRYPTED_FILTER(Task),
-    ).all()
-    total_encrypted += _encrypt_records(tasks, key)
-
-    # Case 2: Re-encrypt old format records (content_tag='')
-    _fix_old_format_records(db, user_id, key)
-
-    # Mark migration complete
-    user = db.query(User).filter(User.id == user_id).first()
-    if user and user.needs_encryption_migration:
+    old_key = derive_user_key(password, user)
+    dek = os.urandom(32)
+    try:
+        count = reencrypt_user_data(db, user.id, old_key, dek)
+        user.wrapped_dek = wrap_dek(dek, user.id)
+        user.wrapped_dek_version = 1
         user.needs_encryption_migration = False
+        db.commit()
+    except Exception:
+        db.rollback()
+        raise
+    key_cache.set(user.id, dek)
+    logger.info("Migrated user %d to envelope encryption (%d records)", user.id, count)
+    return dek
 
-    if total_encrypted > 0:
-        logger.info("Encrypted %d plaintext records for user %d", total_encrypted, user_id)
 
+def migrate_app_config_secret(db: Session) -> None:
+    """Re-wrap a legacy LLM API key with the KEK (startup, idempotent).
+
+    Legacy values were encrypted with a key derived from JWT_SECRET_KEY, so
+    they broke whenever the JWT secret changed (e.g. dev restarts). Values
+    that cannot be decrypted are left untouched and logged — re-saving the
+    key in Settings repairs them.
+    """
+    from . import crud
+
+    config = db.query(AppConfig).filter(AppConfig.id == 1).first()
+    if not config or not config.api_key or config.api_key.startswith(CONFIG_SECRET_PREFIX):
+        return
+    plaintext = crud.decrypt_api_key(config.api_key)
+    if plaintext is None:
+        logger.warning(
+            "LLM API key could not be decrypted for envelope re-wrap; "
+            "re-save it in Settings to repair."
+        )
+        return
+    config.api_key = crud.encrypt_api_key(plaintext)
     db.commit()
+    logger.info("Re-wrapped LLM API key with envelope encryption")

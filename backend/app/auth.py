@@ -60,6 +60,13 @@ def verify_password(plain: str, hashed: str) -> bool:
 
 
 def derive_user_key(password: str, user: User) -> bytes:
+    """LEGACY password-derived content key — migration ONLY.
+
+    Pre-envelope data was encrypted with this key. Its parameters (fixed salt,
+    PBKDF2-SHA256 100k) are FROZEN: any change makes legacy ciphertext
+    permanently unreadable. New content uses the per-user DEK (envelope.py);
+    the login password no longer derives content keys.
+    """
     salt = f"user_{user.id}_encryption_salt".encode().ljust(32, b"\0")[:32]
     return derive_key(password, salt)
 

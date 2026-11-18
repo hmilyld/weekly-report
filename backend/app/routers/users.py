@@ -6,6 +6,7 @@ from sqlalchemy.orm import Session
 from .. import crud
 from ..auth import get_current_user, hash_password, require_admin, validate_password
 from ..database import get_db
+from ..envelope import provision_user_dek
 from ..models import User
 from ..schemas import ChangeRoleRequest, UserCreate, UserListResponse, UserResponse
 
@@ -44,6 +45,7 @@ def create_user(
     validate_password(body.password)
     pwd_hash = hash_password(body.password)
     user = crud.create_user(db, body.username, pwd_hash, role=body.role)
+    provision_user_dek(db, user)
     return UserResponse.model_validate(user)
 
 

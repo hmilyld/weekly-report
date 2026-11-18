@@ -33,8 +33,8 @@ def list_daily_reports(
         if not end_date:
             end_date = date.today() + timedelta(days=365)
         reports = crud.get_daily_reports_range(db, user.id, start_date, end_date)
-    
-    has_decryption_failed = any(getattr(r, '_decryption_failed', False) for r in reports)
+
+    has_decryption_failed = any(getattr(r, "_decryption_failed", False) for r in reports)
     return {
         "reports": [
             {
@@ -43,7 +43,7 @@ def list_daily_reports(
                 "content": r.content,
                 "created_at": r.created_at.isoformat(),
                 "updated_at": r.updated_at.isoformat(),
-                "_decryption_failed": getattr(r, '_decryption_failed', False),
+                "_decryption_failed": getattr(r, "_decryption_failed", False),
             }
             for r in reports
         ],
@@ -59,7 +59,7 @@ def get_week_daily_reports(
 ):
     """Get daily reports for a specific week (Monday-Sunday)."""
     reports = crud.get_daily_reports_by_week(db, user.id, week_start)
-    has_decryption_failed = any(getattr(r, '_decryption_failed', False) for r in reports)
+    has_decryption_failed = any(getattr(r, "_decryption_failed", False) for r in reports)
     return {
         "reports": [
             {
@@ -68,7 +68,7 @@ def get_week_daily_reports(
                 "content": r.content,
                 "created_at": r.created_at.isoformat(),
                 "updated_at": r.updated_at.isoformat(),
-                "_decryption_failed": getattr(r, '_decryption_failed', False),
+                "_decryption_failed": getattr(r, "_decryption_failed", False),
             }
             for r in reports
         ],

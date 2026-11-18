@@ -31,6 +31,10 @@ class User(Base):
     password_version = Column(Integer, default=0, nullable=False)
     role = Column(String(20), nullable=False, default="user")
     needs_encryption_migration = Column(Boolean, default=True, nullable=False)
+    # Envelope encryption: per-user DEK wrapped with the server KEK.
+    # NULL = legacy user, migrated on next login (see migration.migrate_user_to_dek).
+    wrapped_dek = Column(Text, nullable=True)
+    wrapped_dek_version = Column(Integer, nullable=False, default=1)
     created_at = Column(DateTime, default=_utcnow, nullable=False)
     last_login_at = Column(DateTime, nullable=True)
     daily_reports = relationship("DailyReport", back_populates="user")

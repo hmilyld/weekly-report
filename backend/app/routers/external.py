@@ -18,6 +18,7 @@ from sqlalchemy.orm import Session
 
 from .. import crud
 from ..database import get_db
+from ..encryption_utils import decrypt_daily_entries
 from ..llm_client import generate_weekly_report
 from ..models import User
 from ..models_token import ApiToken
@@ -284,7 +285,9 @@ def generate_current_weekly(
     if not dailies:
         raise HTTPException(status_code=400, detail="本周暂无日报，无法生成周报")
 
-    daily_entries = [(str(d.date), d.content) for d in dailies if d.content.strip()]
+    # Strict decryption: if any entry is unreadable, fail (409) instead of
+    # generating a report from silently missing content.
+    daily_entries = decrypt_daily_entries(dailies, user.id)
     if not daily_entries:
         raise HTTPException(status_code=400, detail="本周日报内容为空，无法生成周报")
 

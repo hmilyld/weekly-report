@@ -6,11 +6,13 @@ from pathlib import Path
 
 from fastapi import FastAPI, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 
 from app.database import Base, SessionLocal, engine
-from app.migration import _cleanup_plaintext_content
+from app.encryption_utils import ContentDecryptionError, EncryptionKeyMissingError
+from app.envelope import get_kek, load_all_user_deks
+from app.migration import _cleanup_plaintext_content, migrate_app_config_secret
 from app.models import AppConfig
 from app.models_token import ApiToken  # noqa: F401 — ensure table is created
 from app.routers import auth, config, daily, external, monthly, tasks, tokens, users, weekly
@@ -35,6 +37,8 @@ def _migrate_db():
                 ("role", "VARCHAR(20) NOT NULL DEFAULT 'user'"),
                 ("needs_encryption_migration", "BOOLEAN NOT NULL DEFAULT 1"),
                 ("last_login_at", "DATETIME"),
+                ("wrapped_dek", "TEXT"),
+                ("wrapped_dek_version", "INTEGER NOT NULL DEFAULT 1"),
             ]
             for col_name, col_def in migrations:
                 if col_name not in columns:
@@ -104,6 +108,20 @@ def _init_db():
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     _init_db()
+    # Envelope encryption: validate the master key, then restore every user's
+    # DEK from the DB so content is readable without anyone logging in.
+    get_kek()  # raises on invalid/missing master key → refuse to start
+    db = SessionLocal()
+    try:
+        migrate_app_config_secret(db)
+        failed = load_all_user_deks(db)
+        if failed:
+            print(
+                f"⚠️  DEK unwrap failed for user ids {failed} — "
+                "check ENCRYPTION_MASTER_KEY; their content is unreadable until fixed"
+            )
+    finally:
+        db.close()
     yield
 
 
@@ -112,6 +130,36 @@ app = FastAPI(
     version="1.0.1",
     lifespan=lifespan,
 )
+
+
+# ─── Encryption error mapping ────────────────────────────
+# Writes without a DEK and reads that cannot decrypt must fail loudly (409),
+# never fall back to plaintext or silently empty content.
+
+
+@app.exception_handler(EncryptionKeyMissingError)
+async def encryption_key_missing_handler(request: Request, exc: EncryptionKeyMissingError):
+    return JSONResponse(
+        status_code=409,
+        content={
+            "code": "encryption_key_missing",
+            "detail": "服务端加密密钥不可用，已拒绝写入。请先在网页端登录一次以完成加密迁移；"
+            "若已登录，请检查 ENCRYPTION_MASTER_KEY 配置。",
+        },
+    )
+
+
+@app.exception_handler(ContentDecryptionError)
+async def content_decryption_handler(request: Request, exc: ContentDecryptionError):
+    return JSONResponse(
+        status_code=409,
+        content={
+            "code": "decryption_failed",
+            "detail": "内容解密失败，操作已中止。请确认 ENCRYPTION_MASTER_KEY 正确，"
+            "且该账号已在网页端登录完成加密迁移。",
+        },
+    )
+
 
 # CORS — if CORS_ORIGINS is set, restrict to those origins; otherwise allow all
 # (self-hosted single-user app, security enforced via JWT/API-Token auth)
