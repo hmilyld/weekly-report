@@ -54,15 +54,25 @@ def backup_before_envelope_migration(db: Session) -> str | None:
     backup_path = os.path.join(data_dir, f"pre-envelope-{stamp}.db")
     fd = os.open(backup_path, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
     os.close(fd)
-    source = sqlite3.connect(db_path)
     try:
-        target = sqlite3.connect(backup_path)
+        source = sqlite3.connect(db_path)
         try:
-            source.backup(target)
+            target = sqlite3.connect(backup_path)
+            try:
+                source.backup(target)
+            finally:
+                target.close()
         finally:
-            target.close()
-    finally:
-        source.close()
+            source.close()
+    except Exception:
+        # Never leave a partial snapshot behind: its presence would make every
+        # later startup skip the backup (glob marker), silently losing the
+        # rollback point. Remove it so the next startup retries.
+        try:
+            os.remove(backup_path)
+        except OSError:
+            logger.warning("Could not remove partial backup file %s", backup_path)
+        raise
     logger.info("Pre-migration backup saved to %s", backup_path)
     return backup_path
 

@@ -67,3 +67,23 @@ class TestPreMigrationBackup:
     def test_skipped_for_empty_database(self, file_db):
         db, _ = file_db
         assert backup_before_envelope_migration(db) is None
+
+    def test_failed_backup_leaves_no_marker_and_retries(self, file_db, monkeypatch):
+        db, db_path = file_db
+        crud.create_user(db, "legacy", "hash")
+        real_connect = sqlite3.connect
+
+        def fake_connect(path, *a, **k):
+            if "pre-envelope" in str(path):
+                raise sqlite3.OperationalError("unable to open database file")
+            return real_connect(path, *a, **k)
+
+        with monkeypatch.context() as m:
+            m.setattr(sqlite3, "connect", fake_connect)
+            with pytest.raises(sqlite3.OperationalError):
+                backup_before_envelope_migration(db)
+
+        # A partial snapshot must not remain: it would suppress all future
+        # backups via the glob marker. Next startup retries and succeeds.
+        assert not list(db_path.parent.glob("pre-envelope-*.db"))
+        assert backup_before_envelope_migration(db) is not None
