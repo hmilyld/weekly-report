@@ -104,6 +104,9 @@ export const createToken = (name = 'default') => api.post('/tokens', { name })
 
 export const deleteToken = (tokenId) => api.delete(`/tokens/${tokenId}`)
 
+/** Revoke every API token of the current account (scripts and other devices). */
+export const revokeAllTokens = () => api.delete('/tokens')
+
 // ─── Tasks ─────────────────────────────────────────────
 export const getTasks = () => api.get('/tasks')
 

@@ -9,6 +9,7 @@ import {
   KeyRound,
   Plus,
   Save,
+  ShieldOff,
   Trash2,
   XCircle,
   Zap,
@@ -19,6 +20,7 @@ import {
   deleteToken,
   getConfig,
   getTokens,
+  revokeAllTokens,
   testConnection,
   updateConfig,
 } from '../api'
@@ -55,6 +57,7 @@ export default function SettingsPage() {
   const [creatingToken, setCreatingToken] = useState(false)
   const [createdToken, setCreatedToken] = useState(null)
   const [deletingId, setDeletingId] = useState(null)
+  const [revokingAll, setRevokingAll] = useState(false)
   const [copied, setCopied] = useState(null)
 
   const loadConfig = useCallback(async () => {
@@ -208,6 +211,31 @@ export default function SettingsPage() {
       toast.error('删除失败')
     } finally {
       setDeletingId(null)
+    }
+  }
+
+  const handleRevokeAll = async () => {
+    const ok = await confirm({
+      title: '吊销全部 Token？',
+      body: '所有脚本、手机端和其他设备上的调用会立刻失效，需要重新创建。网页端登录状态不受影响。',
+      confirmLabel: '全部吊销',
+      tone: 'danger',
+    })
+    if (!ok) return
+    setRevokingAll(true)
+    try {
+      const { data } = await revokeAllTokens()
+      setCreatedToken(null)
+      loadTokens()
+      if (data?.revoked) {
+        toast.success(`已吊销 ${data.revoked} 个 Token`)
+      } else {
+        toast('没有需要吊销的 Token')
+      }
+    } catch {
+      toast.error('吊销失败')
+    } finally {
+      setRevokingAll(false)
     }
   }
 
@@ -491,7 +519,22 @@ export default function SettingsPage() {
             date 与 append 为可选参数：date 默认当天，append 默认 false（覆盖当天内容）。Token
             仅可访问日报/周报/月报/待办接口，不能修改账号或系统配置。
           </p>
+          <p className="field-hint usage-hint">
+            修改密码只会让网页端的登录失效，不会吊销 Token；换机或怀疑泄露时用下方按钮一次性吊销。
+          </p>
         </PanelBody>
+
+        <PanelFooter>
+          <Button
+            variant="danger"
+            icon={ShieldOff}
+            loading={revokingAll}
+            disabled={tokens.length === 0}
+            onClick={handleRevokeAll}
+          >
+            吊销全部 Token
+          </Button>
+        </PanelFooter>
       </Panel>
     </div>
   )
