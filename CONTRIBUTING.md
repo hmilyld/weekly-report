@@ -52,7 +52,7 @@ pnpm dev
 cd backend && uv run ruff check . && uv run ruff format --check . && uv run pytest
 
 # 前端
-cd frontend && pnpm lint && pnpm format:check && pnpm build
+cd frontend && pnpm lint && pnpm format:check && pnpm test && pnpm build
 ```
 
 改动 UI 时，请在 PR 中附截图，并检查 1440px 与 390px 两种宽度、亮色与暗色两种主题。

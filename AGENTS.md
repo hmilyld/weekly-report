@@ -61,6 +61,7 @@ reference for agents (lint, test, release).
 | `pnpm dev` | Vite dev server on `:5173`, proxies `/api` to `:18001` |
 | `pnpm build` | Production build |
 | `pnpm lint` / `pnpm lint:fix` | ESLint check / auto-fix |
+| `pnpm test` / `pnpm test:watch` | Vitest unit tests (one run / watch mode) |
 | `pnpm format` / `pnpm format:check` | Prettier format / check |
 | `pnpm generate:icons` | Regenerate PWA SVG icons |
 
@@ -133,7 +134,7 @@ The visual system is documented in `DESIGN.md` and is not re-decided per screen.
 ## Testing
 
 - **Backend:** Pytest in `backend/tests/` (`test_crypto.py`, `test_envelope.py`, `test_dek_migration.py`, `test_pre_migration_backup.py`, `test_crud_encryption.py`, `test_key_cache.py`, `test_login_migration.py`, `test_unified_auth.py`, `test_unified_api.py`, `test_settings.py`, `test_auth_hardening.py`, `test_config_api.py`, `test_token_lifecycle.py`, `test_input_validation.py`, `test_llm_url_guard.py`, `test_data_layer.py`, `test_response_contract.py`). Run: `cd backend && uv run pytest`. `tests/conftest.py` sets a fixed `ENCRYPTION_MASTER_KEY` and provides the `api_env` TestClient fixture (its `get_db` override mirrors production: commit on success, rollback on error).
-- **Frontend:** No test suite. Before committing UI work, run `pnpm lint`, `pnpm format:check` and `pnpm build`, and check the page at 1440px and 390px in both themes.
+- **Frontend:** Vitest + jsdom + Testing Library in `src/**/__tests__/` (`date.test.js`, `listInput.test.js`, `clipboard.test.js`, `api/__tests__/index.test.js`, `components/ui/__tests__/Button.test.jsx`). Run: `cd frontend && pnpm test`. `src/test/setup.js` loads jest-dom matchers and a memory `localStorage` (Node 25's global stub has no methods). Unit tests cover pure logic and the API client; UI changes still need a manual pass at 1440px and 390px in both themes.
 
 ## Commit Conventions
 

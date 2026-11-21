@@ -80,5 +80,8 @@ jobs:
       - name: Format check (prettier)
         run: pnpm format:check
 
+      - name: Test (vitest)
+        run: pnpm test
+
       - name: Build
         run: pnpm build

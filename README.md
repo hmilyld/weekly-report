@@ -100,6 +100,7 @@ uv run uvicorn main:app --reload --port 18001
 cd frontend
 pnpm install
 pnpm dev        # http://localhost:5173，/api 代理到 :18001
+pnpm test       # 单元测试（vitest）
 pnpm build      # 产物在 frontend/dist，后端会直接托管
 pnpm generate:icons   # 重新生成应用图标（SVG；装了 ffmpeg 时同时输出 PNG）
 ```
