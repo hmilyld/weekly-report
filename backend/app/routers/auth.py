@@ -5,7 +5,6 @@ import time
 from threading import Lock
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
-from pydantic import BaseModel, Field
 from sqlalchemy import exists, insert, literal, select
 from sqlalchemy.orm import Session
 
@@ -22,7 +21,13 @@ from ..database import get_db
 from ..envelope import ensure_user_dek, provision_user_dek
 from ..migration import migrate_user_to_dek
 from ..models import User
-from ..schemas import LoginRequest, PasswordChange, TokenResponse
+from ..schemas import (
+    LoginRequest,
+    PasswordChange,
+    SetupRequest,
+    SetupStatus,
+    TokenResponse,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -86,18 +91,6 @@ def _record_failure(key: str) -> None:
 def _rate_limit_keys(request: Request, username: str) -> tuple[str, str]:
     client_ip = request.client.host if request.client else "unknown"
     return f"login:ip:{client_ip}", f"login:user:{username.strip().lower()}"
-
-
-# ─── Schemas ────────────────────────────────────────────
-
-
-class SetupRequest(BaseModel):
-    username: str = Field(min_length=2, max_length=50)
-    password: str = Field(min_length=8, max_length=100)
-
-
-class SetupStatus(BaseModel):
-    needs_setup: bool
 
 
 # ─── Endpoints ──────────────────────────────────────────

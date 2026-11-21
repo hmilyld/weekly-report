@@ -17,44 +17,32 @@ from ..encryption_utils import (
 )
 from ..llm_client import generate_weekly_report
 from ..models import User
-from ..schemas import WeeklyReportResponse, WeeklyReportUpdate
+from ..schemas import (
+    WeeklyReportItem,
+    WeeklyReportListResponse,
+    WeeklyReportResponse,
+    WeeklyReportUpdate,
+)
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/v1/weekly", tags=["weekly"])
 
 
-def _get_week_bounds(week_start: date) -> tuple[date, date]:
-    """Return (week_start, week_end) where week_end = week_start + 6 days."""
-    return week_bounds(week_start)
-
-
-@router.get("")
+@router.get("", response_model=WeeklyReportListResponse)
 def list_weekly_reports(
     user: User = Depends(get_authenticated_user),
     db: Session = Depends(get_db),
 ):
     """List all saved weekly reports."""
     reports = crud.get_weekly_reports(db, user.id)
-    has_decryption_failed = any(getattr(r, "_decryption_failed", False) for r in reports)
-    return {
-        "reports": [
-            {
-                "id": r.id,
-                "week_start": str(r.week_start),
-                "week_end": str(r.week_end),
-                "content": r.content,
-                "model_name": r.model_name,
-                "generated_at": r.generated_at.isoformat(),
-                "_decryption_failed": getattr(r, "_decryption_failed", False),
-            }
-            for r in reports
-        ],
-        "_decryption_failed": has_decryption_failed,
-    }
+    return WeeklyReportListResponse(
+        reports=reports,
+        decryption_failed=any(getattr(report, "_decryption_failed", False) for report in reports),
+    )
 
 
-@router.get("/{week_start}")
+@router.get("/{week_start}", response_model=WeeklyReportItem)
 def get_weekly_report(
     week_start: date,
     user: User = Depends(get_authenticated_user),
@@ -64,15 +52,7 @@ def get_weekly_report(
     report = crud.get_weekly_report(db, user.id, week_start)
     if not report:
         raise HTTPException(status_code=404, detail="Weekly report not found")
-    return {
-        "id": report.id,
-        "week_start": str(report.week_start),
-        "week_end": str(report.week_end),
-        "content": report.content,
-        "model_name": report.model_name,
-        "generated_at": report.generated_at.isoformat(),
-        "_decryption_failed": getattr(report, "_decryption_failed", False),
-    }
+    return report
 
 
 @router.post("/{week_start}", response_model=WeeklyReportResponse)
@@ -108,7 +88,7 @@ def update_weekly_report(
 
 
 def _generate(db: Session, user_id: int, week_start: date, force: bool = True) -> tuple:
-    week_start, week_end = _get_week_bounds(week_start)
+    week_start, week_end = week_bounds(week_start)
 
     if not force:
         existing = crud.get_weekly_report(db, user_id, week_start)

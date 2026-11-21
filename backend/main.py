@@ -11,143 +11,50 @@ from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 
 from app.config import settings
-from app.database import Base, SessionLocal, engine
+from app.database import SessionLocal
 from app.encryption_utils import ContentDecryptionError, EncryptionKeyMissingError
 from app.envelope import get_kek, load_all_user_deks
-from app.migration import (
-    backup_before_envelope_migration,
-    cleanup_plaintext_content,
-    migrate_app_config_secret,
-)
-from app.models import AppConfig
-from app.models_token import ApiToken  # noqa: F401 — ensure table is created
+from app.migration import migrate_app_config_secret
 from app.routers import auth, config, daily, monthly, tasks, tokens, users, weekly
+from app.schema_migrations import init_database
 
 logger = logging.getLogger(__name__)
 
 
-def _migrate_db():
-    """Add missing columns to existing tables (SQLite ALTER TABLE)."""
-    from sqlalchemy import inspect, text
-
-    try:
-        existing_tables = inspect(engine).get_table_names()
-    except Exception as e:
-        print(f"⚠️  Migration: cannot inspect tables: {e}")
-        return
-
-    # ── users table ────────────────────────────────────────
-    if "users" in existing_tables:
-        try:
-            columns = {col["name"] for col in inspect(engine).get_columns("users")}
-            migrations = [
-                ("password_version", "INTEGER NOT NULL DEFAULT 0"),
-                ("role", "VARCHAR(20) NOT NULL DEFAULT 'user'"),
-                ("needs_encryption_migration", "BOOLEAN NOT NULL DEFAULT 1"),
-                ("last_login_at", "DATETIME"),
-                ("wrapped_dek", "TEXT"),
-                ("wrapped_dek_version", "INTEGER NOT NULL DEFAULT 1"),
-            ]
-            for col_name, col_def in migrations:
-                if col_name not in columns:
-                    with engine.begin() as conn:
-                        conn.execute(text(f"ALTER TABLE users ADD COLUMN {col_name} {col_def}"))
-                    print(f"✅ Migration: added users.{col_name}")
-            if "role" not in columns:
-                with engine.begin() as conn:
-                    conn.execute(text("UPDATE users SET role = 'admin' WHERE id = 1"))
-        except Exception as e:
-            print(f"⚠️  Migration users failed: {e}")
-    else:
-        print("ℹ️  users table does not exist yet (first run)")
-
-    # ── encryption columns for each content table ──────────
-    for table in ("daily_reports", "weekly_reports", "tasks", "monthly_reports"):
-        if table not in existing_tables:
-            continue
-        try:
-            columns = {col["name"] for col in inspect(engine).get_columns(table)}
-            enc_cols = [
-                ("content_encrypted", "TEXT"),
-                ("content_salt", "VARCHAR(64)"),
-                ("content_nonce", "VARCHAR(64)"),
-                ("content_tag", "VARCHAR(64)"),
-                ("content_version", "INTEGER"),
-            ]
-            for col_name, col_def in enc_cols:
-                if col_name not in columns:
-                    with engine.begin() as conn:
-                        conn.execute(text(f"ALTER TABLE {table} ADD COLUMN {col_name} {col_def}"))
-                    print(f"✅ Migration: added {table}.{col_name}")
-        except Exception as e:
-            print(f"⚠️  Migration {table} failed: {e}")
+def configure_logging() -> None:
+    """Make application INFO logs visible; uvicorn only configures its own loggers."""
+    logging.basicConfig(
+        level=os.getenv("LOG_LEVEL", "INFO").upper(),
+        format="%(asctime)s %(levelname)-7s %(name)s: %(message)s",
+    )
+    # The LLM client logs every request at INFO; keep the app's log readable.
+    logging.getLogger("httpx").setLevel(logging.WARNING)
 
 
-def _init_db():
-    """Create tables and seed defaults on first run."""
-    try:
-        Base.metadata.create_all(bind=engine)
-        print("✅ Database tables created/verified")
-        _migrate_db()
-        # One-time safety snapshot BEFORE any destructive upgrade step, so the
-        # irreversible envelope migration always has a rollback point.
-        backup_db = SessionLocal()
-        try:
-            backup_path = backup_before_envelope_migration(backup_db)
-        finally:
-            backup_db.close()
-        if backup_path:
-            print(
-                f"✅ Pre-migration backup saved: {backup_path} (0600, keep until upgrade verified)"
-            )
-        with SessionLocal() as cleanup_db:
-            cleanup_plaintext_content(cleanup_db)
-    except Exception as e:
-        print(f"❌ Database init failed: {e}")
-        raise
-
-    db = SessionLocal()
-    try:
-        # Seed default config only (users are created via /api/v1/auth/setup)
-        if not db.query(AppConfig).filter(AppConfig.id == 1).first():
-            cfg = AppConfig(
-                id=1,
-                llm_api_url="http://localhost:11434/v1/chat/completions",
-                llm_model_name="llama2",
-                api_key="",
-            )
-            db.add(cfg)
-        db.commit()
-    except Exception:
-        db.rollback()
-        raise
-    finally:
-        db.close()
+configure_logging()
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    _init_db()
+    init_database()
     # Envelope encryption: validate the master key, then restore every user's
     # DEK from the DB so content is readable without anyone logging in.
     get_kek()  # raises on invalid/missing master key → refuse to start
-    db = SessionLocal()
-    try:
+    with SessionLocal() as db:
         migrate_app_config_secret(db)
         failed = load_all_user_deks(db)
-        if failed:
-            print(
-                f"⚠️  DEK unwrap failed for user ids {failed} — "
-                "check ENCRYPTION_MASTER_KEY; their content is unreadable until fixed"
-            )
-    finally:
-        db.close()
+    if failed:
+        logger.warning(
+            "DEK unwrap failed for user ids %s — check ENCRYPTION_MASTER_KEY; "
+            "their content is unreadable until fixed",
+            failed,
+        )
     yield
 
 
 app = FastAPI(
     title="Weekly Report System",
-    version="1.0.1",
+    version=os.getenv("APP_VERSION", "dev"),
     lifespan=lifespan,
 )
 
@@ -260,7 +167,11 @@ def resolve_static_file(full_path: str) -> Path | None:
 if STATIC_DIR.exists():
     app.mount("/assets", StaticFiles(directory=str(STATIC_DIR / "assets")), name="assets")
 
-    @app.api_route("/{full_path:path}", methods=["GET", "POST", "PUT", "DELETE", "PATCH"])
+    @app.api_route(
+        "/{full_path:path}",
+        methods=["GET", "POST", "PUT", "DELETE", "PATCH"],
+        include_in_schema=False,
+    )
     async def serve_spa(full_path: str, request: Request):
         """SPA catch-all.
 

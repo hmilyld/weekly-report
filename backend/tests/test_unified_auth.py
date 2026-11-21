@@ -5,7 +5,7 @@ from datetime import UTC, date, datetime, timedelta
 from app import crud
 from app.auth import create_access_token
 from app.envelope import provision_user_dek
-from app.models_token import ApiToken, generate_api_token
+from app.models import ApiToken, generate_api_token
 
 
 def _make_user(db, username="alice", role="user"):

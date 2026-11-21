@@ -13,8 +13,7 @@ from sqlalchemy.orm import Session
 from .config import settings
 from .crypto import derive_key
 from .database import get_db
-from .models import User
-from .models_token import ApiToken
+from .models import ApiToken, User
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 # Dual-auth variant: does not raise when the Authorization header is absent, so

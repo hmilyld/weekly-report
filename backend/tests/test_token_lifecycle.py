@@ -3,7 +3,7 @@
 from app import crud
 from app.auth import create_access_token, hash_password
 from app.envelope import provision_user_dek
-from app.models_token import ApiToken, generate_api_token
+from app.models import ApiToken, generate_api_token
 
 
 def _token_user(db, username):

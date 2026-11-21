@@ -1,5 +1,6 @@
 """SQLAlchemy ORM models."""
 
+import secrets
 from datetime import UTC, datetime
 
 from sqlalchemy import (
@@ -131,3 +132,23 @@ class Task(Base):
     is_completed = Column(Boolean, default=False, nullable=False)
     created_at = Column(DateTime, default=_utcnow, nullable=False)
     updated_at = Column(DateTime, default=_utcnow, onupdate=_utcnow, nullable=False)
+
+
+class ApiToken(Base):
+    """API token for token-based data access (web automation, Android client)."""
+
+    __tablename__ = "api_tokens"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    name = Column(String(100), nullable=False, default="default")
+    token = Column(String(64), unique=True, nullable=False, index=True)
+    created_at = Column(DateTime, default=_utcnow, nullable=False)
+    last_used_at = Column(DateTime, nullable=True)
+
+    user = relationship("User")
+
+
+def generate_api_token() -> str:
+    """Generate a secure random API token."""
+    return secrets.token_hex(32)  # 64 chars

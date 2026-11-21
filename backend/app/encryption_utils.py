@@ -60,7 +60,8 @@ def decrypt_record_content(model, user_id: int) -> str:
     key = key_cache.get(user_id)
     if not key:
         raise ContentDecryptionError(f"No encryption key available for user {user_id}")
-    aad = content_aad(model, user_id) if model.content_version == CONTENT_VERSION_DEK else None
+    version = model.content_version or CONTENT_VERSION_LEGACY
+    aad = content_aad(model, user_id) if version == CONTENT_VERSION_DEK else None
     try:
         return decrypt_content(
             {
@@ -94,10 +95,6 @@ def decrypt_model_content(model, user_id: int) -> None:
         model._decryption_failed = False
     except ContentDecryptionError:
         model._decryption_failed = True
-
-
-# Backwards-compatible name used across crud/routers.
-_decrypt_model_content = decrypt_model_content
 
 
 def decrypt_daily_entries(dailies: list, user_id: int) -> list[tuple[str, str]]:

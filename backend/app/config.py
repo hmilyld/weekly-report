@@ -85,10 +85,6 @@ class Settings(BaseSettings):
         validation_alias=AliasChoices("DATABASE_URL"),
     )
 
-    # Default LLM
-    default_llm_api_url: str = "https://api.deepseek.com/v1/chat/completions"
-    default_llm_model: str = "deepseek-v4-flash"
-
     @property
     def is_production(self) -> bool:
         return self.environment.strip().lower() == "production"
