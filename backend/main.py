@@ -144,9 +144,16 @@ async def health():
 
 
 # ─── Serve frontend static files ────────────────────────
-STATIC_DIR = Path(__file__).resolve().parent.parent / "frontend" / "dist"
-if not STATIC_DIR.exists():
-    STATIC_DIR = Path("/app/frontend/dist")
+# Repo layout: backend/main.py → ../frontend/dist
+# Image layout: /app/main.py     → /app/frontend/dist
+_STATIC_CANDIDATES = (
+    Path(__file__).resolve().parent / "frontend" / "dist",
+    Path(__file__).resolve().parent.parent / "frontend" / "dist",
+)
+STATIC_DIR = next(
+    (candidate for candidate in _STATIC_CANDIDATES if candidate.exists()),
+    _STATIC_CANDIDATES[0],
+)
 
 
 def resolve_static_file(full_path: str) -> Path | None:
@@ -165,7 +172,9 @@ def resolve_static_file(full_path: str) -> Path | None:
 
 
 if STATIC_DIR.exists():
-    app.mount("/assets", StaticFiles(directory=str(STATIC_DIR / "assets")), name="assets")
+    _assets_dir = STATIC_DIR / "assets"
+    if _assets_dir.is_dir():
+        app.mount("/assets", StaticFiles(directory=str(_assets_dir)), name="assets")
 
     @app.api_route(
         "/{full_path:path}",
