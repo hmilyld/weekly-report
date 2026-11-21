@@ -11,9 +11,9 @@ Android 客户端与网页端使用**同一套 `/api/v1` 数据接口**，认证
 X-API-Token: <token>
 ```
 
-- Token 仅具备**数据权限**：可读写日报 / 周报 / 月报 / 待办；调用 `/auth/change-password`、`/auth/logout`、`/config`、`/users`、`/tokens` 会返回 `403`（`/auth/login`、`/auth/status`、`/auth/setup` 本身无需认证）。
+- Token 仅具备**数据权限**：可读写日报 / 周报 / 月报 / 待办；调用 `/auth/change-password`、`/auth/logout`、`/config`、`/users`、`/tokens` 会返回 `401`（凭据类型不被接受；`403` 只表示已认证但角色不足）。`/auth/login`、`/auth/status`、`/auth/setup` 本身无需认证。
 - 若同时携带 JWT 与 Token，以 JWT 为准；JWT 无效时不会回退到 Token。客户端固定用一种认证方式即可。
-- 当前版本 Token 为长期有效、明文存储（加固计划见 README）。在 Android 端应存入 `EncryptedSharedPreferences` / Keystore，不要写入日志或明文备份。
+- 当前版本 Token 为长期有效、明文存储、改密不会自动吊销（加固计划见 README）。需要作废时，用 JWT 调用 `DELETE /api/v1/tokens`（吊销全部）或 `DELETE /api/v1/tokens/{id}`。在 Android 端应存入 `EncryptedSharedPreferences` / Keystore，不要写入日志或明文备份。
 
 ## 2. 端点
 
@@ -79,8 +79,9 @@ POST /api/v1/weekly/2026-11-16?force=false
 
 | 状态码 | `code` / 含义 | 客户端处理 |
 |---|---|---|
+| 400 | 参数越界（如周起始日超范围、截止日期早于今天） | 修正请求参数 |
 | 401 | Token 无效或已删除 | 提示重新生成 Token |
-| 403 | 访问了管理类接口 | Token 不具备该权限，改用网页端 |
+| 403 | 已认证但角色不足 | 改用管理员账号，或改用网页端 |
 | 404 | 周报/月报尚未生成 | 展示"未生成"，可触发生成 |
 | 409 | `encryption_key_missing` | 账号尚未完成加密迁移：提示先在网页端登录一次 |
 | 409 | `decryption_failed` | 内容无法解密：提示检查服务端密钥配置 |
@@ -98,3 +99,9 @@ POST /api/v1/weekly/2026-11-16?force=false
 | `GET /external/tasks/pending` | `GET /tasks/pending` |
 | `POST /external/tasks` | `POST /tasks` |
 | `GET /external/docs` | `GET /openapi.json` |
+
+## 6. 认证失败与 Token 管理
+
+- `401`：未带凭据、Token 无效、或 JWT 已过期/因改密失效——重新登录或改用新 Token。
+- `403`：凭据类型不对（例如用 API Token 访问 `/config`、`/users`、`/tokens`）或角色不足。
+- 改密**不会**吊销 API Token；需要吊销时用 JWT 调用 `DELETE /api/v1/tokens`（吊销全部）或 `DELETE /api/v1/tokens/{id}`。
