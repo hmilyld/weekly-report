@@ -11,6 +11,7 @@
 ## 目录
 
 - [功能](#功能)
+- [界面](#界面)
 - [快速开始（Docker）](#快速开始docker)
 - [本地开发](#本地开发)
 - [发布与部署](#发布与部署)
@@ -40,6 +41,20 @@
 | 管理自己的 API Token | ✓ | ✓ |
 | 大模型配置 | ✓ | ✗ |
 | 用户管理（创建 / 删除 / 改角色） | ✓ | ✗ |
+
+---
+
+## 界面
+
+以下截图使用示例数据（账号 `demo`）。
+
+| 日报（桌面） | 日报（手机） |
+|---|---|
+| ![日报管理](docs/images/daily-desktop-light.png) | ![日报管理（手机）](docs/images/daily-mobile-light.png) |
+
+| 工作待办 | 暗色模式 |
+|---|---|
+| ![工作待办](docs/images/tasks-desktop-light.png) | ![暗色模式](docs/images/daily-desktop-dark.png) |
 
 ---
 
