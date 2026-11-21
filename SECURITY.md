@@ -39,7 +39,8 @@
 
 | 依赖 | 公告 | 当前处置 |
 |---|---|---|
-| `python-jose` 3.5.0 / `ecdsa` 0.19.2 | PYSEC-2026-4298、PYSEC-2026-1325（**上游无修复版本**） | 记录并接受；根治方案是迁移到 PyJWT 并移除 ecdsa，属破坏性变更，排在后续版本 |
+| `python-jose` 3.5.0 | PYSEC-2026-4298：HMAC 初始化接受未加 PEM 包装的非对称公钥，攻击者在算法未显式限制时可用服务公钥伪造 HS256 Token | 本项目只用 HS256 + 对称密钥，`jwt.decode(..., algorithms=[...])` 显式限制算法，从不配置非对称密钥，因此不可利用；根治仍需迁移到 PyJWT |
+| `ecdsa` 0.19.2 | PYSEC-2026-1325：P-256 上的 Minerva 时序攻击，仅在调用 `SigningKey.sign_digest()` 时成立 | 本项目不生成也不校验任何 ECDSA 签名，该依赖只是 python-jose 的传递项，不在执行路径上 |
 | `react-router` 6.30.6（经 `react-router-dom`） | 开放重定向（`<Link>` / `useNavigate` 反斜杠）、SSR 水合 `deserializeErrors()` 构造器注入；修复需 ≥ 7.18.0 | 本项目是纯客户端渲染，没有 SSR 水合路径；导航目标全部来自代码内固定路由，不接受用户输入 |
 | `starlette` | 7 条 PYSEC（旧版） | 已随 FastAPI 0.165.0 升到 1.10.0，均已修复 |
 
