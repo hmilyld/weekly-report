@@ -1,0 +1,71 @@
+name: Bug 报告
+description: 报告可以复现的问题
+title: '[Bug]: '
+body:
+  - type: markdown
+    attributes:
+      value: |
+        感谢反馈。提交前请先搜索现有 issue，并确认内容中不含密钥、Token 或真实的日报内容。
+        安全问题请勿在这里公开，见 [SECURITY.md](../blob/main/SECURITY.md)。
+
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: 现象
+      description: 实际发生了什么，与预期有什么不同
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: 复现步骤
+      placeholder: |
+        1. 打开「日报」页面
+        2. 选择某一天并保存
+        3. 刷新后……
+    validations:
+      required: true
+
+  - type: input
+    id: version
+    attributes:
+      label: 版本
+      description: 页面页脚显示的版本号，或镜像标签 / commit
+      placeholder: 1.1.0
+    validations:
+      required: true
+
+  - type: dropdown
+    id: deploy
+    attributes:
+      label: 部署方式
+      options:
+        - Docker / docker compose
+        - 本地开发（uvicorn + vite）
+        - 其他
+    validations:
+      required: true
+
+  - type: input
+    id: environment
+    attributes:
+      label: 浏览器或客户端
+      placeholder: Chrome 130 / Android 客户端 / iOS Safari
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: 相关日志或截图
+      description: 后端日志请删掉 Token、密钥与数据库内容
+      render: shell
+
+  - type: checkboxes
+    id: confirm
+    attributes:
+      label: 确认
+      options:
+        - label: 我已搜索现有 issue，没有重复
+          required: true
+        - label: 内容中不含密钥、Token 或真实日报内容
+          required: true

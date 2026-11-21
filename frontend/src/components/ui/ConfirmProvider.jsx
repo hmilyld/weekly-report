@@ -1,8 +1,7 @@
-import { createContext, useCallback, useContext, useMemo, useRef, useState } from 'react'
+import { useCallback, useMemo, useRef, useState } from 'react'
 import Modal from './Modal'
 import Button from './Button'
-
-const ConfirmContext = createContext(null)
+import { ConfirmContext } from './confirm'
 
 /**
  * Replaces window.confirm across the product: same call shape, but the
@@ -64,10 +63,4 @@ export function ConfirmProvider({ children }) {
       )}
     </ConfirmContext.Provider>
   )
-}
-
-export function useConfirm() {
-  const ctx = useContext(ConfirmContext)
-  if (!ctx) throw new Error('useConfirm must be used within ConfirmProvider')
-  return ctx
 }

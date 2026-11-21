@@ -8,6 +8,7 @@ configured.
 
 import base64
 import binascii
+import logging
 import os
 import secrets
 from pathlib import Path
@@ -17,6 +18,8 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 MIN_JWT_SECRET_BYTES = 32
 MASTER_KEY_BYTES = 32
+
+logger = logging.getLogger(__name__)
 
 # Values shipped in docs/examples must never be accepted as a real signing key.
 _PLACEHOLDER_JWT_SECRETS = {
@@ -126,7 +129,9 @@ class Settings(BaseSettings):
                 "JWT_SECRET_KEY environment variable is required in production. "
                 'Generate one with: python -c "import secrets; print(secrets.token_urlsafe(64))"'
             )
-        print("⚠️  JWT_SECRET_KEY not set — using random key (tokens will be invalid on restart)")
+        logger.warning(
+            "JWT_SECRET_KEY not set — using a random key; tokens will be invalid after restart"
+        )
         return _generate_jwt_secret()
 
     def _resolve_master_key(self) -> str:
@@ -147,7 +152,7 @@ class Settings(BaseSettings):
         if is_in_memory_database(self.database_url):
             # Nothing survives a restart with an in-memory database, so keep the
             # key in memory instead of dropping a stray file in the CWD.
-            print("⚠️  ENCRYPTION_MASTER_KEY not set — using a throwaway key for :memory:")
+            logger.warning("ENCRYPTION_MASTER_KEY not set — using a throwaway key for :memory:")
             return _generate_master_key()
         key_path = self.dev_key_path
         if key_path.exists():
@@ -159,7 +164,9 @@ class Settings(BaseSettings):
         fd = os.open(key_path, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
         with os.fdopen(fd, "w", encoding="ascii") as f:
             f.write(key + "\n")
-        print(f"⚠️  ENCRYPTION_MASTER_KEY not set — generated dev key at {key_path} (keep it safe)")
+        logger.warning(
+            "ENCRYPTION_MASTER_KEY not set — generated dev key at %s (keep it safe)", key_path
+        )
         return key
 
 

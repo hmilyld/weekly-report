@@ -10,8 +10,10 @@ weekly-report/
 │   ├── src/
 │   │   ├── api/         # Axios instance + API wrappers
 │   │   ├── components/  # CalendarView, WeekList, DailyEditModal, ReportWorkspace
+│   │   │   ├── settings/  # LlmPanel, PasswordPanel, TokenPanel
+│   │   │   ├── tasks/     # TaskEditor, TaskRow, TaskComposer, deadline helpers
 │   │   │   └── ui/        # Button, Field, PasswordInput, Panel, Modal, ConfirmProvider, PeriodBar…
-│   │   ├── contexts/    # AuthContext, ThemeContext
+│   │   ├── contexts/    # Auth/Theme providers + auth.js/theme.js hooks
 │   │   ├── hooks/       # Custom hooks (useMediaQuery)
 │   │   ├── pages/       # DailyReport, WeeklyReport, MonthlyReport, Tasks, Settings, UserManagement…
 │   │   ├── styles/      # tokens.css → base.css → components.css → app.css
@@ -38,9 +40,9 @@ weekly-report/
 │   │   └── llm_client.py# OpenAI-compatible LLM client (+ SSRF guard)
 │   ├── tests/           # Pytest: crypto, envelope, DEK migration, API/auth contracts…
 │   └── main.py          # App entry, lifespan, error mapping, static SPA serving
-├── .github/workflows/ # release-image.yml (tag → ghcr.io)
+├── .github/workflows/ # ci.yml (PR gate), release-image.yml (tag → ghcr.io)
 ├── scripts/           # dev.sh (dev helper), docker-publish.sh (Docker Hub)
-├── Dockerfile         # Multi-stage build (Node 20 + Python 3.11)
+├── Dockerfile         # Multi-stage build (Node 24 + Python 3.11)
 ├── docker-compose.yml
 ├── README.md          # Project intro + usage (users/operators)
 ├── PRODUCT.md         # Product truth
@@ -61,6 +63,7 @@ reference for agents (lint, test, release).
 | `pnpm dev` | Vite dev server on `:5173`, proxies `/api` to `:18001` |
 | `pnpm build` | Production build |
 | `pnpm lint` / `pnpm lint:fix` | ESLint check / auto-fix |
+| `pnpm test` / `pnpm test:watch` | Vitest unit tests (one run / watch mode) |
 | `pnpm format` / `pnpm format:check` | Prettier format / check |
 | `pnpm generate:icons` | Regenerate PWA SVG icons |
 
@@ -69,11 +72,13 @@ reference for agents (lint, test, release).
 | Command | Description |
 |---|---|
 | `uv venv` | Create Python virtual environment |
-| `uv pip install -r requirements.txt` | Install dependencies |
+| `uv pip install -r requirements.txt` | Install runtime dependencies |
+| `uv pip install -r requirements.txt -r dev-requirements.txt` | Install runtime + dev tooling (ruff, pytest) |
 | `uv run uvicorn main:app --reload --port 18001` | Dev server |
 | `uv run ruff check .` | Lint |
 | `uv run ruff format .` | Format |
 | `uv run pytest` | Run tests |
+| `uv run pytest --cov=app --cov-report=term-missing` | Run tests with a coverage report (what CI prints) |
 
 ### Dev Helper (project root)
 
@@ -131,8 +136,8 @@ The visual system is documented in `DESIGN.md` and is not re-decided per screen.
 
 ## Testing
 
-- **Backend:** Pytest in `backend/tests/` (`test_crypto.py`, `test_envelope.py`, `test_dek_migration.py`, `test_pre_migration_backup.py`, `test_crud_encryption.py`, `test_key_cache.py`, `test_login_migration.py`, `test_unified_auth.py`, `test_unified_api.py`, `test_settings.py`, `test_auth_hardening.py`, `test_config_api.py`, `test_token_lifecycle.py`, `test_input_validation.py`, `test_llm_url_guard.py`, `test_data_layer.py`, `test_response_contract.py`). Run: `cd backend && uv run pytest`. `tests/conftest.py` sets a fixed `ENCRYPTION_MASTER_KEY` and provides the `api_env` TestClient fixture (its `get_db` override mirrors production: commit on success, rollback on error).
-- **Frontend:** No test suite. Before committing UI work, run `pnpm lint`, `pnpm format:check` and `pnpm build`, and check the page at 1440px and 390px in both themes.
+- **Backend:** Pytest in `backend/tests/` (`test_crypto.py`, `test_envelope.py`, `test_dek_migration.py`, `test_pre_migration_backup.py`, `test_crud_encryption.py`, `test_key_cache.py`, `test_login_migration.py`, `test_unified_auth.py`, `test_unified_api.py`, `test_settings.py`, `test_auth_hardening.py`, `test_config_api.py`, `test_token_lifecycle.py`, `test_input_validation.py`, `test_llm_url_guard.py`, `test_data_layer.py`, `test_response_contract.py`). Run: `cd backend && uv run pytest`. `tests/conftest.py` sets a fixed `ENCRYPTION_MASTER_KEY` and provides the `api_env` TestClient fixture (its `get_db` override mirrors production: commit on success, rollback on error). CI runs the same suite on Python 3.11 and 3.12 with `pytest-cov` and prints the coverage table; it is informational, not a gate.
+- **Frontend:** Vitest + jsdom + Testing Library in `src/**/__tests__/` (utils: date/listInput/clipboard; api client; ui: Button/Field/PasswordInput/PeriodBar; pages: Settings; `useMediaQuery` hook). Run: `cd frontend && pnpm test`. `src/test/setup.js` loads jest-dom matchers and a memory `localStorage` (Node 25's global stub has no methods). Unit tests cover pure logic and the API client; UI changes still need a manual pass at 1440px and 390px in both themes.
 
 ## Commit Conventions
 
@@ -168,7 +173,8 @@ Prefixes: `feat`, `fix`, `style`, `refactor`, `docs`. Description in Chinese is 
 - **Auth semantics:** `401` = missing/invalid credential, `402` = wrong current password inside a valid session, `403` = authenticated but not admin. `get_current_user` uses `HTTPBearer(auto_error=False)` so it answers 401 itself.
 - **Migrations** run automatically on startup via `app/schema_migrations.py` (additive only); no Alembic.
 - **SQLite concurrency:** the connect hook sets `journal_mode=WAL`, `foreign_keys=ON`, `busy_timeout=5000`. Live backups must include `-wal`/`-shm`, or stop the container first.
-- **Dependencies:** `backend/requirements.txt` is the single source of truth; there is no committed lock file (`uv.lock` is ignored). Verify a bump in a throwaway env: `uv venv --python 3.11 /tmp/x && VIRTUAL_ENV=/tmp/x uv pip install -r requirements.txt`.
+- **Dependencies:** `backend/requirements.txt` is the single source of truth for runtime packages; dev tooling (ruff, pytest, pytest-cov) lives in `backend/dev-requirements.txt` and is never installed into the image. There is no committed lock file (`uv.lock` is ignored). Verify a bump in a throwaway env: `uv venv --python 3.11 /tmp/x && uv pip install --python /tmp/x/bin/python -r requirements.txt -r dev-requirements.txt`.
+- **Dependency scanning:** `uvx pip-audit -r backend/requirements.txt` for Python; `cd frontend && pnpm audit --prod --registry https://registry.npmjs.org` for npm — the default mirror (npmmirror) has no audit endpoint, so the registry flag is required. Two gaps have no fix on the current major versions and are recorded in `SECURITY.md`: `python-jose`/`ecdsa` (only PyJWT removes them) and `react-router < 7.18.0` (SSR-hydration and redirect advisories; this app is client-side only and never navigates to user-supplied URLs).
 - **Reverse proxy:** the login rate limiter keys on `request.client.host`, so behind a proxy set `FORWARDED_ALLOW_IPS` (uvicorn honours it) or every client shares one bucket.
 - **Settings:** secrets are resolved in `model_validator(mode="after")` so `ENV`/`JWT_SECRET_KEY`/`ENCRYPTION_MASTER_KEY` in `.env` are honored. Production refuses to start without them; placeholder/short JWT keys are rejected. The `data/.encryption_key` fallback is written only when no master key is configured (development).
 - **LLM URL guard:** `ipaddress`-based after DNS resolution; loopback is allowed on purpose (local Ollama), private/link-local/reserved ranges are rejected.
@@ -180,9 +186,17 @@ Prefixes: `feat`, `fix`, `style`, `refactor`, `docs`. Description in Chinese is 
 
 | File | Owns | Keep out of it |
 |---|---|---|
-| `README.md` | Project intro, features, install/usage, env vars, API reference | Product rationale, design tokens, agent rules |
+| `README.md` | Project intro, features, quick start, env vars, deployment | Product rationale, design tokens, API tables, agent rules |
 | `PRODUCT.md` | Users, purpose, capabilities, constraints, principles | Visual system, commands |
 | `DESIGN.md` | Tokens, type, layout, components, do/don't | Product strategy, build commands |
 | `AGENTS.md` | Structure, commands, style, testing, commits, release | Marketing copy, design rationale |
+| `CONTRIBUTING.md` | Contributor setup, PR checklist, commit format | Repo internals, release procedure |
+| `SECURITY.md` | Vulnerability reporting, supported versions, known trade-offs | Feature docs, install steps |
+| `CHANGELOG.md` | User-visible changes per released version | Internal refactor detail, design rationale |
+| `docs/architecture.md` | Runtime topology, layers, request/encryption flow, invariants | API reference, install steps |
+| `docs/api.md` | HTTP endpoints, auth modes, status codes, curl examples | Install steps, product rationale |
+
+Language: user-facing docs (README, CONTRIBUTING, SECURITY, CHANGELOG, `docs/*`) are Chinese;
+PRODUCT/DESIGN and AGENTS/CLAUDE are English by design.
 
 When behaviour changes, update the file that owns it — do not duplicate the same fact in two files.
