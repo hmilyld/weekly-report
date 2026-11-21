@@ -192,5 +192,6 @@ Prefixes: `feat`, `fix`, `style`, `refactor`, `docs`. Description in Chinese is 
 | `CONTRIBUTING.md` | Contributor setup, PR checklist, commit format | Repo internals, release procedure |
 | `SECURITY.md` | Vulnerability reporting, supported versions, known trade-offs | Feature docs, install steps |
 | `CHANGELOG.md` | User-visible changes per released version | Internal refactor detail, design rationale |
+| `docs/architecture.md` | Runtime topology, layers, request/encryption flow, invariants | API reference, install steps |
 
 When behaviour changes, update the file that owns it — do not duplicate the same fact in two files.

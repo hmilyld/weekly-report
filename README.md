@@ -106,8 +106,8 @@ bash scripts/dev.sh stop      # 停止
 
 ```bash
 cd backend
-uv venv                                 # 创建虚拟环境
-uv pip install -r requirements.txt      # 安装依赖
+uv venv                                                    # 创建虚拟环境
+uv pip install -r requirements.txt -r dev-requirements.txt  # 运行依赖 + 开发工具
 uv run uvicorn main:app --reload --port 18001
 ```
 
@@ -121,6 +121,16 @@ pnpm test       # 单元测试（vitest）
 pnpm build      # 产物在 frontend/dist，后端会直接托管
 pnpm generate:icons   # 重新生成应用图标（SVG；装了 ffmpeg 时同时输出 PNG）
 ```
+
+### 质量检查
+
+```bash
+cd backend && uv run ruff check . && uv run ruff format --check . && uv run pytest
+cd frontend && pnpm lint && pnpm format:check && pnpm test && pnpm build
+```
+
+CI 在每次 PR 上跑同一组命令（Python 3.11 / 3.12、Node 24）。架构、加密链路与必须保持的不变量见
+[`docs/architecture.md`](docs/architecture.md)。
 
 ### 首次使用
 
@@ -390,6 +400,7 @@ curl http://localhost:18001/api/v1/tasks/pending \
 | `SECURITY.md` | 漏洞报告通道与支持范围 |
 | `CHANGELOG.md` | 面向用户的变更记录 |
 | `docs/android-api.md` | Android / Token 客户端对接：认证、端点、日报/周报语义、错误码 |
+| `docs/architecture.md` | 运行形态、模块边界、请求与加密链路、必须保持的不变量 |
 
 ---
 

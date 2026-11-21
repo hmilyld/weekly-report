@@ -17,9 +17,17 @@
 - 缺少 DEK 时写入返回 `409 encryption_key_missing`，不再有任何明文落库路径
 - 响应中的 `_decryption_failed` 字段固定为客户端契约
 
+### 工程化
+
+- 新增 MIT 许可证、贡献指南、安全政策、行为准则与 issue / PR 模板
+- PR 级 CI：后端 ruff + pytest（Python 3.11 / 3.12），前端 eslint + prettier + vitest + 构建（Node 24）
+- 前端引入 vitest + Testing Library（67 个用例），后端补齐用户管理、LLM 客户端与库表迁移测试（覆盖率 91%）
+- Dependabot 自动依赖更新；构建与 CI 升级到 Node 24
+- 系统配置页与待办页拆分组件，context 与 hook 独立模块，lint 告警归零
+
 ### 文档
 
-- 新增 MIT 许可证
+- 新增 `docs/architecture.md`：运行形态、模块边界、请求与加密链路、关键不变量
 - 校准 README 与产品 / 设计 / 协作文档
 
 ## [1.1.0] - 2026-11-17
