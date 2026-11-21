@@ -3,13 +3,14 @@
 import base64
 import hashlib
 import logging
-from datetime import UTC, date, datetime, timedelta
+from datetime import UTC, date, datetime
 
 from sqlalchemy.orm import Session
 from sqlalchemy.orm.attributes import set_committed_value
 
 from . import models
 from .crypto import decrypt_content
+from .date_range import week_bounds
 from .encryption_utils import (
     decrypt_model_content,
     decrypt_record_content,
@@ -199,7 +200,7 @@ def _decrypt_model_content(model, user_id: int):
 def get_daily_reports_by_week(
     db: Session, user_id: int, week_start: date
 ) -> list[models.DailyReport]:
-    week_end = week_start + timedelta(days=6)
+    _, week_end = week_bounds(week_start)
     reports = (
         db.query(models.DailyReport)
         .filter(

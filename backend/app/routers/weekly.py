@@ -1,7 +1,7 @@
 """Weekly report router: query & generate weekly summaries."""
 
 import logging
-from datetime import date, timedelta
+from datetime import date
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
@@ -9,6 +9,7 @@ from sqlalchemy.orm import Session
 from .. import crud
 from ..auth import get_authenticated_user
 from ..database import get_db
+from ..date_range import week_bounds
 from ..encryption_utils import (
     ContentDecryptionError,
     decrypt_daily_entries,
@@ -25,7 +26,7 @@ router = APIRouter(prefix="/api/v1/weekly", tags=["weekly"])
 
 def _get_week_bounds(week_start: date) -> tuple[date, date]:
     """Return (week_start, week_end) where week_end = week_start + 6 days."""
-    return week_start, week_start + timedelta(days=6)
+    return week_bounds(week_start)
 
 
 @router.get("")

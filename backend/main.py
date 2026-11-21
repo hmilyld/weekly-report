@@ -1,5 +1,6 @@
 """FastAPI application entry point."""
 
+import logging
 import os
 from contextlib import asynccontextmanager
 from pathlib import Path
@@ -21,6 +22,8 @@ from app.migration import (
 from app.models import AppConfig
 from app.models_token import ApiToken  # noqa: F401 — ensure table is created
 from app.routers import auth, config, daily, monthly, tasks, tokens, users, weekly
+
+logger = logging.getLogger(__name__)
 
 
 def _migrate_db():
@@ -177,6 +180,17 @@ async def content_decryption_handler(request: Request, exc: ContentDecryptionErr
     )
 
 
+@app.exception_handler(ValueError)
+async def value_error_handler(request: Request, exc: ValueError):
+    """Domain validation (out-of-range dates, past deadlines) answers 400, not 500.
+
+    Logged with a traceback so a programming error that happens to raise
+    ValueError stays visible instead of being silently downgraded.
+    """
+    logger.warning("Invalid request on %s: %s", request.url.path, exc, exc_info=exc)
+    return JSONResponse(status_code=400, content={"detail": str(exc)})
+
+
 # CORS — if CORS_ORIGINS is set, restrict to those origins; otherwise allow all
 # (self-hosted single-user app, security enforced via JWT/API-Token auth)
 _cors_origins_str = os.getenv("CORS_ORIGINS", "")
@@ -226,6 +240,22 @@ STATIC_DIR = Path(__file__).resolve().parent.parent / "frontend" / "dist"
 if not STATIC_DIR.exists():
     STATIC_DIR = Path("/app/frontend/dist")
 
+
+def resolve_static_file(full_path: str) -> Path | None:
+    """Return the file inside STATIC_DIR for a URL path, or None.
+
+    A plain string prefix check would also accept sibling directories whose name
+    starts with "dist" (e.g. dist-old), so path components are compared.
+    """
+    try:
+        resolved = (STATIC_DIR / full_path).resolve()
+    except (OSError, RuntimeError):
+        return None
+    if not resolved.is_relative_to(STATIC_DIR.resolve()):
+        return None
+    return resolved if resolved.is_file() else None
+
+
 if STATIC_DIR.exists():
     app.mount("/assets", StaticFiles(directory=str(STATIC_DIR / "assets")), name="assets")
 
@@ -241,11 +271,7 @@ if STATIC_DIR.exists():
             return JSONResponse(status_code=404, content={"detail": "Not Found"})
         if request.method != "GET":
             return JSONResponse(status_code=405, content={"detail": "Method Not Allowed"})
-        file_path = STATIC_DIR / full_path
-        # Resolve and verify the path is within STATIC_DIR (prevent traversal)
-        if file_path.is_file():
-            resolved = file_path.resolve()
-            if not str(resolved).startswith(str(STATIC_DIR.resolve())):
-                return FileResponse(str(STATIC_DIR / "index.html"))
+        resolved = resolve_static_file(full_path)
+        if resolved is not None:
             return FileResponse(str(resolved))
         return FileResponse(str(STATIC_DIR / "index.html"))

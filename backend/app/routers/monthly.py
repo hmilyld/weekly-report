@@ -1,15 +1,15 @@
 """Monthly report router: query & generate monthly summaries."""
 
-import calendar
 import logging
 from datetime import date
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Path
 from sqlalchemy.orm import Session
 
 from .. import crud
 from ..auth import get_authenticated_user
 from ..database import get_db
+from ..date_range import month_bounds
 from ..encryption_utils import decrypt_daily_entries, update_report_content
 from ..llm_client import generate_monthly_report
 from ..models import User
@@ -22,8 +22,7 @@ router = APIRouter(prefix="/api/v1/monthly", tags=["monthly"])
 
 def _get_month_bounds(year: int, month: int) -> tuple[date, date]:
     """Return (month_start, month_end) for the given year/month."""
-    last_day = calendar.monthrange(year, month)[1]
-    return date(year, month, 1), date(year, month, last_day)
+    return month_bounds(year, month)
 
 
 @router.get("")
@@ -53,8 +52,8 @@ def list_monthly_reports(
 
 @router.get("/{year}/{month}")
 def get_monthly_report(
-    year: int,
-    month: int,
+    year: int = Path(ge=1970, le=2100),
+    month: int = Path(ge=1, le=12),
     user: User = Depends(get_authenticated_user),
     db: Session = Depends(get_db),
 ):
@@ -75,8 +74,8 @@ def get_monthly_report(
 
 @router.post("/{year}/{month}", response_model=MonthlyReportResponse)
 def generate_monthly_report_endpoint(
-    year: int,
-    month: int,
+    year: int = Path(ge=1970, le=2100),
+    month: int = Path(ge=1, le=12),
     user: User = Depends(get_authenticated_user),
     db: Session = Depends(get_db),
 ):
@@ -86,9 +85,9 @@ def generate_monthly_report_endpoint(
 
 @router.put("/{year}/{month}", response_model=MonthlyReportResponse)
 def update_monthly_report(
-    year: int,
-    month: int,
     body: MonthlyReportUpdate,
+    year: int = Path(ge=1970, le=2100),
+    month: int = Path(ge=1, le=12),
     user: User = Depends(get_authenticated_user),
     db: Session = Depends(get_db),
 ):
