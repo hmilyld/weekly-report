@@ -103,6 +103,11 @@ async def value_error_handler(request: Request, exc: ValueError):
 # (self-hosted single-user app, security enforced via JWT/API-Token auth)
 _cors_origins_str = os.getenv("CORS_ORIGINS", "")
 _cors_origins = [o.strip() for o in _cors_origins_str.split(",") if o.strip()]
+if settings.is_production and not _cors_origins:
+    logger.warning(
+        "CORS_ORIGINS is not set in production — every origin is allowed. "
+        "Set it to the exact front-end origin(s) if the API is reachable from browsers."
+    )
 
 app.add_middleware(
     CORSMiddleware,

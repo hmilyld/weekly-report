@@ -25,11 +25,11 @@ X-API-Token: <token>
 | GET | `/daily/week/{week_start}` | 按周读取日报 |
 | POST | `/daily` | 写入日报（见下文 append / date 语义） |
 | DELETE | `/daily/{date}` | 删除某天日报 |
-| GET | `/weekly` | 最近 12 条周报 |
+| GET | `/weekly?limit=` | 最近周报（默认 12，`limit` 1–52） |
 | GET | `/weekly/{week_start}` | 单条周报（未生成返回 404） |
 | POST | `/weekly/{week_start}?force=` | 生成周报；`force=false` 且已存在则不调用模型 |
 | PUT | `/weekly/{week_start}` | 编辑正文 |
-| GET | `/monthly` | 最近 12 条月报 |
+| GET | `/monthly?limit=` | 最近月报（默认 12，`limit` 1–120） |
 | GET | `/monthly/{year}/{month}` | 单条月报 |
 | POST | `/monthly/{year}/{month}` | 生成月报 |
 | PUT | `/monthly/{year}/{month}` | 编辑正文 |

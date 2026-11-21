@@ -31,6 +31,8 @@ class User(Base):
     password_hash = Column(String(255), nullable=False)
     password_version = Column(Integer, default=0, nullable=False)
     role = Column(String(20), nullable=False, default="user")
+    # Legacy bookkeeping only: the real check is `wrapped_dek IS NULL`. Kept so
+    # old rows that still carry the flag keep their schema shape.
     needs_encryption_migration = Column(Boolean, default=True, nullable=False)
     # Envelope encryption: per-user DEK wrapped with the server KEK.
     # NULL = legacy user, migrated on next login (see migration.migrate_user_to_dek).

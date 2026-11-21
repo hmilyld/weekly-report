@@ -20,13 +20,27 @@ from sqlalchemy.orm import Session
 
 from .auth import derive_user_key
 from .config import settings
-from .encryption_utils import ContentDecryptionError, decrypt_record_content
+from .encryption_utils import decrypt_record_content
 from .envelope import CONFIG_SECRET_PREFIX, ensure_user_dek, unwrap_dek, wrap_dek
 from .key_cache import key_cache
 from .models import AppConfig, DailyReport, MonthlyReport, Task, User, WeeklyReport
 from .reencrypt import reencrypt_user_data
 
 logger = logging.getLogger(__name__)
+
+
+def _ensure_key_for(db: Session, user_id: int) -> None:
+    """Make sure the user's DEK is cached, unwrapping it if startup hasn't yet.
+
+    Legacy users (no wrapped_dek) simply have no key, which keeps their plaintext
+    untouched until the login-time migration re-encrypts the record.
+    """
+    if key_cache.get(user_id):
+        return
+    user = db.query(User).filter(User.id == user_id).first()
+    if user is None:
+        return
+    ensure_user_dek(db, user)
 
 
 def backup_before_envelope_migration(db: Session) -> str | None:
@@ -84,11 +98,14 @@ def cleanup_plaintext_content(db: Session) -> int:
 
     This handles the case where content_version is set but content was not
     properly cleared (a historical bug): redundant plaintext next to ciphertext.
-    Runs at startup and does NOT require a user key for the decision itself.
 
     A record is only cleared once its ciphertext is proven readable. If the DEK
     is unavailable or the ciphertext is corrupted, the plaintext is the last
     readable copy and is KEPT, with a warning naming the table and record id.
+
+    Startup runs this before the key cache is warm, so each user's DEK is
+    unwrapped on demand; otherwise every record would look unreadable and the
+    cleanup would silently become a no-op.
     """
     tables = [
         ("daily_reports", DailyReport),
@@ -113,14 +130,18 @@ def cleanup_plaintext_content(db: Session) -> int:
 
         for record in records:
             try:
+                _ensure_key_for(db, record.user_id)
                 decrypt_record_content(record, record.user_id)
-            except ContentDecryptionError:
+            except Exception as err:
+                # Any failure (no DEK, wrong master key, corrupted ciphertext)
+                # means "cannot prove the plaintext is redundant" — keep it.
                 total_kept += 1
                 logger.warning(
                     "Kept plaintext for %s id=%d: ciphertext is unreadable "
-                    "(missing DEK or corrupted data)",
+                    "(missing DEK or corrupted data: %s)",
                     table_name,
                     record.id,
+                    err,
                 )
                 continue
             record.content = ""

@@ -2,7 +2,7 @@
 
 import logging
 
-from fastapi import APIRouter, Depends, HTTPException, Path
+from fastapi import APIRouter, Depends, HTTPException, Path, Query
 from sqlalchemy.orm import Session
 
 from .. import crud
@@ -11,7 +11,7 @@ from ..database import get_db
 from ..date_range import month_bounds
 from ..encryption_utils import decrypt_daily_entries, update_report_content
 from ..llm_client import generate_monthly_report
-from ..models import User
+from ..models import MonthlyReport, User
 from ..schemas import (
     MonthlyReportItem,
     MonthlyReportListResponse,
@@ -29,11 +29,12 @@ MONTH_PARAM = Path(ge=1, le=12)
 
 @router.get("", response_model=MonthlyReportListResponse)
 def list_monthly_reports(
+    limit: int = Query(12, ge=1, le=120),
     user: User = Depends(get_authenticated_user),
     db: Session = Depends(get_db),
 ):
-    """List all saved monthly reports."""
-    reports = crud.get_monthly_reports(db, user.id)
+    """List the most recent monthly reports (newest first)."""
+    reports = crud.get_monthly_reports(db, user.id, limit)
     return MonthlyReportListResponse(
         reports=reports,
         decryption_failed=any(getattr(report, "_decryption_failed", False) for report in reports),
@@ -81,7 +82,7 @@ def update_monthly_report(
     return report
 
 
-def _generate(db: Session, user_id: int, year: int, month: int) -> MonthlyReportResponse:
+def _generate(db: Session, user_id: int, year: int, month: int) -> MonthlyReport:
     month_start, month_end = month_bounds(year, month)
 
     # Gather daily reports for the month

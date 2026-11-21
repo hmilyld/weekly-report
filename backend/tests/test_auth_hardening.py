@@ -140,3 +140,44 @@ class TestSetup:
             "/api/v1/daily", headers=headers, json={"date": "2026-11-17", "content": "hello"}
         )
         assert written.status_code == 201
+
+
+class TestUsernameNormalization:
+    def test_login_ignores_surrounding_whitespace(self, api_env):
+        client, db = api_env
+        _user(db, username="alice")
+
+        response = client.post(
+            "/api/v1/auth/login", json={"username": "  alice  ", "password": "Passw0rd1"}
+        )
+
+        assert response.status_code == 200
+
+    def test_admin_created_username_is_trimmed(self, api_env):
+        client, db = api_env
+        admin = _user(db, username="admin", role="admin")
+
+        created = client.post(
+            "/api/v1/users",
+            headers=_jwt(admin),
+            json={"username": "  bob  ", "password": "Passw0rd1"},
+        )
+
+        assert created.status_code == 201
+        assert created.json()["username"] == "bob"
+
+
+class TestSetupIsNotABcryptSink:
+    def test_second_setup_rejects_before_password_validation(self, api_env):
+        """Once an account exists, /auth/setup must not hash the supplied password."""
+        client, _db = api_env
+        client.post("/api/v1/auth/setup", json={"username": "admin", "password": "Passw0rd1"})
+
+        # Passes the schema but would fail validate_password (no digit): the
+        # early guard must win, so no bcrypt hash is spent on this request.
+        second = client.post(
+            "/api/v1/auth/setup", json={"username": "intruder", "password": "allletters"}
+        )
+
+        assert second.status_code == 400
+        assert second.json()["detail"] == "Setup has already been completed"

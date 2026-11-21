@@ -10,7 +10,7 @@ from ..auth import require_admin
 from ..database import get_db
 from ..llm_client import test_connection
 from ..models import AppConfig, User
-from ..schemas import AppConfigResponse, AppConfigUpdate
+from ..schemas import AppConfigResponse, AppConfigUpdate, LlmTestResponse
 
 router = APIRouter(prefix="/api/v1/config", tags=["config"])
 
@@ -70,7 +70,7 @@ def update_config(
     return _to_response(config)
 
 
-@router.post("/test")
+@router.post("/test", response_model=LlmTestResponse)
 def test_llm_connection(
     admin: User = Depends(require_admin),
     db: Session = Depends(get_db),

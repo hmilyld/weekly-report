@@ -175,7 +175,7 @@ docker compose pull && docker compose up -d
 | `JWT_SECRET_KEY` | 生产必填 | 开发环境随机生成 | JWT 签名密钥，**至少 32 字节**；`.env.example` 里的占位值会被拒绝。生产缺失或过短会启动失败 |
 | `ENCRYPTION_MASTER_KEY` | 生产必填 | 开发环境自动生成并持久化到 `data/.encryption_key`（0600） | 信封加密主密钥，base64 编码、解码后必须 32 字节；生产缺失或格式错误会启动失败。**必须与数据库一起备份** |
 | `DATABASE_URL` | 否 | `sqlite:///./data/weekly_report.db` | 数据库连接串（当前仅支持 SQLite） |
-| `CORS_ORIGINS` | 否 | `*` | 允许的来源，逗号分隔 |
+| `CORS_ORIGINS` | 否 | `*` | 允许的来源，逗号分隔。生产环境未设置时启动日志会告警（纯 Token/Bearer 调用不受影响） |
 | `ENV` / `ENVIRONMENT` | 否 | `development`（官方镜像内为 `production`） | `production` 时：密钥必填、启用 HSTS。可以写在 `.env` 里 |
 | `LOG_LEVEL` | 否 | `INFO` | 后端日志级别 |
 | `APP_VERSION` | 否 | 构建参数 | 镜像构建时注入，显示在 `/openapi.json` 的 version |
@@ -233,6 +233,8 @@ KEK ──AES-256-GCM 包裹──> users.wrapped_dek（存库，绑定用户身
 - **认证/管理接口**（`/auth`、`/config`、`/users`、`/tokens`）仅接受 JWT——用 API Token 调用会得到 `401`；API Token 只能读写内容数据，无法管理账号、配置或其他 Token；
 - 完整机器可读接口定义见 `/openapi.json`（交互文档 `/docs`）。
 
+登录失败限流按**客户端 IP** 计数（5 次/60 秒）。若部署在反向代理之后，容器的对端地址是代理 IP，请把代理地址加入 `FORWARDED_ALLOW_IPS`（如 `FORWARDED_ALLOW_IPS=*` 仅在代理可信时使用），否则所有用户共用一个限流桶。
+
 状态码约定：
 
 | 状态码 | 含义 |
@@ -267,10 +269,10 @@ KEK ──AES-256-GCM 包裹──> users.wrapped_dek（存库，绑定用户身
 
 | 方法 | 路径 | 说明 |
 |---|---|---|
-| GET | `/weekly` · `/weekly/{week_start}` | 查询周报（`/weekly` 返回最近 12 条） |
+| GET | `/weekly?limit=` · `/weekly/{week_start}` | 查询周报（`/weekly` 默认返回最近 12 条，`limit` 1–52） |
 | POST | `/weekly/{week_start}?force=` | 生成/重新生成；`force=false` 且已存在则不调用模型，返回 `generated=false` |
 | PUT | `/weekly/{week_start}` | 编辑正文 |
-| GET | `/monthly` · `/monthly/{year}/{month}` | 查询月报 |
+| GET | `/monthly?limit=` · `/monthly/{year}/{month}` | 查询月报（`limit` 1–120，默认 12） |
 | POST | `/monthly/{year}/{month}` | 生成/重新生成 |
 | PUT | `/monthly/{year}/{month}` | 编辑正文 |
 

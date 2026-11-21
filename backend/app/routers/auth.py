@@ -23,6 +23,7 @@ from ..migration import migrate_user_to_dek
 from ..models import User
 from ..schemas import (
     LoginRequest,
+    MessageResponse,
     PasswordChange,
     SetupRequest,
     SetupStatus,
@@ -111,6 +112,14 @@ def initial_setup(body: SetupRequest, db: Session = Depends(get_db)):
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Username cannot be empty",
         )
+    # Cheap early exit: /auth/setup is unauthenticated, so it must not spend a
+    # bcrypt hash on every call once an account exists. The atomic insert below
+    # is still what makes concurrent first-setup requests safe.
+    if db.query(User.id).first() is not None:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Setup has already been completed",
+        )
     validate_password(body.password)
 
     # Single atomic statement: the guard and the insert cannot interleave, so two
@@ -141,7 +150,9 @@ def initial_setup(body: SetupRequest, db: Session = Depends(get_db)):
         )
     crud.touch_last_login(db, user)
     provision_user_dek(db, user)
-    token = create_access_token({"sub": str(user.id), "username": user.username, "pwd_ver": 0})
+    token = create_access_token(
+        {"sub": str(user.id), "username": user.username, "pwd_ver": user.password_version or 0}
+    )
     return TokenResponse(access_token=token)
 
 
@@ -151,7 +162,7 @@ def login(body: LoginRequest, request: Request, db: Session = Depends(get_db)):
     _ensure_not_limited(ip_key)
     _ensure_not_limited(user_key)
 
-    user = crud.get_user_by_username(db, body.username)
+    user = crud.get_user_by_username(db, body.username.strip())
     password_ok = verify_password_safe(body.password, user.password_hash if user else None)
     if not user or not password_ok:
         _record_failure(ip_key)
@@ -222,7 +233,7 @@ def change_password(
     return TokenResponse(access_token=token)
 
 
-@router.post("/logout")
+@router.post("/logout", response_model=MessageResponse)
 def logout(user: User = Depends(get_current_user)):
     # The DEK is a server-side key recoverable from the DB at any time; it is
     # NOT per-session. Clearing it here would break every other device of the

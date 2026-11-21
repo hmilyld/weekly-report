@@ -53,11 +53,42 @@ class TestPlaintextCleanup:
         assert row.content == ""
         assert row.content_encrypted
 
-    def test_keeps_plaintext_when_key_is_missing(self, api_env):
+    def test_clears_plaintext_with_a_cold_key_cache(self, api_env):
+        """Startup runs before load_all_user_deks; the DEK must be unwrapped on demand."""
+        _client, db = api_env
+        _user, report = _user_with_entry(db)
+        _leave_plaintext(db, report.id)
+        key_cache.clear()
+
+        cleaned = cleanup_plaintext_content(db)
+
+        db.expire_all()
+        row = db.query(DailyReport).filter(DailyReport.id == report.id).first()
+        assert cleaned == 1
+        assert row.content == ""
+
+    def test_keeps_plaintext_for_unmigrated_legacy_user(self, api_env):
         _client, db = api_env
         user, report = _user_with_entry(db)
         _leave_plaintext(db, report.id)
-        key_cache.remove(user.id)  # simulate a missing DEK at startup
+        user.wrapped_dek = None  # legacy user: no DEK until the login migration
+        db.commit()
+        key_cache.remove(user.id)
+
+        cleaned = cleanup_plaintext_content(db)
+
+        db.expire_all()
+        row = db.query(DailyReport).filter(DailyReport.id == report.id).first()
+        assert cleaned == 0
+        assert row.content == "明文残留"
+
+    def test_keeps_plaintext_when_wrapped_dek_is_corrupted(self, api_env):
+        _client, db = api_env
+        user, report = _user_with_entry(db)
+        _leave_plaintext(db, report.id)
+        user.wrapped_dek = "not-a-valid-wrapped-dek"
+        db.commit()
+        key_cache.remove(user.id)
 
         cleaned = cleanup_plaintext_content(db)
 

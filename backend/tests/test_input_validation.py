@@ -87,3 +87,20 @@ class TestHealth:
         assert response.status_code == 200
         assert response.json() == {"status": "ok"}
         assert called == [True]
+
+
+class TestListLimits:
+    def test_weekly_limit_is_bounded(self, api_env):
+        client, db = api_env
+        headers = _admin(client, db)
+
+        assert client.get("/api/v1/weekly?limit=0", headers=headers).status_code == 422
+        assert client.get("/api/v1/weekly?limit=999", headers=headers).status_code == 422
+        assert client.get("/api/v1/weekly?limit=5", headers=headers).status_code == 200
+
+    def test_monthly_limit_is_bounded(self, api_env):
+        client, db = api_env
+        headers = _admin(client, db)
+
+        assert client.get("/api/v1/monthly?limit=0", headers=headers).status_code == 422
+        assert client.get("/api/v1/monthly?limit=240", headers=headers).status_code == 422

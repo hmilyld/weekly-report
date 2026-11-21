@@ -36,7 +36,13 @@ def create_user(
     db: Session = Depends(get_db),
 ):
     """Create a new user (admin only)."""
-    existing = crud.get_user_by_username(db, body.username)
+    username = body.username.strip()
+    if not username:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Username cannot be empty",
+        )
+    existing = crud.get_user_by_username(db, username)
     if existing:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
@@ -44,7 +50,7 @@ def create_user(
         )
     validate_password(body.password)
     pwd_hash = hash_password(body.password)
-    user = crud.create_user(db, body.username, pwd_hash, role=body.role)
+    user = crud.create_user(db, username, pwd_hash, role=body.role)
     provision_user_dek(db, user)
     return UserResponse.model_validate(user)
 

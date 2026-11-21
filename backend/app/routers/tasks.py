@@ -9,6 +9,7 @@ from ..database import get_db
 from ..models import User
 from ..schemas import (
     CompletedTaskListResponse,
+    MessageResponse,
     TaskCreate,
     TaskListResponse,
     TaskResponse,
@@ -85,7 +86,7 @@ def update_task(
     return task
 
 
-@router.delete("/{task_id}")
+@router.delete("/{task_id}", response_model=MessageResponse)
 def delete_task(
     task_id: int,
     user: User = Depends(get_authenticated_user),

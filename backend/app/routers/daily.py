@@ -9,7 +9,12 @@ from .. import crud
 from ..auth import get_authenticated_user
 from ..database import get_db
 from ..models import User
-from ..schemas import DailyReportCreate, DailyReportListResponse, DailyReportResponse
+from ..schemas import (
+    DailyReportCreate,
+    DailyReportListResponse,
+    DailyReportResponse,
+    MessageResponse,
+)
 
 router = APIRouter(prefix="/api/v1/daily", tags=["daily"])
 
@@ -66,7 +71,7 @@ def create_or_update_daily_report(
     return crud.upsert_daily_report(db, user.id, report_date, content)
 
 
-@router.delete("/{report_date}")
+@router.delete("/{report_date}", response_model=MessageResponse)
 def delete_daily_report(
     report_date: date,
     user: User = Depends(get_authenticated_user),

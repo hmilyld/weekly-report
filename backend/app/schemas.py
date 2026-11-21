@@ -57,6 +57,10 @@ class ApiTokenCreatedResponse(BaseModel):
     created_at: datetime
 
 
+class ApiTokenRevokeResponse(BaseModel):
+    revoked: int
+
+
 # ─── User Management ────────────────────────────────────
 
 
@@ -204,6 +208,16 @@ class AppConfigResponse(BaseModel):
     updated_at: datetime | None = None
 
     model_config = {"from_attributes": True}
+
+
+class LlmTestResponse(BaseModel):
+    success: bool
+    message: str
+    response: str | None = None
+
+
+class MessageResponse(BaseModel):
+    message: str
 
 
 class AppConfigUpdate(BaseModel):

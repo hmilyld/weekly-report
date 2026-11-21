@@ -168,6 +168,8 @@ Prefixes: `feat`, `fix`, `style`, `refactor`, `docs`. Description in Chinese is 
 - **Auth semantics:** `401` = missing/invalid credential, `402` = wrong current password inside a valid session, `403` = authenticated but not admin. `get_current_user` uses `HTTPBearer(auto_error=False)` so it answers 401 itself.
 - **Migrations** run automatically on startup via `app/schema_migrations.py` (additive only); no Alembic.
 - **SQLite concurrency:** the connect hook sets `journal_mode=WAL`, `foreign_keys=ON`, `busy_timeout=5000`. Live backups must include `-wal`/`-shm`, or stop the container first.
+- **Dependencies:** `backend/requirements.txt` is the single source of truth; there is no committed lock file (`uv.lock` is ignored). Verify a bump in a throwaway env: `uv venv --python 3.11 /tmp/x && VIRTUAL_ENV=/tmp/x uv pip install -r requirements.txt`.
+- **Reverse proxy:** the login rate limiter keys on `request.client.host`, so behind a proxy set `FORWARDED_ALLOW_IPS` (uvicorn honours it) or every client shares one bucket.
 - **Settings:** secrets are resolved in `model_validator(mode="after")` so `ENV`/`JWT_SECRET_KEY`/`ENCRYPTION_MASTER_KEY` in `.env` are honored. Production refuses to start without them; placeholder/short JWT keys are rejected. The `data/.encryption_key` fallback is written only when no master key is configured (development).
 - **LLM URL guard:** `ipaddress`-based after DNS resolution; loopback is allowed on purpose (local Ollama), private/link-local/reserved ranges are rejected.
 - **`_decryption_failed` is wire contract:** response models carry `decryption_failed` with `alias="_decryption_failed"`; keep the JSON key stable (see docs/android-api.md).

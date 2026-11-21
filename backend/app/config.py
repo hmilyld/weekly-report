@@ -52,6 +52,13 @@ def validate_master_key(value: str) -> None:
         )
 
 
+def is_in_memory_database(database_url: str) -> bool:
+    """True for SQLite URLs that keep nothing on disk (``:memory:`` / ``sqlite://``)."""
+    if not database_url.startswith("sqlite"):
+        return False
+    return ":memory:" in database_url or database_url.rstrip("/") == "sqlite:"
+
+
 def sqlite_data_dir(database_url: str) -> str:
     """Directory that holds the SQLite file (``.`` for non-SQLite URLs)."""
     prefix = "sqlite:///"
@@ -137,6 +144,11 @@ class Settings(BaseSettings):
 
     def _load_or_create_dev_key(self) -> str:
         """Development only: persist one generated key so ciphertext stays readable."""
+        if is_in_memory_database(self.database_url):
+            # Nothing survives a restart with an in-memory database, so keep the
+            # key in memory instead of dropping a stray file in the CWD.
+            print("⚠️  ENCRYPTION_MASTER_KEY not set — using a throwaway key for :memory:")
+            return _generate_master_key()
         key_path = self.dev_key_path
         if key_path.exists():
             existing = key_path.read_text(encoding="ascii").strip()

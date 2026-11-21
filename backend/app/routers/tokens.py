@@ -6,7 +6,13 @@ from sqlalchemy.orm import Session
 from ..auth import get_current_user
 from ..database import get_db
 from ..models import ApiToken, User, generate_api_token
-from ..schemas import ApiTokenCreate, ApiTokenCreatedResponse, ApiTokenResponse
+from ..schemas import (
+    ApiTokenCreate,
+    ApiTokenCreatedResponse,
+    ApiTokenResponse,
+    ApiTokenRevokeResponse,
+    MessageResponse,
+)
 
 router = APIRouter(prefix="/api/v1/tokens", tags=["tokens"])
 
@@ -55,7 +61,7 @@ def create_token(
     )
 
 
-@router.delete("")
+@router.delete("", response_model=ApiTokenRevokeResponse)
 def revoke_all_tokens(
     user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
@@ -73,7 +79,7 @@ def revoke_all_tokens(
     return {"revoked": revoked}
 
 
-@router.delete("/{token_id}")
+@router.delete("/{token_id}", response_model=MessageResponse)
 def delete_token(
     token_id: int,
     user: User = Depends(get_current_user),

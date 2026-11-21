@@ -99,3 +99,11 @@ def test_validate_master_key_helper():
     validate_master_key(VALID_MASTER_KEY)
     with pytest.raises(ValueError):
         validate_master_key(base64.b64encode(b"too-short").decode())
+
+
+def test_in_memory_database_writes_no_key_file(monkeypatch, tmp_path):
+    """An in-memory DB loses everything on restart, so no key file is dropped."""
+    settings = _settings(monkeypatch, tmp_path, DATABASE_URL="sqlite:///:memory:")
+
+    assert settings.encryption_master_key
+    assert list(tmp_path.iterdir()) == []

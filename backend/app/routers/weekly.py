@@ -16,7 +16,7 @@ from ..encryption_utils import (
     update_report_content,
 )
 from ..llm_client import generate_weekly_report
-from ..models import User
+from ..models import User, WeeklyReport
 from ..schemas import (
     WeeklyReportItem,
     WeeklyReportListResponse,
@@ -31,11 +31,12 @@ router = APIRouter(prefix="/api/v1/weekly", tags=["weekly"])
 
 @router.get("", response_model=WeeklyReportListResponse)
 def list_weekly_reports(
+    limit: int = Query(12, ge=1, le=52),
     user: User = Depends(get_authenticated_user),
     db: Session = Depends(get_db),
 ):
-    """List all saved weekly reports."""
-    reports = crud.get_weekly_reports(db, user.id)
+    """List the most recent weekly reports (newest first)."""
+    reports = crud.get_weekly_reports(db, user.id, limit)
     return WeeklyReportListResponse(
         reports=reports,
         decryption_failed=any(getattr(report, "_decryption_failed", False) for report in reports),
@@ -87,7 +88,9 @@ def update_weekly_report(
     return report
 
 
-def _generate(db: Session, user_id: int, week_start: date, force: bool = True) -> tuple:
+def _generate(
+    db: Session, user_id: int, week_start: date, force: bool = True
+) -> tuple[WeeklyReport, bool]:
     week_start, week_end = week_bounds(week_start)
 
     if not force:
