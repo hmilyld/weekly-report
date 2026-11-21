@@ -1,6 +1,8 @@
-"""LLM client: call OpenAI-compatible Chat Completion API."""
+"""LLM client: call an OpenAI-compatible Chat Completion API."""
 
+import ipaddress
 import logging
+import socket
 from urllib.parse import urlparse
 
 import httpx
@@ -40,83 +42,73 @@ MONTHLY_SYSTEM_PROMPT = (
 )
 
 TIMEOUT_SECONDS = 30
+TEST_TIMEOUT_SECONDS = 15
 
-# SSRF protection: only allow http/https schemes
 _ALLOWED_SCHEMES = {"http", "https"}
-# Block private/internal IP ranges
-_BLOCKED_HOSTS = {"localhost", "127.0.0.1", "0.0.0.0", "[::1]", "metadata.google.internal"}
-_BLOCKED_PREFIXES = (
-    "10.",
-    "172.16.",
-    "172.17.",
-    "172.18.",
-    "172.19.",
-    "172.2",
-    "172.30.",
-    "172.31.",
-    "192.168.",
-    "169.254.",
-)
+
+
+def _resolve_host(
+    host: str, port: int | None
+) -> set[ipaddress.IPv4Address | ipaddress.IPv6Address]:
+    """Every address the host points at, so a DNS name cannot hide a private IP."""
+    try:
+        infos = socket.getaddrinfo(host, port, proto=socket.IPPROTO_TCP)
+    except socket.gaierror as err:
+        raise ValueError(f"无法解析 LLM 主机 '{host}'") from err
+    return {ipaddress.ip_address(info[4][0]) for info in infos}
+
+
+def _address_allowed(address: ipaddress.IPv4Address | ipaddress.IPv6Address) -> bool:
+    """Loopback is allowed on purpose: self-hosted Ollama/LM Studio is supported."""
+    if address.is_loopback:
+        return True
+    return not (
+        address.is_private
+        or address.is_link_local
+        or address.is_reserved
+        or address.is_multicast
+        or address.is_unspecified
+    )
 
 
 def _validate_llm_url(url: str) -> None:
-    """Validate LLM URL to prevent SSRF attacks."""
+    """Reject non-http(s) schemes and hosts that resolve into non-routable space."""
     try:
         parsed = urlparse(url)
-    except Exception as exc:
-        raise ValueError("Invalid LLM API URL") from exc
+        port = parsed.port
+    except ValueError as err:
+        raise ValueError("Invalid LLM API URL") from err
 
     if parsed.scheme not in _ALLOWED_SCHEMES:
         raise ValueError(f"URL scheme '{parsed.scheme}' not allowed. Use http or https.")
 
-    hostname = parsed.hostname or ""
-    if hostname in _BLOCKED_HOSTS:
-        raise ValueError(f"Access to '{hostname}' is not allowed.")
+    host = parsed.hostname
+    if not host:
+        raise ValueError("URL must have a valid hostname")
 
-    for prefix in _BLOCKED_PREFIXES:
-        if hostname.startswith(prefix):
-            raise ValueError("Access to private IP ranges is not allowed.")
+    for address in _resolve_host(host, port):
+        if not _address_allowed(address):
+            raise ValueError(f"Access to '{host}' ({address}) is not allowed.")
 
 
-def build_user_prompt(daily_entries: list[tuple[str, str]]) -> str:
-    """Build the user-side prompt from a list of (date_str, content) tuples."""
-    lines = ["本周日报记录："]
+def _build_prompt(header: str, daily_entries: list[tuple[str, str]]) -> str:
+    lines = [header]
     for date_str, content in daily_entries:
-        clean = content.replace("\n", "；")
-        lines.append(f"{date_str}：{clean}")
+        lines.append(f"{date_str}：{content.replace(chr(10), '；')}")
     return "\n".join(lines)
 
 
-def build_monthly_user_prompt(daily_entries: list[tuple[str, str]]) -> str:
-    """Build the user-side prompt for monthly report from a list of (date_str, content) tuples."""
-    lines = ["本月日报记录："]
-    for date_str, content in daily_entries:
-        clean = content.replace("\n", "；")
-        lines.append(f"{date_str}：{clean}")
-    return "\n".join(lines)
-
-
-def generate_weekly_report(
-    db: Session,
-    daily_entries: list[tuple[str, str]],
-) -> str:
-    """
-    Call the configured LLM to generate a weekly report.
-    Returns the generated text.
-    Raises RuntimeError on failure.
-    """
+def _chat_completion(db: Session, system_prompt: str, user_prompt: str) -> str:
+    """One OpenAI-compatible chat completion call. Raises RuntimeError on failure."""
     config = crud.get_app_config(db)
     api_url = config.llm_api_url
     model_name = config.llm_model_name
     api_key = config.api_key or ""
 
-    # Validate URL before making request
     try:
         _validate_llm_url(api_url)
     except ValueError as e:
         raise RuntimeError(f"Invalid LLM configuration: {e}") from e
-
-    user_prompt = build_user_prompt(daily_entries)
 
     headers = {"Content-Type": "application/json"}
     if api_key:
@@ -125,7 +117,7 @@ def generate_weekly_report(
     payload = {
         "model": model_name,
         "messages": [
-            {"role": "system", "content": SYSTEM_PROMPT},
+            {"role": "system", "content": system_prompt},
             {"role": "user", "content": user_prompt},
         ],
         "temperature": 0.7,
@@ -154,12 +146,23 @@ def generate_weekly_report(
         raise RuntimeError("Failed to connect to LLM. Please check your API URL and key.") from e
 
 
+def generate_weekly_report(db: Session, daily_entries: list[tuple[str, str]]) -> str:
+    """Call the configured LLM to generate a weekly report."""
+    prompt = _build_prompt("本周日报记录：", daily_entries)
+    return _chat_completion(db, SYSTEM_PROMPT, prompt)
+
+
+def generate_monthly_report(db: Session, daily_entries: list[tuple[str, str]]) -> str:
+    """Call the configured LLM to generate a monthly report."""
+    prompt = _build_prompt("本月日报记录：", daily_entries)
+    return _chat_completion(db, MONTHLY_SYSTEM_PROMPT, prompt)
+
+
 def test_connection(api_url: str, model_name: str, api_key: str = "") -> dict:
-    """
-    Send a simple test message to verify the LLM endpoint works.
+    """Send a simple test message to verify the LLM endpoint works.
+
     Returns {"success": bool, "message": str, "response": str|None}.
     """
-    # Validate URL before making request
     try:
         _validate_llm_url(api_url)
     except ValueError as e:
@@ -179,7 +182,7 @@ def test_connection(api_url: str, model_name: str, api_key: str = "") -> dict:
     }
 
     try:
-        with httpx.Client(timeout=15) as client:
+        with httpx.Client(timeout=TEST_TIMEOUT_SECONDS) as client:
             response = client.post(api_url, json=payload, headers=headers)
             response.raise_for_status()
             data = response.json()
@@ -190,7 +193,11 @@ def test_connection(api_url: str, model_name: str, api_key: str = "") -> dict:
                 "response": reply,
             }
     except httpx.TimeoutException:
-        return {"success": False, "message": "Request timed out (15s)", "response": None}
+        return {
+            "success": False,
+            "message": f"Request timed out ({TEST_TIMEOUT_SECONDS}s)",
+            "response": None,
+        }
     except httpx.HTTPStatusError as e:
         return {
             "success": False,
@@ -204,61 +211,3 @@ def test_connection(api_url: str, model_name: str, api_key: str = "") -> dict:
             "message": "Connection failed. Check URL and credentials.",
             "response": None,
         }
-
-
-def generate_monthly_report(
-    db: Session,
-    daily_entries: list[tuple[str, str]],
-) -> str:
-    """
-    Call the configured LLM to generate a monthly report.
-    Returns the generated text.
-    Raises RuntimeError on failure.
-    """
-    config = crud.get_app_config(db)
-    api_url = config.llm_api_url
-    model_name = config.llm_model_name
-    api_key = config.api_key or ""
-
-    # Validate URL before making request
-    try:
-        _validate_llm_url(api_url)
-    except ValueError as e:
-        raise RuntimeError(f"Invalid LLM configuration: {e}") from e
-
-    user_prompt = build_monthly_user_prompt(daily_entries)
-
-    headers = {"Content-Type": "application/json"}
-    if api_key:
-        headers["Authorization"] = f"Bearer {api_key}"
-
-    payload = {
-        "model": model_name,
-        "messages": [
-            {"role": "system", "content": MONTHLY_SYSTEM_PROMPT},
-            {"role": "user", "content": user_prompt},
-        ],
-        "temperature": 0.7,
-    }
-
-    try:
-        with httpx.Client(timeout=TIMEOUT_SECONDS) as client:
-            response = client.post(api_url, json=payload, headers=headers)
-            response.raise_for_status()
-            data = response.json()
-            return data["choices"][0]["message"]["content"]
-    except httpx.TimeoutException as err:
-        raise RuntimeError("LLM request timed out. Please try again.") from err
-    except httpx.HTTPStatusError as e:
-        logger.error("LLM API error: %s %s", e.response.status_code, e.response.text[:500])
-        raise RuntimeError(
-            f"LLM API returned status {e.response.status_code}. Please check your configuration."
-        ) from e
-    except (KeyError, IndexError) as e:
-        logger.error("Unexpected LLM response: %s", e)
-        raise RuntimeError("Unexpected response from LLM. Please check model configuration.") from e
-    except RuntimeError:
-        raise
-    except Exception as e:
-        logger.error("LLM call failed: %s", e)
-        raise RuntimeError("Failed to connect to LLM. Please check your API URL and key.") from e
