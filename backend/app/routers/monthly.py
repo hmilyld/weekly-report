@@ -1,83 +1,65 @@
 """Monthly report router: query & generate monthly summaries."""
 
-import calendar
 import logging
-from datetime import date
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Path, Query
 from sqlalchemy.orm import Session
 
 from .. import crud
-from ..auth import get_current_user
+from ..auth import get_authenticated_user
 from ..database import get_db
+from ..date_range import month_bounds
 from ..encryption_utils import decrypt_daily_entries, update_report_content
 from ..llm_client import generate_monthly_report
-from ..models import User
-from ..schemas import MonthlyReportResponse, MonthlyReportUpdate
+from ..models import MonthlyReport, User
+from ..schemas import (
+    MonthlyReportItem,
+    MonthlyReportListResponse,
+    MonthlyReportResponse,
+    MonthlyReportUpdate,
+)
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/v1/monthly", tags=["monthly"])
 
-
-def _get_month_bounds(year: int, month: int) -> tuple[date, date]:
-    """Return (month_start, month_end) for the given year/month."""
-    last_day = calendar.monthrange(year, month)[1]
-    return date(year, month, 1), date(year, month, last_day)
+YEAR_PARAM = Path(ge=1970, le=2100)
+MONTH_PARAM = Path(ge=1, le=12)
 
 
-@router.get("")
+@router.get("", response_model=MonthlyReportListResponse)
 def list_monthly_reports(
-    user: User = Depends(get_current_user),
+    limit: int = Query(12, ge=1, le=120),
+    user: User = Depends(get_authenticated_user),
     db: Session = Depends(get_db),
 ):
-    """List all saved monthly reports."""
-    reports = crud.get_monthly_reports(db, user.id)
-    has_decryption_failed = any(getattr(r, '_decryption_failed', False) for r in reports)
-    return {
-        "reports": [
-            {
-                "id": r.id,
-                "year": r.year,
-                "month": r.month,
-                "content": r.content,
-                "model_name": r.model_name,
-                "generated_at": r.generated_at.isoformat(),
-                "_decryption_failed": getattr(r, '_decryption_failed', False),
-            }
-            for r in reports
-        ],
-        "_decryption_failed": has_decryption_failed,
-    }
+    """List the most recent monthly reports (newest first)."""
+    reports = crud.get_monthly_reports(db, user.id, limit)
+    return MonthlyReportListResponse(
+        reports=reports,
+        decryption_failed=any(getattr(report, "_decryption_failed", False) for report in reports),
+    )
 
 
-@router.get("/{year}/{month}")
+@router.get("/{year}/{month}", response_model=MonthlyReportItem)
 def get_monthly_report(
-    year: int,
-    month: int,
-    user: User = Depends(get_current_user),
+    year: int = YEAR_PARAM,
+    month: int = MONTH_PARAM,
+    user: User = Depends(get_authenticated_user),
     db: Session = Depends(get_db),
 ):
     """Get the monthly report for a given month. Returns 404 if not generated yet."""
     report = crud.get_monthly_report(db, user.id, year, month)
     if not report:
         raise HTTPException(status_code=404, detail="Monthly report not found")
-    return {
-        "id": report.id,
-        "year": report.year,
-        "month": report.month,
-        "content": report.content,
-        "model_name": report.model_name,
-        "generated_at": report.generated_at.isoformat(),
-        "_decryption_failed": getattr(report, '_decryption_failed', False),
-    }
+    return report
 
 
 @router.post("/{year}/{month}", response_model=MonthlyReportResponse)
 def generate_monthly_report_endpoint(
-    year: int,
-    month: int,
-    user: User = Depends(get_current_user),
+    year: int = YEAR_PARAM,
+    month: int = MONTH_PARAM,
+    user: User = Depends(get_authenticated_user),
     db: Session = Depends(get_db),
 ):
     """Generate (or regenerate) the monthly report for a given month."""
@@ -86,10 +68,10 @@ def generate_monthly_report_endpoint(
 
 @router.put("/{year}/{month}", response_model=MonthlyReportResponse)
 def update_monthly_report(
-    year: int,
-    month: int,
     body: MonthlyReportUpdate,
-    user: User = Depends(get_current_user),
+    year: int = YEAR_PARAM,
+    month: int = MONTH_PARAM,
+    user: User = Depends(get_authenticated_user),
     db: Session = Depends(get_db),
 ):
     """Update the content of an existing monthly report."""
@@ -100,8 +82,8 @@ def update_monthly_report(
     return report
 
 
-def _generate(db: Session, user_id: int, year: int, month: int) -> MonthlyReportResponse:
-    month_start, month_end = _get_month_bounds(year, month)
+def _generate(db: Session, user_id: int, year: int, month: int) -> MonthlyReport:
+    month_start, month_end = month_bounds(year, month)
 
     # Gather daily reports for the month
     dailies = crud.get_daily_reports_range(db, user_id, month_start, month_end)
@@ -122,17 +104,7 @@ def _generate(db: Session, user_id: int, year: int, month: int) -> MonthlyReport
         ) from e
 
     config = crud.get_app_config(db)
-    report = crud.save_monthly_report(
+    # save_monthly_report encrypts with the user's DEK and decrypts for return.
+    return crud.save_monthly_report(
         db, user_id, year, month, monthly_content, config.llm_model_name
     )
-
-    from ..encryption_utils import encrypt_model_content
-
-    encrypt_model_content(report, monthly_content, user_id)
-    db.commit()
-    db.refresh(report)
-
-    from ..crud import _decrypt_model_content
-
-    _decrypt_model_content(report, user_id)
-    return report

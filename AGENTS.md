@@ -20,15 +20,24 @@ weekly-report/
 │   └── scripts/         # generate-pwa-icons.mjs
 ├── backend/           # Python FastAPI + SQLAlchemy + SQLite
 │   ├── app/
-│   │   ├── routers/     # auth, daily, weekly, monthly, tasks, config, tokens, external, users
-│   │   ├── models.py    # ORM models (User, DailyReport, WeeklyReport, MonthlyReport, Task…)
-│   │   ├── crud.py      # Centralized database operations
-│   │   ├── auth.py      # JWT creation/decoding, dependencies
-│   │   ├── crypto.py    # AES-GCM content encryption
-│   │   ├── key_cache.py # In-memory per-user key cache
-│   │   └── llm_client.py# OpenAI-compatible LLM client
-│   ├── tests/           # Pytest: crypto, CRUD encryption, key cache
-│   └── main.py          # App entry, lifespan, migrations, static file serving
+│   │   ├── routers/     # auth, daily, weekly, monthly, tasks, config, tokens, users
+│   │   ├── crud/        # Persistence, one module per aggregate (users/reports/tasks/app_config)
+│   │   ├── models.py    # ORM models (User, DailyReport, WeeklyReport, MonthlyReport, Task, ApiToken…)
+│   │   ├── schemas.py   # Request/response models (+ ListResponse with `_decryption_failed` alias)
+│   │   ├── auth.py      # JWT, password hashing/validation, dual-auth dependencies
+│   │   ├── config.py    # Settings + secret resolution (`.env`-aware) and validation
+│   │   ├── database.py  # Engine/session, SQLite PRAGMAs, per-request commit/rollback
+│   │   ├── schema_migrations.py # Startup: create tables, additive ALTERs, snapshot, seed
+│   │   ├── crypto.py    # AES-GCM primitives (+ legacy frozen KDF for migration)
+│   │   ├── envelope.py  # Envelope encryption: master key → KEK → per-user DEK
+│   │   ├── encryption_utils.py # Centralized content encrypt/decrypt (version 2 + AAD)
+│   │   ├── key_cache.py # In-memory per-user DEK cache (restored from DB at startup)
+│   │   ├── date_range.py# Validated week/month bounds (400 instead of 500)
+│   │   ├── migration.py # Startup hygiene + one-time legacy→DEK migration on login
+│   │   ├── reencrypt.py # Legacy→DEK re-encryption (single transaction, no commit)
+│   │   └── llm_client.py# OpenAI-compatible LLM client (+ SSRF guard)
+│   ├── tests/           # Pytest: crypto, envelope, DEK migration, API/auth contracts…
+│   └── main.py          # App entry, lifespan, error mapping, static SPA serving
 ├── .github/workflows/ # release-image.yml (tag → ghcr.io)
 ├── scripts/           # dev.sh (dev helper), docker-publish.sh (Docker Hub)
 ├── Dockerfile         # Multi-stage build (Node 20 + Python 3.11)
@@ -122,7 +131,7 @@ The visual system is documented in `DESIGN.md` and is not re-decided per screen.
 
 ## Testing
 
-- **Backend:** Pytest in `backend/tests/` (`test_crypto.py`, `test_crud_encryption.py`, `test_key_cache.py`). Run: `cd backend && uv run pytest`.
+- **Backend:** Pytest in `backend/tests/` (`test_crypto.py`, `test_envelope.py`, `test_dek_migration.py`, `test_pre_migration_backup.py`, `test_crud_encryption.py`, `test_key_cache.py`, `test_login_migration.py`, `test_unified_auth.py`, `test_unified_api.py`, `test_settings.py`, `test_auth_hardening.py`, `test_config_api.py`, `test_token_lifecycle.py`, `test_input_validation.py`, `test_llm_url_guard.py`, `test_data_layer.py`, `test_response_contract.py`). Run: `cd backend && uv run pytest`. `tests/conftest.py` sets a fixed `ENCRYPTION_MASTER_KEY` and provides the `api_env` TestClient fixture (its `get_db` override mirrors production: commit on success, rollback on error).
 - **Frontend:** No test suite. Before committing UI work, run `pnpm lint`, `pnpm format:check` and `pnpm build`, and check the page at 1440px and 390px in both themes.
 
 ## Commit Conventions
@@ -150,12 +159,20 @@ Prefixes: `feat`, `fix`, `style`, `refactor`, `docs`. Description in Chinese is 
 ## Architecture Notes
 
 - **Auth:** JWT with 24h expiry. Password change invalidates old tokens via `password_version`. `require_admin` protects admin-only endpoints. `last_login_at` is written on login and initial setup.
-- **Password change** requires `old_password` (the key is re-derived from it), returns a fresh token, and every other session is invalidated by the `password_version` bump. A wrong current password answers `402` so the client shows an inline error instead of dropping the session; `401` always means "session invalid".
-- **Logout** calls `POST /auth/logout` while the token is still attached (it clears the server-side key cache) and only then drops the local session.
-- **Encryption at rest:** report/task content is AES-GCM encrypted per user; the key is derived from the login password and cached in memory (`key_cache`). A server restart empties the cache, so the UI shows a re-login modal instead of blank content. `_migrate_db()` + `migrate_user_encryption()` upgrade legacy plaintext rows on login.
-- **LLM config** lives in the `AppConfig` table (singleton, id=1), editable at runtime via Settings — no env vars needed.
-- **External API** (`/api/v1/external/`) authenticates with `X-API-Token` instead of JWT.
-- **Migrations** run automatically on startup via `_migrate_db()` in `main.py` (additive only).
+- **Password change** requires `old_password`, returns a fresh token, and every other session is invalidated by the `password_version` bump. Content ciphertext is NEVER touched (the DEK is independent of the password). A wrong current password answers `402` so the client shows an inline error instead of dropping the session; `401` always means "session invalid".
+- **Logout** calls `POST /auth/logout` while the token is still attached, then drops the local session. It does NOT clear `key_cache`: the DEK is a server-side key shared by all devices of the account, recoverable from the DB at any time.
+- **Encryption at rest (envelope):** `ENCRYPTION_MASTER_KEY` → HKDF → KEK wraps a random per-user DEK (`users.wrapped_dek`, AAD-bound). Startup unwraps all DEKs into `key_cache`, so restarts need no login. Content is AES-GCM under the DEK with `content_version=2` and AAD binding table+user; `content_salt` is deprecated (no longer written). Writes without a DEK raise `EncryptionKeyMissingError` → HTTP 409, never plaintext. Legacy users (`wrapped_dek` NULL) migrate once at login via `migrate_user_to_dek()` (single transaction, idempotent, rollback on failure); migration failure does NOT block login — reads are flagged, writes 409, and the failing table/record id is logged. While legacy users exist, startup takes a one-time `data/pre-envelope-*.db` snapshot (SQLite backup API, 0600) as a rollback point. The legacy password-derived KDF in `auth.derive_user_key` is FROZEN — changing its parameters destroys legacy data. Decrypted views (content AND `AppConfig.api_key`) use `set_committed_value` so plaintext is never autoflushed back into mapped columns.
+- **LLM config** lives in the `AppConfig` table (singleton, id=1), editable at runtime via Settings — no env vars needed. The API key is envelope-wrapped (`ek1:` prefix) with legacy JWT-secret-derived fallback on read; startup re-wraps legacy values.
+- **Unified API / dual auth:** one route set serves both clients. Data endpoints (`/daily`, `/weekly`, `/monthly`, `/tasks`) use `get_authenticated_user` (Bearer JWT or `X-API-Token`; JWT wins when both are present, and an invalid JWT does not fall back to the token). Auth/config/user/token endpoints keep `get_current_user`/`require_admin`, so API tokens are structurally limited to data access. The old `/api/v1/external/*` surface was removed — clients use the canonical routes (`POST /daily` accepts optional `date` + `append`; `POST /weekly/{week_start}?force=false` returns `generated=false` without an LLM call, and 409 when the existing report cannot be decrypted; `GET /tasks/pending`). Machine-readable contract: `/openapi.json`.
+- **API Token security (current):** tokens are stored in plaintext, never expire, and have no scopes (hardening deferred — see README). Changing the password does NOT revoke them (only JWTs are invalidated by `password_version`); `DELETE /tokens` is the explicit revoke-all. Treat a token as equivalent to data access for that account.
+- **Auth semantics:** `401` = missing/invalid credential, `402` = wrong current password inside a valid session, `403` = authenticated but not admin. `get_current_user` uses `HTTPBearer(auto_error=False)` so it answers 401 itself.
+- **Migrations** run automatically on startup via `app/schema_migrations.py` (additive only); no Alembic.
+- **SQLite concurrency:** the connect hook sets `journal_mode=WAL`, `foreign_keys=ON`, `busy_timeout=5000`. Live backups must include `-wal`/`-shm`, or stop the container first.
+- **Dependencies:** `backend/requirements.txt` is the single source of truth; there is no committed lock file (`uv.lock` is ignored). Verify a bump in a throwaway env: `uv venv --python 3.11 /tmp/x && VIRTUAL_ENV=/tmp/x uv pip install -r requirements.txt`.
+- **Reverse proxy:** the login rate limiter keys on `request.client.host`, so behind a proxy set `FORWARDED_ALLOW_IPS` (uvicorn honours it) or every client shares one bucket.
+- **Settings:** secrets are resolved in `model_validator(mode="after")` so `ENV`/`JWT_SECRET_KEY`/`ENCRYPTION_MASTER_KEY` in `.env` are honored. Production refuses to start without them; placeholder/short JWT keys are rejected. The `data/.encryption_key` fallback is written only when no master key is configured (development).
+- **LLM URL guard:** `ipaddress`-based after DNS resolution; loopback is allowed on purpose (local Ollama), private/link-local/reserved ranges are rejected.
+- **`_decryption_failed` is wire contract:** response models carry `decryption_failed` with `alias="_decryption_failed"`; keep the JSON key stable (see docs/android-api.md).
 - **Timestamps** are stored as UTC without an offset; the frontend parses them with `parseServerDate()` before display.
 - **SPA serving:** the backend serves `frontend/dist/` as a catch-all for non-API paths.
 

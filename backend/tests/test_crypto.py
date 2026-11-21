@@ -63,3 +63,28 @@ class TestEncryptDecrypt:
         encrypted["ciphertext"] = base64.b64encode(tampered).decode()
         with pytest.raises(InvalidTag):
             decrypt_content(encrypted, key)
+
+
+class TestAssociatedData:
+    def test_aad_roundtrip(self):
+        key = derive_key("password", generate_salt())
+        aad = b"daily_reports:1"
+        encrypted = encrypt_content("secret", key, aad=aad)
+        assert decrypt_content(encrypted, key, aad=aad) == "secret"
+
+    def test_wrong_aad_fails(self):
+        key = derive_key("password", generate_salt())
+        encrypted = encrypt_content("secret", key, aad=b"daily_reports:1")
+        with pytest.raises(InvalidTag):
+            decrypt_content(encrypted, key, aad=b"daily_reports:2")
+
+    def test_missing_aad_fails(self):
+        key = derive_key("password", generate_salt())
+        encrypted = encrypt_content("secret", key, aad=b"daily_reports:1")
+        with pytest.raises(InvalidTag):
+            decrypt_content(encrypted, key)
+
+    def test_legacy_no_aad_still_decrypts(self):
+        key = derive_key("password", generate_salt())
+        encrypted = encrypt_content("legacy secret", key)
+        assert decrypt_content(encrypted, key) == "legacy secret"

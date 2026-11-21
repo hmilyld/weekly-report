@@ -1,5 +1,6 @@
 """SQLAlchemy ORM models."""
 
+import secrets
 from datetime import UTC, datetime
 
 from sqlalchemy import (
@@ -30,7 +31,13 @@ class User(Base):
     password_hash = Column(String(255), nullable=False)
     password_version = Column(Integer, default=0, nullable=False)
     role = Column(String(20), nullable=False, default="user")
+    # Legacy bookkeeping only: the real check is `wrapped_dek IS NULL`. Kept so
+    # old rows that still carry the flag keep their schema shape.
     needs_encryption_migration = Column(Boolean, default=True, nullable=False)
+    # Envelope encryption: per-user DEK wrapped with the server KEK.
+    # NULL = legacy user, migrated on next login (see migration.migrate_user_to_dek).
+    wrapped_dek = Column(Text, nullable=True)
+    wrapped_dek_version = Column(Integer, nullable=False, default=1)
     created_at = Column(DateTime, default=_utcnow, nullable=False)
     last_login_at = Column(DateTime, nullable=True)
     daily_reports = relationship("DailyReport", back_populates="user")
@@ -127,3 +134,23 @@ class Task(Base):
     is_completed = Column(Boolean, default=False, nullable=False)
     created_at = Column(DateTime, default=_utcnow, nullable=False)
     updated_at = Column(DateTime, default=_utcnow, onupdate=_utcnow, nullable=False)
+
+
+class ApiToken(Base):
+    """API token for token-based data access (web automation, Android client)."""
+
+    __tablename__ = "api_tokens"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    name = Column(String(100), nullable=False, default="default")
+    token = Column(String(64), unique=True, nullable=False, index=True)
+    created_at = Column(DateTime, default=_utcnow, nullable=False)
+    last_used_at = Column(DateTime, nullable=True)
+
+    user = relationship("User")
+
+
+def generate_api_token() -> str:
+    """Generate a secure random API token."""
+    return secrets.token_hex(32)  # 64 chars

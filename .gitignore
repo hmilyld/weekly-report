@@ -19,6 +19,10 @@ data/
 .vscode/
 .idea/
 
+# Dependencies are pinned in backend/requirements.txt; uv run regenerates a stub
+# lock file that must not be committed.
+uv.lock
+
 # Dev tools
 .dev/
 .mimocode/

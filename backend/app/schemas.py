@@ -1,15 +1,16 @@
 """Pydantic schemas for request / response validation."""
 
+import datetime as dt
 from datetime import date, datetime
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 # ─── Auth ───────────────────────────────────────────────
 
 
 class LoginRequest(BaseModel):
-    username: str
-    password: str
+    username: str = Field(max_length=50)
+    password: str = Field(max_length=100)
 
 
 class TokenResponse(BaseModel):
@@ -20,6 +21,44 @@ class TokenResponse(BaseModel):
 class PasswordChange(BaseModel):
     old_password: str = Field(min_length=1, max_length=100)
     new_password: str = Field(min_length=8, max_length=100)
+
+
+class SetupRequest(BaseModel):
+    username: str = Field(min_length=2, max_length=50)
+    password: str = Field(min_length=8, max_length=100)
+
+
+class SetupStatus(BaseModel):
+    needs_setup: bool
+
+
+# ─── API Tokens ─────────────────────────────────────────
+
+
+class ApiTokenCreate(BaseModel):
+    name: str = Field(default="default", max_length=100)
+
+
+class ApiTokenResponse(BaseModel):
+    id: int
+    name: str
+    # Only returned once, on creation.
+    token: str | None = None
+    created_at: datetime
+    last_used_at: datetime | None = None
+
+    model_config = {"from_attributes": True}
+
+
+class ApiTokenCreatedResponse(BaseModel):
+    id: int
+    name: str
+    token: str
+    created_at: datetime
+
+
+class ApiTokenRevokeResponse(BaseModel):
+    revoked: int
 
 
 # ─── User Management ────────────────────────────────────
@@ -49,19 +88,45 @@ class ChangeRoleRequest(BaseModel):
     role: str = Field(pattern=r"^(admin|user)$")
 
 
+# ─── Shared response base ───────────────────────────────
+
+
+class OrmModel(BaseModel):
+    """Base for responses built from an ORM row.
+
+    ``decryption_failed`` is serialised as ``_decryption_failed`` because that is
+    the documented wire contract (see docs/android-api.md): a true value means
+    the ciphertext could not be read, so an empty string is not "no content".
+    """
+
+    model_config = ConfigDict(
+        from_attributes=True,
+        populate_by_name=True,
+        protected_namespaces=(),
+    )
+
+    decryption_failed: bool = Field(default=False, alias="_decryption_failed")
+
+
+class ListResponse(BaseModel):
+    model_config = ConfigDict(populate_by_name=True)
+
+    decryption_failed: bool = Field(default=False, alias="_decryption_failed")
+
+
 # ─── Daily Report ───────────────────────────────────────
 
 
 class DailyReportCreate(BaseModel):
-    date: date
+    # date omitted → today (token/automation clients omit it).
+    # dt.date: the field name `date` shadows the imported type inside the class.
+    date: dt.date | None = None
     content: str = Field(default="", max_length=50000)
+    # append=True appends to the existing entry with a newline separator
+    append: bool = False
 
 
-class DailyReportUpdate(BaseModel):
-    content: str = Field(max_length=50000)
-
-
-class DailyReportResponse(BaseModel):
+class DailyReportResponse(OrmModel):
     id: int
     user_id: int
     date: date
@@ -69,15 +134,23 @@ class DailyReportResponse(BaseModel):
     created_at: datetime
     updated_at: datetime
 
-    model_config = {"from_attributes": True}
+
+class DailyReportItem(OrmModel):
+    id: int
+    date: date
+    content: str
+    created_at: datetime
+    updated_at: datetime
+
+
+class DailyReportListResponse(ListResponse):
+    reports: list[DailyReportItem]
 
 
 # ─── Weekly Report ──────────────────────────────────────
 
 
-class WeeklyReportResponse(BaseModel):
-    model_config = {"from_attributes": True, "protected_namespaces": ()}
-
+class WeeklyReportItem(OrmModel):
     id: int
     user_id: int
     week_start: date
@@ -87,21 +160,23 @@ class WeeklyReportResponse(BaseModel):
     generated_at: datetime
 
 
-class WeeklyReportGenerate(BaseModel):
-    week_start: date
-    force: bool = False  # Force regeneration even if exists
+class WeeklyReportResponse(WeeklyReportItem):
+    # False when an existing report was returned without calling the LLM
+    generated: bool = True
 
 
 class WeeklyReportUpdate(BaseModel):
     content: str = Field(max_length=50000)
 
 
+class WeeklyReportListResponse(ListResponse):
+    reports: list[WeeklyReportItem]
+
+
 # ─── Monthly Report ────────────────────────────────────
 
 
-class MonthlyReportResponse(BaseModel):
-    model_config = {"from_attributes": True, "protected_namespaces": ()}
-
+class MonthlyReportItem(OrmModel):
     id: int
     user_id: int
     year: int
@@ -111,8 +186,16 @@ class MonthlyReportResponse(BaseModel):
     generated_at: datetime
 
 
+class MonthlyReportResponse(MonthlyReportItem):
+    pass
+
+
 class MonthlyReportUpdate(BaseModel):
     content: str = Field(max_length=50000)
+
+
+class MonthlyReportListResponse(ListResponse):
+    reports: list[MonthlyReportItem]
 
 
 # ─── App Config ─────────────────────────────────────────
@@ -125,6 +208,16 @@ class AppConfigResponse(BaseModel):
     updated_at: datetime | None = None
 
     model_config = {"from_attributes": True}
+
+
+class LlmTestResponse(BaseModel):
+    success: bool
+    message: str
+    response: str | None = None
+
+
+class MessageResponse(BaseModel):
+    message: str
 
 
 class AppConfigUpdate(BaseModel):
@@ -150,7 +243,7 @@ class AppConfigUpdate(BaseModel):
 
 
 class TaskCreate(BaseModel):
-    content: str = Field(max_length=5000)
+    content: str = Field(min_length=1, max_length=5000)
     deadline: date | None = None
 
 
@@ -160,7 +253,7 @@ class TaskUpdate(BaseModel):
     is_completed: bool | None = None
 
 
-class TaskResponse(BaseModel):
+class TaskResponse(OrmModel):
     id: int
     user_id: int
     content: str
@@ -169,4 +262,12 @@ class TaskResponse(BaseModel):
     created_at: datetime
     updated_at: datetime
 
-    model_config = {"from_attributes": True}
+
+class TaskListResponse(ListResponse):
+    tasks: list[TaskResponse]
+
+
+class CompletedTaskListResponse(TaskListResponse):
+    total: int
+    offset: int
+    limit: int

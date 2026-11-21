@@ -1,63 +1,50 @@
-"""Re-encrypt all user data when password changes."""
+"""One-shot re-encryption of a user's legacy data onto their new DEK.
+
+Used only by migration.migrate_user_to_dek during the envelope-encryption
+upgrade. Handles plaintext records and both legacy ciphertext formats
+(tag separated or embedded). Does NOT commit: the caller wraps the data
+rewrite and the wrapped_dek write in a single transaction.
+"""
 
 from sqlalchemy.orm import Session
 
-from .crypto import decrypt_content, encrypt_content, generate_salt
+from .crypto import decrypt_content
+from .encryption_utils import ContentDecryptionError, set_encrypted_content
 from .models import DailyReport, MonthlyReport, Task, WeeklyReport
 
 
-def reencrypt_user_data(db: Session, user_id: int, old_key: bytes, new_key: bytes) -> None:
-    """Re-encrypt all user content with new key.
+def reencrypt_user_data(db: Session, user_id: int, old_key: bytes, new_key: bytes) -> int:
+    """Re-encrypt all of a user's content from old_key to new_key.
 
-    Handles both already-encrypted records (decrypt with old_key, encrypt with new_key)
-    and plaintext records (just encrypt with new_key).
+    Returns the number of records rewritten. Raises on any decryption failure
+    so the caller can roll back — partial migration is never committed. The
+    error identifies the failing table and record id for operator repair.
     """
-
-    def _reencrypt_record(record, old_key: bytes, new_key: bytes) -> None:
-        """Re-encrypt a single record."""
-        if record.content_encrypted:
-            # Already encrypted: decrypt with old key, encrypt with new key
-            plaintext = decrypt_content(
-                {
-                    "ciphertext": record.content_encrypted,
-                    "nonce": record.content_nonce or "",
-                    "tag": record.content_tag or "",
-                },
-                old_key,
-            )
-            new_encrypted = encrypt_content(plaintext, new_key)
-            salt = generate_salt()
-            record.content = ""
-            record.content_encrypted = new_encrypted["ciphertext"]
-            record.content_salt = salt.hex()
-            record.content_nonce = new_encrypted["nonce"]
-            record.content_tag = new_encrypted["tag"]
-            record.content_version = 1
-        elif record.content:
-            # Plaintext: just encrypt with new key
-            new_encrypted = encrypt_content(record.content, new_key)
-            salt = generate_salt()
-            record.content = ""
-            record.content_encrypted = new_encrypted["ciphertext"]
-            record.content_salt = salt.hex()
-            record.content_nonce = new_encrypted["nonce"]
-            record.content_tag = new_encrypted["tag"]
-            record.content_version = 1
-
-    # Re-encrypt daily reports
-    for report in db.query(DailyReport).filter(DailyReport.user_id == user_id).all():
-        _reencrypt_record(report, old_key, new_key)
-
-    # Re-encrypt weekly reports
-    for report in db.query(WeeklyReport).filter(WeeklyReport.user_id == user_id).all():
-        _reencrypt_record(report, old_key, new_key)
-
-    # Re-encrypt monthly reports
-    for report in db.query(MonthlyReport).filter(MonthlyReport.user_id == user_id).all():
-        _reencrypt_record(report, old_key, new_key)
-
-    # Re-encrypt tasks
-    for task in db.query(Task).filter(Task.user_id == user_id).all():
-        _reencrypt_record(task, old_key, new_key)
-
-    db.commit()
+    count = 0
+    for model in (DailyReport, WeeklyReport, MonthlyReport, Task):
+        for record in db.query(model).filter(model.user_id == user_id).all():
+            if record.content_encrypted:
+                # Legacy ciphertext: no AAD; decrypt_content tolerates the
+                # old format where the GCM tag is embedded in the ciphertext.
+                try:
+                    plaintext = decrypt_content(
+                        {
+                            "ciphertext": record.content_encrypted,
+                            "nonce": record.content_nonce or "",
+                            "tag": record.content_tag or "",
+                        },
+                        old_key,
+                    )
+                except Exception as err:
+                    raise ContentDecryptionError(
+                        f"Legacy {model.__tablename__} record id={record.id} cannot be "
+                        "decrypted with the login password; migration aborted"
+                    ) from err
+            elif record.content:
+                plaintext = record.content
+            else:
+                continue
+            set_encrypted_content(record, plaintext, user_id, new_key)
+            count += 1
+    db.flush()
+    return count

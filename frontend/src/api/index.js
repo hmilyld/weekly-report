@@ -57,8 +57,9 @@ export const login = (username, password) => api.post('/auth/login', { username,
 
 export const logout = () => api.post('/auth/logout')
 
-// The backend re-derives the encryption key from the current password,
-// so it must be sent too (changing the password re-encrypts all content).
+// The backend verifies the current password before changing it. Content is
+// encrypted with a per-user key independent of the password (envelope
+// encryption), so changing the password does not re-encrypt anything.
 // Returns a fresh access token: old tokens are invalidated by the change.
 export const changePassword = (oldPassword, newPassword) =>
   api.post('/auth/change-password', { old_password: oldPassword, new_password: newPassword })
@@ -102,6 +103,9 @@ export const getTokens = () => api.get('/tokens')
 export const createToken = (name = 'default') => api.post('/tokens', { name })
 
 export const deleteToken = (tokenId) => api.delete(`/tokens/${tokenId}`)
+
+/** Revoke every API token of the current account (scripts and other devices). */
+export const revokeAllTokens = () => api.delete('/tokens')
 
 // ─── Tasks ─────────────────────────────────────────────
 export const getTasks = () => api.get('/tasks')

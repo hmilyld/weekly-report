@@ -1,122 +1,113 @@
 """FastAPI application entry point."""
 
+import logging
 import os
 from contextlib import asynccontextmanager
 from pathlib import Path
 
 from fastapi import FastAPI, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 
-from app.database import Base, SessionLocal, engine
-from app.migration import _cleanup_plaintext_content
-from app.models import AppConfig
-from app.models_token import ApiToken  # noqa: F401 — ensure table is created
-from app.routers import auth, config, daily, external, monthly, tasks, tokens, users, weekly
+from app.config import settings
+from app.database import SessionLocal, ping_database
+from app.encryption_utils import ContentDecryptionError, EncryptionKeyMissingError
+from app.envelope import get_kek, load_all_user_deks
+from app.migration import migrate_app_config_secret
+from app.routers import auth, config, daily, monthly, tasks, tokens, users, weekly
+from app.schema_migrations import init_database
+
+logger = logging.getLogger(__name__)
 
 
-def _migrate_db():
-    """Add missing columns to existing tables (SQLite ALTER TABLE)."""
-    from sqlalchemy import inspect, text
-
-    try:
-        existing_tables = inspect(engine).get_table_names()
-    except Exception as e:
-        print(f"⚠️  Migration: cannot inspect tables: {e}")
-        return
-
-    # ── users table ────────────────────────────────────────
-    if "users" in existing_tables:
-        try:
-            columns = {col["name"] for col in inspect(engine).get_columns("users")}
-            migrations = [
-                ("password_version", "INTEGER NOT NULL DEFAULT 0"),
-                ("role", "VARCHAR(20) NOT NULL DEFAULT 'user'"),
-                ("needs_encryption_migration", "BOOLEAN NOT NULL DEFAULT 1"),
-                ("last_login_at", "DATETIME"),
-            ]
-            for col_name, col_def in migrations:
-                if col_name not in columns:
-                    with engine.begin() as conn:
-                        conn.execute(text(f"ALTER TABLE users ADD COLUMN {col_name} {col_def}"))
-                    print(f"✅ Migration: added users.{col_name}")
-            if "role" not in columns:
-                with engine.begin() as conn:
-                    conn.execute(text("UPDATE users SET role = 'admin' WHERE id = 1"))
-        except Exception as e:
-            print(f"⚠️  Migration users failed: {e}")
-    else:
-        print("ℹ️  users table does not exist yet (first run)")
-
-    # ── encryption columns for each content table ──────────
-    for table in ("daily_reports", "weekly_reports", "tasks", "monthly_reports"):
-        if table not in existing_tables:
-            continue
-        try:
-            columns = {col["name"] for col in inspect(engine).get_columns(table)}
-            enc_cols = [
-                ("content_encrypted", "TEXT"),
-                ("content_salt", "VARCHAR(64)"),
-                ("content_nonce", "VARCHAR(64)"),
-                ("content_tag", "VARCHAR(64)"),
-                ("content_version", "INTEGER"),
-            ]
-            for col_name, col_def in enc_cols:
-                if col_name not in columns:
-                    with engine.begin() as conn:
-                        conn.execute(text(f"ALTER TABLE {table} ADD COLUMN {col_name} {col_def}"))
-                    print(f"✅ Migration: added {table}.{col_name}")
-        except Exception as e:
-            print(f"⚠️  Migration {table} failed: {e}")
+def configure_logging() -> None:
+    """Make application INFO logs visible; uvicorn only configures its own loggers."""
+    logging.basicConfig(
+        level=os.getenv("LOG_LEVEL", "INFO").upper(),
+        format="%(asctime)s %(levelname)-7s %(name)s: %(message)s",
+    )
+    # The LLM client logs every request at INFO; keep the app's log readable.
+    logging.getLogger("httpx").setLevel(logging.WARNING)
 
 
-def _init_db():
-    """Create tables and seed defaults on first run."""
-    try:
-        Base.metadata.create_all(bind=engine)
-        print("✅ Database tables created/verified")
-        _migrate_db()
-        _cleanup_plaintext_content(SessionLocal())
-    except Exception as e:
-        print(f"❌ Database init failed: {e}")
-        raise
-
-    db = SessionLocal()
-    try:
-        # Seed default config only (users are created via /api/v1/auth/setup)
-        if not db.query(AppConfig).filter(AppConfig.id == 1).first():
-            cfg = AppConfig(
-                id=1,
-                llm_api_url="http://localhost:11434/v1/chat/completions",
-                llm_model_name="llama2",
-                api_key="",
-            )
-            db.add(cfg)
-        db.commit()
-    except Exception:
-        db.rollback()
-        raise
-    finally:
-        db.close()
+configure_logging()
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    _init_db()
+    init_database()
+    # Envelope encryption: validate the master key, then restore every user's
+    # DEK from the DB so content is readable without anyone logging in.
+    get_kek()  # raises on invalid/missing master key → refuse to start
+    with SessionLocal() as db:
+        migrate_app_config_secret(db)
+        failed = load_all_user_deks(db)
+    if failed:
+        logger.warning(
+            "DEK unwrap failed for user ids %s — check ENCRYPTION_MASTER_KEY; "
+            "their content is unreadable until fixed",
+            failed,
+        )
     yield
 
 
 app = FastAPI(
     title="Weekly Report System",
-    version="1.0.1",
+    version=os.getenv("APP_VERSION", "dev"),
     lifespan=lifespan,
 )
+
+
+# ─── Encryption error mapping ────────────────────────────
+# Writes without a DEK and reads that cannot decrypt must fail loudly (409),
+# never fall back to plaintext or silently empty content.
+
+
+@app.exception_handler(EncryptionKeyMissingError)
+async def encryption_key_missing_handler(request: Request, exc: EncryptionKeyMissingError):
+    return JSONResponse(
+        status_code=409,
+        content={
+            "code": "encryption_key_missing",
+            "detail": "服务端加密密钥不可用，已拒绝写入。该账号尚未完成加密迁移（或迁移失败）："
+            "请重试登录；若持续失败，请检查服务端日志与 ENCRYPTION_MASTER_KEY 配置。",
+        },
+    )
+
+
+@app.exception_handler(ContentDecryptionError)
+async def content_decryption_handler(request: Request, exc: ContentDecryptionError):
+    return JSONResponse(
+        status_code=409,
+        content={
+            "code": "decryption_failed",
+            "detail": "内容解密失败，操作已中止。请确认 ENCRYPTION_MASTER_KEY 正确，"
+            "且该账号已在网页端登录完成加密迁移。",
+        },
+    )
+
+
+@app.exception_handler(ValueError)
+async def value_error_handler(request: Request, exc: ValueError):
+    """Domain validation (out-of-range dates, past deadlines) answers 400, not 500.
+
+    Logged with a traceback so a programming error that happens to raise
+    ValueError stays visible instead of being silently downgraded.
+    """
+    logger.warning("Invalid request on %s: %s", request.url.path, exc, exc_info=exc)
+    return JSONResponse(status_code=400, content={"detail": str(exc)})
+
 
 # CORS — if CORS_ORIGINS is set, restrict to those origins; otherwise allow all
 # (self-hosted single-user app, security enforced via JWT/API-Token auth)
 _cors_origins_str = os.getenv("CORS_ORIGINS", "")
 _cors_origins = [o.strip() for o in _cors_origins_str.split(",") if o.strip()]
+if settings.is_production and not _cors_origins:
+    logger.warning(
+        "CORS_ORIGINS is not set in production — every origin is allowed. "
+        "Set it to the exact front-end origin(s) if the API is reachable from browsers."
+    )
 
 app.add_middleware(
     CORSMiddleware,
@@ -133,9 +124,8 @@ async def security_headers(request: Request, call_next):
     response: Response = await call_next(request)
     response.headers["X-Content-Type-Options"] = "nosniff"
     response.headers["X-Frame-Options"] = "DENY"
-    response.headers["X-XSS-Protection"] = "1; mode=block"
     response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
-    if os.getenv("ENV", os.getenv("ENVIRONMENT", "development")) == "production":
+    if settings.is_production:
         response.headers["Strict-Transport-Security"] = "max-age=63072000; includeSubDomains"
     return response
 
@@ -147,33 +137,68 @@ app.include_router(weekly.router)
 app.include_router(monthly.router)
 app.include_router(config.router)
 app.include_router(tokens.router)
-app.include_router(external.router)
 app.include_router(tasks.router)
 app.include_router(users.router)
 
 
 # ─── Health check endpoint ───────────────────────────────
 @app.get("/api/v1/health")
-async def health():
+def health():
+    """Liveness + database reachability, so the container healthcheck is real."""
+    ping_database()
     return {"status": "ok"}
 
 
 # ─── Serve frontend static files ────────────────────────
-STATIC_DIR = Path(__file__).resolve().parent.parent / "frontend" / "dist"
-if not STATIC_DIR.exists():
-    STATIC_DIR = Path("/app/frontend/dist")
+# Repo layout: backend/main.py → ../frontend/dist
+# Image layout: /app/main.py     → /app/frontend/dist
+_STATIC_CANDIDATES = (
+    Path(__file__).resolve().parent / "frontend" / "dist",
+    Path(__file__).resolve().parent.parent / "frontend" / "dist",
+)
+STATIC_DIR = next(
+    (candidate for candidate in _STATIC_CANDIDATES if candidate.exists()),
+    _STATIC_CANDIDATES[0],
+)
+
+
+def resolve_static_file(full_path: str) -> Path | None:
+    """Return the file inside STATIC_DIR for a URL path, or None.
+
+    A plain string prefix check would also accept sibling directories whose name
+    starts with "dist" (e.g. dist-old), so path components are compared.
+    """
+    try:
+        resolved = (STATIC_DIR / full_path).resolve()
+    except (OSError, RuntimeError):
+        return None
+    if not resolved.is_relative_to(STATIC_DIR.resolve()):
+        return None
+    return resolved if resolved.is_file() else None
+
 
 if STATIC_DIR.exists():
-    app.mount("/assets", StaticFiles(directory=str(STATIC_DIR / "assets")), name="assets")
+    _assets_dir = STATIC_DIR / "assets"
+    if _assets_dir.is_dir():
+        app.mount("/assets", StaticFiles(directory=str(_assets_dir)), name="assets")
 
-    @app.get("/{full_path:path}")
-    async def serve_spa(full_path: str):
-        """Catch-all: serve index.html for SPA routing."""
-        file_path = STATIC_DIR / full_path
-        # Resolve and verify the path is within STATIC_DIR (prevent traversal)
-        if file_path.is_file():
-            resolved = file_path.resolve()
-            if not str(resolved).startswith(str(STATIC_DIR.resolve())):
-                return FileResponse(str(STATIC_DIR / "index.html"))
+    @app.api_route(
+        "/{full_path:path}",
+        methods=["GET", "POST", "PUT", "DELETE", "PATCH"],
+        include_in_schema=False,
+    )
+    async def serve_spa(full_path: str, request: Request):
+        """SPA catch-all.
+
+        Unknown API paths answer JSON 404 — never the HTML shell — so clients
+        calling removed endpoints (e.g. the old /api/v1/external/*) fail
+        clearly instead of parsing a web page.
+        """
+        if full_path == "api" or full_path.startswith("api/"):
+            return JSONResponse(status_code=404, content={"detail": "Not Found"})
+        if request.method != "GET":
+            return JSONResponse(status_code=405, content={"detail": "Method Not Allowed"})
+        resolved = resolve_static_file(full_path)
+        if resolved is not None:
             return FileResponse(str(resolved))
         return FileResponse(str(STATIC_DIR / "index.html"))
