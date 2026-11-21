@@ -15,8 +15,8 @@ from app.database import Base, SessionLocal, engine
 from app.encryption_utils import ContentDecryptionError, EncryptionKeyMissingError
 from app.envelope import get_kek, load_all_user_deks
 from app.migration import (
-    _cleanup_plaintext_content,
     backup_before_envelope_migration,
+    cleanup_plaintext_content,
     migrate_app_config_secret,
 )
 from app.models import AppConfig
@@ -100,7 +100,8 @@ def _init_db():
             print(
                 f"✅ Pre-migration backup saved: {backup_path} (0600, keep until upgrade verified)"
             )
-        _cleanup_plaintext_content(SessionLocal())
+        with SessionLocal() as cleanup_db:
+            cleanup_plaintext_content(cleanup_db)
     except Exception as e:
         print(f"❌ Database init failed: {e}")
         raise

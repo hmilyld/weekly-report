@@ -1,7 +1,8 @@
 """Encryption migrations.
 
-- _cleanup_plaintext_content: startup hygiene for a historical bug where
-  plaintext was left alongside ciphertext. Runs without any user key.
+- cleanup_plaintext_content: startup hygiene for a historical bug where
+  plaintext was left alongside ciphertext. Only clears a record once its
+  ciphertext is proven readable.
 - migrate_user_to_dek: one-time per-user upgrade from password-derived keys
   to envelope encryption (random DEK wrapped by the server KEK). Runs at
   login, because only then is the legacy password-derived key available.
@@ -19,6 +20,7 @@ from sqlalchemy.orm import Session
 
 from .auth import derive_user_key
 from .config import settings
+from .encryption_utils import ContentDecryptionError, decrypt_record_content
 from .envelope import CONFIG_SECRET_PREFIX, ensure_user_dek, unwrap_dek, wrap_dek
 from .key_cache import key_cache
 from .models import AppConfig, DailyReport, MonthlyReport, Task, User, WeeklyReport
@@ -77,14 +79,16 @@ def backup_before_envelope_migration(db: Session) -> str | None:
     return backup_path
 
 
-def _cleanup_plaintext_content(db: Session) -> None:
+def cleanup_plaintext_content(db: Session) -> int:
     """Clear plaintext content from records that already have encrypted data.
 
-    This handles the case where content_version=1 but content was not properly
-    cleared (a historical bug). These records have both plaintext content and
-    encrypted data, which is redundant and potentially a security concern.
+    This handles the case where content_version is set but content was not
+    properly cleared (a historical bug): redundant plaintext next to ciphertext.
+    Runs at startup and does NOT require a user key for the decision itself.
 
-    This runs at startup and does NOT require a user key.
+    A record is only cleared once its ciphertext is proven readable. If the DEK
+    is unavailable or the ciphertext is corrupted, the plaintext is the last
+    readable copy and is KEPT, with a warning naming the table and record id.
     """
     tables = [
         ("daily_reports", DailyReport),
@@ -94,8 +98,8 @@ def _cleanup_plaintext_content(db: Session) -> None:
     ]
 
     total_cleaned = 0
+    total_kept = 0
     for table_name, model in tables:
-        # Find records with encrypted data present but content not cleared
         records = (
             db.query(model)
             .filter(
@@ -108,19 +112,32 @@ def _cleanup_plaintext_content(db: Session) -> None:
         )
 
         for record in records:
+            try:
+                decrypt_record_content(record, record.user_id)
+            except ContentDecryptionError:
+                total_kept += 1
+                logger.warning(
+                    "Kept plaintext for %s id=%d: ciphertext is unreadable "
+                    "(missing DEK or corrupted data)",
+                    table_name,
+                    record.id,
+                )
+                continue
             record.content = ""
             total_cleaned += 1
 
         if records:
-            logger.info(
-                "Cleaned plaintext from %d %s records (encrypted but content not empty)",
-                len(records),
-                table_name,
-            )
+            logger.info("Scanned %d %s records with stale plaintext", len(records), table_name)
 
     if total_cleaned > 0:
         db.commit()
-        logger.info("Total cleaned %d records with stale plaintext content", total_cleaned)
+        logger.info("Cleaned stale plaintext from %d records", total_cleaned)
+    if total_kept > 0:
+        logger.warning(
+            "Kept %d records whose plaintext could not be verified — inspect them before retrying",
+            total_kept,
+        )
+    return total_cleaned
 
 
 def migrate_user_to_dek(db: Session, user: User, password: str) -> bytes:

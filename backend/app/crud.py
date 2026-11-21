@@ -17,6 +17,7 @@ from .encryption_utils import (
     encrypt_model_content,
 )
 from .envelope import CONFIG_SECRET_PREFIX, unwrap_config_secret, wrap_config_secret
+from .key_cache import key_cache
 
 logger = logging.getLogger(__name__)
 
@@ -164,6 +165,9 @@ def delete_user(db: Session, user_id: int) -> bool:
     db.query(ApiToken).filter(ApiToken.user_id == user_id).delete()
     db.delete(user)
     db.commit()
+    # Drop the cached DEK too: SQLite reuses the highest rowid, so a later user
+    # could otherwise inherit a stale key entry for this id.
+    key_cache.remove(user_id)
     return True
 
 
