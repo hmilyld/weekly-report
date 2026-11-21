@@ -413,8 +413,9 @@ def update_app_config(
         config.llm_api_url = llm_api_url
     if llm_model_name is not None:
         config.llm_model_name = llm_model_name
-    # Skip masked keys (contain *) — only update with real keys
-    if api_key is not None and "*" not in api_key:
+    # Callers pass None for "unchanged"; masked values are filtered in the router,
+    # so a real key containing '*' can be stored.
+    if api_key is not None:
         config.api_key = encrypt_api_key(api_key)
     config.updated_at = datetime.now(UTC)
     db.commit()
