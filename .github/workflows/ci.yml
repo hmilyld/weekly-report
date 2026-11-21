@@ -17,9 +17,13 @@ concurrency:
 
 jobs:
   backend:
-    name: backend
+    name: backend (py${{ matrix.python }})
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        python: ['3.11', '3.12']
     defaults:
       run:
         working-directory: backend
@@ -37,7 +41,7 @@ jobs:
       # 干净环境必须同时装两份清单，才能复现本地命令。
       - name: Install dependencies
         run: |
-          uv venv --python 3.11
+          uv venv --python ${{ matrix.python }}
           uv pip install -r requirements.txt -r dev-requirements.txt
 
       - name: Lint (ruff)
