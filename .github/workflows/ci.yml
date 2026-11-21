@@ -46,8 +46,8 @@ jobs:
       - name: Format check (ruff)
         run: uv run ruff format --check .
 
-      - name: Test (pytest)
-        run: uv run pytest -q
+      - name: Test (pytest, coverage report)
+        run: uv run pytest -q --cov=app --cov-report=term-missing
 
   frontend:
     name: frontend

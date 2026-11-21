@@ -38,7 +38,7 @@ weekly-report/
 │   │   └── llm_client.py# OpenAI-compatible LLM client (+ SSRF guard)
 │   ├── tests/           # Pytest: crypto, envelope, DEK migration, API/auth contracts…
 │   └── main.py          # App entry, lifespan, error mapping, static SPA serving
-├── .github/workflows/ # release-image.yml (tag → ghcr.io)
+├── .github/workflows/ # ci.yml (PR gate), release-image.yml (tag → ghcr.io)
 ├── scripts/           # dev.sh (dev helper), docker-publish.sh (Docker Hub)
 ├── Dockerfile         # Multi-stage build (Node 24 + Python 3.11)
 ├── docker-compose.yml
@@ -76,6 +76,7 @@ reference for agents (lint, test, release).
 | `uv run ruff check .` | Lint |
 | `uv run ruff format .` | Format |
 | `uv run pytest` | Run tests |
+| `uv run pytest --cov=app --cov-report=term-missing` | Run tests with a coverage report (what CI prints) |
 
 ### Dev Helper (project root)
 
@@ -133,7 +134,7 @@ The visual system is documented in `DESIGN.md` and is not re-decided per screen.
 
 ## Testing
 
-- **Backend:** Pytest in `backend/tests/` (`test_crypto.py`, `test_envelope.py`, `test_dek_migration.py`, `test_pre_migration_backup.py`, `test_crud_encryption.py`, `test_key_cache.py`, `test_login_migration.py`, `test_unified_auth.py`, `test_unified_api.py`, `test_settings.py`, `test_auth_hardening.py`, `test_config_api.py`, `test_token_lifecycle.py`, `test_input_validation.py`, `test_llm_url_guard.py`, `test_data_layer.py`, `test_response_contract.py`). Run: `cd backend && uv run pytest`. `tests/conftest.py` sets a fixed `ENCRYPTION_MASTER_KEY` and provides the `api_env` TestClient fixture (its `get_db` override mirrors production: commit on success, rollback on error).
+- **Backend:** Pytest in `backend/tests/` (`test_crypto.py`, `test_envelope.py`, `test_dek_migration.py`, `test_pre_migration_backup.py`, `test_crud_encryption.py`, `test_key_cache.py`, `test_login_migration.py`, `test_unified_auth.py`, `test_unified_api.py`, `test_settings.py`, `test_auth_hardening.py`, `test_config_api.py`, `test_token_lifecycle.py`, `test_input_validation.py`, `test_llm_url_guard.py`, `test_data_layer.py`, `test_response_contract.py`). Run: `cd backend && uv run pytest`. `tests/conftest.py` sets a fixed `ENCRYPTION_MASTER_KEY` and provides the `api_env` TestClient fixture (its `get_db` override mirrors production: commit on success, rollback on error). CI runs the same suite with `pytest-cov` and prints the coverage table; it is informational, not a gate.
 - **Frontend:** Vitest + jsdom + Testing Library in `src/**/__tests__/` (`date.test.js`, `listInput.test.js`, `clipboard.test.js`, `api/__tests__/index.test.js`, `components/ui/__tests__/Button.test.jsx`). Run: `cd frontend && pnpm test`. `src/test/setup.js` loads jest-dom matchers and a memory `localStorage` (Node 25's global stub has no methods). Unit tests cover pure logic and the API client; UI changes still need a manual pass at 1440px and 390px in both themes.
 
 ## Commit Conventions
@@ -170,7 +171,7 @@ Prefixes: `feat`, `fix`, `style`, `refactor`, `docs`. Description in Chinese is 
 - **Auth semantics:** `401` = missing/invalid credential, `402` = wrong current password inside a valid session, `403` = authenticated but not admin. `get_current_user` uses `HTTPBearer(auto_error=False)` so it answers 401 itself.
 - **Migrations** run automatically on startup via `app/schema_migrations.py` (additive only); no Alembic.
 - **SQLite concurrency:** the connect hook sets `journal_mode=WAL`, `foreign_keys=ON`, `busy_timeout=5000`. Live backups must include `-wal`/`-shm`, or stop the container first.
-- **Dependencies:** `backend/requirements.txt` is the single source of truth; there is no committed lock file (`uv.lock` is ignored). Verify a bump in a throwaway env: `uv venv --python 3.11 /tmp/x && VIRTUAL_ENV=/tmp/x uv pip install -r requirements.txt`.
+- **Dependencies:** `backend/requirements.txt` is the single source of truth for runtime packages; dev tooling (ruff, pytest, pytest-cov) lives in `backend/dev-requirements.txt` and is never installed into the image. There is no committed lock file (`uv.lock` is ignored). Verify a bump in a throwaway env: `uv venv --python 3.11 /tmp/x && uv pip install --python /tmp/x/bin/python -r requirements.txt -r dev-requirements.txt`.
 - **Reverse proxy:** the login rate limiter keys on `request.client.host`, so behind a proxy set `FORWARDED_ALLOW_IPS` (uvicorn honours it) or every client shares one bucket.
 - **Settings:** secrets are resolved in `model_validator(mode="after")` so `ENV`/`JWT_SECRET_KEY`/`ENCRYPTION_MASTER_KEY` in `.env` are honored. Production refuses to start without them; placeholder/short JWT keys are rejected. The `data/.encryption_key` fallback is written only when no master key is configured (development).
 - **LLM URL guard:** `ipaddress`-based after DNS resolution; loopback is allowed on purpose (local Ollama), private/link-local/reserved ranges are rejected.
