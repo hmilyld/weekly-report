@@ -10,8 +10,9 @@ weekly-report/
 │   ├── src/
 │   │   ├── api/         # Axios instance + API wrappers
 │   │   ├── components/  # CalendarView, WeekList, DailyEditModal, ReportWorkspace
+│   │   │   ├── tasks/     # TaskEditor, TaskRow, TaskComposer, deadline helpers
 │   │   │   └── ui/        # Button, Field, PasswordInput, Panel, Modal, ConfirmProvider, PeriodBar…
-│   │   ├── contexts/    # AuthContext, ThemeContext
+│   │   ├── contexts/    # Auth/Theme providers + auth.js/theme.js hooks
 │   │   ├── hooks/       # Custom hooks (useMediaQuery)
 │   │   ├── pages/       # DailyReport, WeeklyReport, MonthlyReport, Tasks, Settings, UserManagement…
 │   │   ├── styles/      # tokens.css → base.css → components.css → app.css
