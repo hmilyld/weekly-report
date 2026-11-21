@@ -1,8 +1,25 @@
 # 周报/月报自动生成系统
 
+[![CI](https://github.com/hmilyld/weekly-report/actions/workflows/ci.yml/badge.svg)](https://github.com/hmilyld/weekly-report/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
+[![ghcr.io](https://img.shields.io/badge/ghcr.io-weekly--report-blue)](https://github.com/hmilyld/weekly-report/pkgs/container/weekly-report)
+
 按天记录进展，由大模型汇总成周报和月报。前端 React + Vite，后端 Python FastAPI，SQLite 存储，支持多用户与管理员/普通用户两种角色。
 
 界面为中文，可安装为 PWA（桌面 / 手机），支持跟随系统、亮色、暗色三种主题。
+
+## 目录
+
+- [功能](#功能)
+- [快速开始（Docker）](#快速开始docker)
+- [本地开发](#本地开发)
+- [发布与部署](#发布与部署)
+- [环境变量](#环境变量)
+- [安全与备份](#安全与备份)
+- [API 接口](#api-接口)
+- [技术栈](#技术栈)
+- [文档](#文档)
+- [许可证](#许可证)
 
 ## 功能
 
