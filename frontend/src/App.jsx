@@ -23,8 +23,10 @@ import {
 } from 'lucide-react'
 
 import { getAuthStatus, setReLoginHandler } from './api'
-import { AuthProvider, useAuth } from './contexts/AuthContext'
-import { ThemeProvider, useTheme } from './contexts/ThemeContext'
+import { AuthProvider } from './contexts/AuthContext'
+import { useAuth } from './contexts/auth'
+import { ThemeProvider } from './contexts/ThemeContext'
+import { useTheme } from './contexts/theme'
 import useMediaQuery from './hooks/useMediaQuery'
 import ReLoginModal from './components/ReLoginModal'
 import Wordmark from './components/ui/Wordmark'

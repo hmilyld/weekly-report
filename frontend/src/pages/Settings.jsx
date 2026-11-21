@@ -24,8 +24,8 @@ import {
   testConnection,
   updateConfig,
 } from '../api'
-import { useAuth } from '../contexts/AuthContext'
-import { useConfirm } from '../components/ui/ConfirmProvider'
+import { useAuth } from '../contexts/auth'
+import { useConfirm } from '../components/ui/confirm'
 import { copyText } from '../utils/clipboard'
 import { formatDateTime } from '../utils/date'
 import Button from '../components/ui/Button'
