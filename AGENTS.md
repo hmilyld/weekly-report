@@ -185,5 +185,8 @@ Prefixes: `feat`, `fix`, `style`, `refactor`, `docs`. Description in Chinese is 
 | `PRODUCT.md` | Users, purpose, capabilities, constraints, principles | Visual system, commands |
 | `DESIGN.md` | Tokens, type, layout, components, do/don't | Product strategy, build commands |
 | `AGENTS.md` | Structure, commands, style, testing, commits, release | Marketing copy, design rationale |
+| `CONTRIBUTING.md` | Contributor setup, PR checklist, commit format | Repo internals, release procedure |
+| `SECURITY.md` | Vulnerability reporting, supported versions, known trade-offs | Feature docs, install steps |
+| `CHANGELOG.md` | User-visible changes per released version | Internal refactor detail, design rationale |
 
 When behaviour changes, update the file that owns it — do not duplicate the same fact in two files.

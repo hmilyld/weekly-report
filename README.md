@@ -368,6 +368,9 @@ curl http://localhost:18001/api/v1/tasks/pending \
 | `PRODUCT.md` | 产品定位、用户、能力与约束（改需求前先读） |
 | `DESIGN.md` | 设计系统：令牌、排版、组件、交互规则（改界面前先读） |
 | `AGENTS.md` | 仓库结构与开发约定、提交规范、发布流程（给人和 AI 协作用） |
+| `CONTRIBUTING.md` | 本地开发、提交规范与 PR 检查项（外部贡献者入口） |
+| `SECURITY.md` | 漏洞报告通道与支持范围 |
+| `CHANGELOG.md` | 面向用户的变更记录 |
 | `docs/android-api.md` | Android / Token 客户端对接：认证、端点、日报/周报语义、错误码 |
 
 ---
