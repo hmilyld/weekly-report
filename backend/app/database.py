@@ -3,7 +3,7 @@
 import os
 import sqlite3
 
-from sqlalchemy import create_engine, event
+from sqlalchemy import create_engine, event, text
 from sqlalchemy.engine import Engine
 from sqlalchemy.orm import declarative_base, sessionmaker
 
@@ -65,3 +65,9 @@ def get_db():
         db.commit()
     finally:
         db.close()
+
+
+def ping_database() -> None:
+    """Raise when the database is unreachable (used by the health endpoint)."""
+    with engine.connect() as connection:
+        connection.execute(text("SELECT 1"))

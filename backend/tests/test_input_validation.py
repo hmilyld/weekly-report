@@ -74,3 +74,16 @@ class TestStaticFileResolution:
         self._static_dir(tmp_path, monkeypatch)
 
         assert main.resolve_static_file("nope.js") is None
+
+
+class TestHealth:
+    def test_health_pings_the_database(self, api_env, monkeypatch):
+        called = []
+        monkeypatch.setattr(main, "ping_database", lambda: called.append(True))
+        client, _db = api_env
+
+        response = client.get("/api/v1/health")
+
+        assert response.status_code == 200
+        assert response.json() == {"status": "ok"}
+        assert called == [True]

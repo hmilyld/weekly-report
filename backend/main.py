@@ -11,7 +11,7 @@ from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 
 from app.config import settings
-from app.database import SessionLocal
+from app.database import SessionLocal, ping_database
 from app.encryption_utils import ContentDecryptionError, EncryptionKeyMissingError
 from app.envelope import get_kek, load_all_user_deks
 from app.migration import migrate_app_config_secret
@@ -119,7 +119,6 @@ async def security_headers(request: Request, call_next):
     response: Response = await call_next(request)
     response.headers["X-Content-Type-Options"] = "nosniff"
     response.headers["X-Frame-Options"] = "DENY"
-    response.headers["X-XSS-Protection"] = "1; mode=block"
     response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
     if settings.is_production:
         response.headers["Strict-Transport-Security"] = "max-age=63072000; includeSubDomains"
@@ -139,7 +138,9 @@ app.include_router(users.router)
 
 # ─── Health check endpoint ───────────────────────────────
 @app.get("/api/v1/health")
-async def health():
+def health():
+    """Liveness + database reachability, so the container healthcheck is real."""
+    ping_database()
     return {"status": "ok"}
 
 
