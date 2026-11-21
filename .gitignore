@@ -33,6 +33,5 @@ uv.lock
 .mimocode/
 .claude/
 
-# Design tooling artifacts
-.impeccable/review/
-.impeccable/mocks/
+# Design tooling artifacts (not part of the product)
+.impeccable/
