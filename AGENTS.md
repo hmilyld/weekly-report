@@ -69,7 +69,8 @@ reference for agents (lint, test, release).
 | Command | Description |
 |---|---|
 | `uv venv` | Create Python virtual environment |
-| `uv pip install -r requirements.txt` | Install dependencies |
+| `uv pip install -r requirements.txt` | Install runtime dependencies |
+| `uv pip install -r requirements.txt -r dev-requirements.txt` | Install runtime + dev tooling (ruff, pytest) |
 | `uv run uvicorn main:app --reload --port 18001` | Dev server |
 | `uv run ruff check .` | Lint |
 | `uv run ruff format .` | Format |
