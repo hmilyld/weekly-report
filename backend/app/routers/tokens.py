@@ -91,6 +91,24 @@ def create_token(
     )
 
 
+@router.delete("")
+def revoke_all_tokens(
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Revoke every API token of the current user.
+
+    API tokens are independent of the login password, so changing the password
+    does not invalidate them. This is the explicit "sign out my scripts and
+    other devices" action.
+    """
+    revoked = (
+        db.query(ApiToken).filter(ApiToken.user_id == user.id).delete(synchronize_session=False)
+    )
+    db.commit()
+    return {"revoked": revoked}
+
+
 @router.delete("/{token_id}")
 def delete_token(
     token_id: int,

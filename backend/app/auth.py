@@ -17,8 +17,8 @@ from .models import User
 from .models_token import ApiToken
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
-security = HTTPBearer()
-# Dual-auth variant: does not raise when the Authorization header is absent.
+# Dual-auth variant: does not raise when the Authorization header is absent, so
+# the dependency can answer 401 itself (401 = not authenticated, 403 = wrong role).
 _bearer_or_token = HTTPBearer(auto_error=False)
 
 # bcrypt silently truncates anything past 72 bytes, so a longer password would
@@ -199,10 +199,16 @@ def _user_from_api_token(raw_token: str, db: Session) -> User:
 
 
 def get_current_user(
-    credentials: HTTPAuthorizationCredentials = Depends(security),
+    credentials: HTTPAuthorizationCredentials | None = Depends(_bearer_or_token),
     db: Session = Depends(get_db),
 ) -> User:
-    """JWT-only dependency (admin/auth endpoints). Rejects API tokens."""
+    """JWT-only dependency (admin/auth endpoints). Rejects API tokens with 401."""
+    if credentials is None:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Not authenticated",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
     return _user_from_jwt(credentials.credentials, db)
 
 

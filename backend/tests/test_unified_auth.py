@@ -71,21 +71,21 @@ class TestDualAuth:
         user = _make_user(db, role="admin")
         token = _api_token(db, user)
         r = client.get("/api/v1/config", headers={"X-API-Token": token})
-        assert r.status_code == 403
+        assert r.status_code == 401  # 401 = wrong credential type, 403 is reserved for wrong role
 
     def test_api_token_cannot_reach_user_management(self, api_env):
         client, db = api_env
         user = _make_user(db, role="admin")
         token = _api_token(db, user)
         r = client.get("/api/v1/users", headers={"X-API-Token": token})
-        assert r.status_code == 403
+        assert r.status_code == 401
 
     def test_api_token_cannot_manage_tokens(self, api_env):
         client, db = api_env
         user = _make_user(db)
         token = _api_token(db, user)
         r = client.get("/api/v1/tokens", headers={"X-API-Token": token})
-        assert r.status_code == 403
+        assert r.status_code == 401
 
     def test_no_credentials_is_401(self, api_env):
         client, _ = api_env
@@ -150,3 +150,13 @@ class TestTokenUsageThrottle:
         naive_now = datetime.now(UTC).replace(tzinfo=None)
         assert updated is not None
         assert (naive_now - updated).total_seconds() < 60
+
+
+class TestRoleForbidden:
+    def test_non_admin_jwt_gets_403_on_admin_routes(self, api_env):
+        client, db = api_env
+        user = _make_user(db, role="user")
+
+        r = client.get("/api/v1/users", headers=_jwt_headers(user))
+
+        assert r.status_code == 403
