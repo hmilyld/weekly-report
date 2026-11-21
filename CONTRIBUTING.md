@@ -91,6 +91,7 @@ docs: 更新部署说明
 | [`PRODUCT.md`](PRODUCT.md) | 产品定位、用户、能力与约束 |
 | [`DESIGN.md`](DESIGN.md) | 设计系统：令牌、排版、组件与交互规则 |
 | [`docs/architecture.md`](docs/architecture.md) | 运行形态、模块边界、请求与加密链路 |
+| [`docs/api.md`](docs/api.md) | HTTP 端点、认证方式、状态码与调用示例 |
 | [`docs/android-api.md`](docs/android-api.md) | Android 与 API Token 客户端对接 |
 | [`SECURITY.md`](SECURITY.md) | 漏洞报告通道与已知风险 |
 

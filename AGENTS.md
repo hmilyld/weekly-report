@@ -186,7 +186,7 @@ Prefixes: `feat`, `fix`, `style`, `refactor`, `docs`. Description in Chinese is 
 
 | File | Owns | Keep out of it |
 |---|---|---|
-| `README.md` | Project intro, features, install/usage, env vars, API reference | Product rationale, design tokens, agent rules |
+| `README.md` | Project intro, features, quick start, env vars, deployment | Product rationale, design tokens, API tables, agent rules |
 | `PRODUCT.md` | Users, purpose, capabilities, constraints, principles | Visual system, commands |
 | `DESIGN.md` | Tokens, type, layout, components, do/don't | Product strategy, build commands |
 | `AGENTS.md` | Structure, commands, style, testing, commits, release | Marketing copy, design rationale |
@@ -194,5 +194,9 @@ Prefixes: `feat`, `fix`, `style`, `refactor`, `docs`. Description in Chinese is 
 | `SECURITY.md` | Vulnerability reporting, supported versions, known trade-offs | Feature docs, install steps |
 | `CHANGELOG.md` | User-visible changes per released version | Internal refactor detail, design rationale |
 | `docs/architecture.md` | Runtime topology, layers, request/encryption flow, invariants | API reference, install steps |
+| `docs/api.md` | HTTP endpoints, auth modes, status codes, curl examples | Install steps, product rationale |
+
+Language: user-facing docs (README, CONTRIBUTING, SECURITY, CHANGELOG, `docs/*`) are Chinese;
+PRODUCT/DESIGN and AGENTS/CLAUDE are English by design.
 
 When behaviour changes, update the file that owns it — do not duplicate the same fact in two files.
