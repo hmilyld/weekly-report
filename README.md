@@ -358,7 +358,7 @@ curl http://localhost:18001/api/v1/tasks/pending \
 - **前端**：React 18、Vite 5、React Router 6、Axios、Lucide 图标、vite-plugin-pwa；手写 CSS（设计令牌见 `frontend/src/styles/tokens.css`）
 - **后端**：Python 3.11、FastAPI、SQLAlchemy 2、python-jose、passlib/bcrypt、cryptography（AES-GCM 加密存储）、httpx
 - **数据库**：SQLite（单文件，随 `./data` 挂载持久化）
-- **部署**：多阶段 Docker 构建（Node 20 构建前端 + Python 3.11 运行），单容器同时提供 API 与前端
+- **部署**：多阶段 Docker 构建（Node 24 构建前端 + Python 3.11 运行），单容器同时提供 API 与前端
 
 ---
 

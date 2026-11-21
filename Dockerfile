@@ -1,9 +1,9 @@
 # ─── Stage 1: Build frontend ────────────────────────────
-FROM node:20-alpine AS frontend-build
+FROM node:24-alpine AS frontend-build
 
 WORKDIR /build/frontend
 
-# Install pnpm (pin to v9, compatible with Node 18)
+# Install pnpm (pin to v9, compatible with Node 24)
 RUN corepack enable && corepack prepare pnpm@9 --activate
 
 # Copy package files and install

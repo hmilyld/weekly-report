@@ -40,7 +40,7 @@ weekly-report/
 │   └── main.py          # App entry, lifespan, error mapping, static SPA serving
 ├── .github/workflows/ # release-image.yml (tag → ghcr.io)
 ├── scripts/           # dev.sh (dev helper), docker-publish.sh (Docker Hub)
-├── Dockerfile         # Multi-stage build (Node 20 + Python 3.11)
+├── Dockerfile         # Multi-stage build (Node 24 + Python 3.11)
 ├── docker-compose.yml
 ├── README.md          # Project intro + usage (users/operators)
 ├── PRODUCT.md         # Product truth
