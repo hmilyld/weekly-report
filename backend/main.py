@@ -9,6 +9,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 
+from app.config import settings
 from app.database import Base, SessionLocal, engine
 from app.encryption_utils import ContentDecryptionError, EncryptionKeyMissingError
 from app.envelope import get_kek, load_all_user_deks
@@ -198,7 +199,7 @@ async def security_headers(request: Request, call_next):
     response.headers["X-Frame-Options"] = "DENY"
     response.headers["X-XSS-Protection"] = "1; mode=block"
     response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
-    if os.getenv("ENV", os.getenv("ENVIRONMENT", "development")) == "production":
+    if settings.is_production:
         response.headers["Strict-Transport-Security"] = "max-age=63072000; includeSubDomains"
     return response
 
