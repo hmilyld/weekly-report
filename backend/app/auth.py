@@ -2,6 +2,7 @@
 
 import re
 from datetime import UTC, datetime, timedelta
+from threading import Lock
 
 from fastapi import Depends, Header, HTTPException, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
@@ -20,9 +21,26 @@ security = HTTPBearer()
 # Dual-auth variant: does not raise when the Authorization header is absent.
 _bearer_or_token = HTTPBearer(auto_error=False)
 
+# bcrypt silently truncates anything past 72 bytes, so a longer password would
+# be equivalent to its 72-byte prefix. Reject instead of truncating.
+BCRYPT_MAX_PASSWORD_BYTES = 72
+
 # Don't rewrite last_used_at on every token request: SQLite commits are
 # fsync-bound and Android polls frequently. Update at most this often.
 TOKEN_USAGE_UPDATE_INTERVAL_SECONDS = 300
+
+_dummy_hash: str | None = None
+_dummy_hash_lock = Lock()
+
+
+def _get_dummy_hash() -> str:
+    """A throwaway hash used to keep unknown-user logins as slow as real ones."""
+    global _dummy_hash
+    if _dummy_hash is None:
+        with _dummy_hash_lock:
+            if _dummy_hash is None:
+                _dummy_hash = pwd_context.hash("timing-equalizer-not-a-real-password")
+    return _dummy_hash
 
 
 def _last_used_is_stale(last_used: datetime | None, now: datetime) -> bool:
@@ -70,6 +88,11 @@ def validate_password(password: str) -> None:
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Password must contain at least one digit.",
         )
+    if len(password.encode("utf-8")) > BCRYPT_MAX_PASSWORD_BYTES:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Password must be at most {BCRYPT_MAX_PASSWORD_BYTES} bytes (UTF-8).",
+        )
 
 
 def hash_password(password: str) -> str:
@@ -77,6 +100,18 @@ def hash_password(password: str) -> str:
 
 
 def verify_password(plain: str, hashed: str) -> bool:
+    return pwd_context.verify(plain, hashed)
+
+
+def verify_password_safe(plain: str, hashed: str | None) -> bool:
+    """Verify a password, spending the same bcrypt cost when the user is unknown.
+
+    Without the dummy verification, a missing username answers much faster than
+    a wrong password and leaks which accounts exist.
+    """
+    if hashed is None:
+        pwd_context.verify(plain, _get_dummy_hash())
+        return False
     return pwd_context.verify(plain, hashed)
 
 
@@ -127,10 +162,15 @@ def _user_from_jwt(raw_token: str, db: Session) -> User:
     user = db.query(User).filter(User.id == uid).first()
     if user is None:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="User not found")
-    # Check if password was changed after token was issued
-    token_pwd_ver = payload.get("pwd_ver", -1)
+    # Every token must carry the password version it was minted with; a token
+    # without the claim is treated as version 0, so changing the password
+    # invalidates it too (an absent claim must never be a permanent bypass).
+    try:
+        token_pwd_ver = int(payload.get("pwd_ver", 0))
+    except (ValueError, TypeError):
+        token_pwd_ver = -1
     current_pwd_ver = getattr(user, "password_version", 0) or 0
-    if token_pwd_ver != -1 and token_pwd_ver < current_pwd_ver:
+    if token_pwd_ver != current_pwd_ver:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Password has been changed. Please log in again.",
@@ -139,14 +179,17 @@ def _user_from_jwt(raw_token: str, db: Session) -> User:
 
 
 def _user_from_api_token(raw_token: str, db: Session) -> User:
-    """Resolve a user from an X-API-Token value, recording its last use."""
+    """Resolve a user from an X-API-Token value, recording its last use.
+
+    The usage write stays on the request session and is committed by ``get_db``
+    when the request succeeds, so a GET never opens a second transaction.
+    """
     api_token = db.query(ApiToken).filter(ApiToken.token == raw_token).first()
     if not api_token:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid API token")
     now = datetime.now(UTC)
     if _last_used_is_stale(api_token.last_used_at, now):
         api_token.last_used_at = now
-        db.commit()
     user = db.query(User).filter(User.id == api_token.user_id).first()
     if not user:
         raise HTTPException(

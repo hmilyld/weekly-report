@@ -31,7 +31,14 @@ def api_env():
     session = sessionmaker(bind=engine)()
 
     def override_get_db():
-        yield session
+        # Mirror app.database.get_db: rollback on error, commit on success.
+        try:
+            yield session
+        except Exception:
+            session.rollback()
+            raise
+        else:
+            session.commit()
 
     main.app.dependency_overrides[get_db] = override_get_db
     client = TestClient(main.app)
