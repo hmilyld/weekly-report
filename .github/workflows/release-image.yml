@@ -98,7 +98,7 @@ jobs:
 
       # 先构建到本地跑冒烟测试，通过后再推送，避免把坏镜像发出去。
       - name: Build for smoke test
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@v7
         with:
           context: .
           load: true
@@ -145,7 +145,7 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Build and push
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@v7
         with:
           context: .
           push: true
