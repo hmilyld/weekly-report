@@ -209,6 +209,69 @@ docker compose pull && docker compose up -d
 
 > **注意**：升级到信封加密版本并完成首次登录后，数据由新的 DEK 加密，旧版本镜像无法解密。升级前必须备份数据库；如需回退，只能恢复升级前的备份。
 
+### Docker Swarm 与 Portainer
+
+用 Swarm 编排时，`docker-compose.yml` 需要按栈规则调整。以下四项是硬性要求，其余保持默认即可：
+
+- **副本数必须为 1**。SQLite 是单写者，两个任务同时运行会争锁，启动迁移也可能互相覆盖。滚动更新用 `update_config.order: stop-first`，先停旧任务再起新任务。
+- **命名卷按节点各一份**。`deploy.placement.constraints` 要固定到持有数据的节点（`node.hostname == <节点名>`），否则任务漂移到其他节点会挂到空卷，看起来像数据丢失。
+- **密钥通过栈环境变量或 Docker Secret 注入**，不要写进栈文件。使用 Secret 时在启动命令里导出为环境变量，且 `environment` 中不要再保留同名键。
+- **副本减少前先确认数据位置**。用 `docker service ps` 查看任务所在节点，在对应节点上检查 `docker volume inspect weekly-report-data` 指向的目录。
+
+最小可用栈文件：
+
+```yaml
+version: '3.8'
+
+services:
+  weekly-report:
+    image: ghcr.io/hmilyld/weekly-report:1.2.0
+    environment:
+      - ENV=production
+      - JWT_SECRET_KEY=${JWT_SECRET_KEY}
+      - ENCRYPTION_MASTER_KEY=${ENCRYPTION_MASTER_KEY}
+    volumes:
+      - weekly-report-data:/app/data
+    networks:
+      - npm_proxy_net
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:18001/api/v1/health')"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+    deploy:
+      replicas: 1
+      placement:
+        constraints:
+          - node.hostname == 持有数据的节点名
+      restart_policy:
+        condition: any
+      update_config:
+        order: stop-first
+      rollback_config:
+        order: stop-first
+
+volumes:
+  weekly-report-data:
+
+networks:
+  npm_proxy_net:
+    external: true
+    name: npm_proxy_net
+```
+
+两个密钥在 Portainer 的 Stack → Environment variables 中填写，栈文件用 `${...}` 引用。`ENCRYPTION_MASTER_KEY` 本身就是 base64，如果用 Docker Secret 并开启 Portainer 的「Encode secret」，值会被再次编码导致启动校验失败，需关闭该选项。
+
+部署后确认容器内实际生效的配置：
+
+```bash
+docker service ps <stack>_weekly-report --no-trunc
+docker service inspect <stack>_weekly-report --format '{{json .Spec.TaskTemplate.ContainerSpec.Env}}'
+docker service logs -f <stack>_weekly-report
+```
+
+
 ---
 
 ## 环境变量
