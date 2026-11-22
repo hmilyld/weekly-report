@@ -113,11 +113,11 @@ jobs:
       - name: Smoke test
         run: |
           set -euo pipefail
-          # 镜像以 ENV=production 启动，缺少 JWT_SECRET_KEY 或
-          # ENCRYPTION_MASTER_KEY 时会拒绝启动；两个都必须提供。
+          # 镜像以 ENV=production 启动：缺少 JWT_SECRET_KEY（至少 32 字节）
+          # 或 ENCRYPTION_MASTER_KEY（32 字节 base64）都会拒绝启动。
           docker run -d --name smoke \
             -p 18001:18001 \
-            -e JWT_SECRET_KEY=smoke-test-secret-key-12345678 \
+            -e JWT_SECRET_KEY=smoke-test-jwt-secret-0123456789abcdef \
             -e ENCRYPTION_MASTER_KEY=MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY= \
             "${IMAGE}:${{ steps.meta.outputs.version }}" || true
 
