@@ -144,7 +144,7 @@ cd backend && uv run ruff check . && uv run ruff format --check . && uv run pyte
 cd frontend && pnpm lint && pnpm format:check && pnpm test && pnpm build
 ```
 
-CI 在每次 PR 上跑同一组命令（Python 3.11 / 3.12、Node 24）。架构、加密链路与必须保持的不变量见
+CI 在每次 PR 上跑同一组命令（Python 3.11 / 3.15、Node 26）。架构、加密链路与必须保持的不变量见
 [`docs/architecture.md`](docs/architecture.md)。
 
 ### 首次使用
@@ -341,8 +341,8 @@ KEK ──AES-256-GCM 包裹──> users.wrapped_dek（存库，绑定用户身
 
 ## 技术栈
 
-- **前端**：React 18、Vite 5、React Router 6、Axios、Lucide 图标、vite-plugin-pwa；手写 CSS（设计令牌见 `frontend/src/styles/tokens.css`）
-- **后端**：Python 3.11、FastAPI、SQLAlchemy 2、python-jose、passlib/bcrypt、cryptography（AES-GCM 加密存储）、httpx
+- **前端**：React 19、Vite 5、React Router 7、Axios、Lucide 图标、vite-plugin-pwa；手写 CSS（设计令牌见 `frontend/src/styles/tokens.css`）
+- **后端**：Python 3.15（最低支持 3.11）、FastAPI、SQLAlchemy 2、python-jose、passlib/bcrypt、cryptography（AES-GCM 加密存储）、httpx
 - **数据库**：SQLite（单文件，随 `./data` 挂载持久化）
 - **部署**：多阶段 Docker 构建（Node 26 构建前端 + Python 3.15 运行），单容器同时提供 API 与前端
 

@@ -6,7 +6,7 @@ A full-stack weekly/monthly report auto-generation system. Users log daily work 
 
 ```
 weekly-report/
-├── frontend/          # React 18 + Vite 5 SPA
+├── frontend/          # React 19 + Vite 5 SPA
 │   ├── src/
 │   │   ├── api/         # Axios instance + API wrappers
 │   │   ├── components/  # CalendarView, WeekList, DailyEditModal, ReportWorkspace
@@ -120,7 +120,7 @@ excluded — the image is published publicly.
 - **2-space indent**, no semicolons, single quotes, 100-char width.
 - Trailing commas everywhere. Arrow parens always.
 - LF line endings. UTF-8 charset (see `.editorconfig`).
-- React 18 — `react/react-in-jsx-scope` off (no explicit React imports).
+- React 19 — `react/react-in-jsx-scope` off (no explicit React imports).
 - `prop-types` off — typed via conventions, not PropTypes.
 
 ### Frontend styling

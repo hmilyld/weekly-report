@@ -140,5 +140,5 @@ SQLite 会复用最大 rowid，残留的缓存条目会被后续用户继承。
 | 前端单元测试 | `cd frontend && pnpm test` |
 | 前端风格与构建 | `cd frontend && pnpm lint && pnpm format:check && pnpm build` |
 
-CI（`.github/workflows/ci.yml`）在 Python 3.11、3.12 与 Node 24 上执行同一组命令。
+CI（`.github/workflows/ci.yml`）在 Python 3.11、3.15 与 Node 26 上执行同一组命令。
 发布镜像由 `release-image.yml` 在 `v*` 标签上构建，并在推送前完成健康检查。
