@@ -3,23 +3,30 @@
 本文件记录面向用户的变更。格式参考 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，
 版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
-## [Unreleased]
+## [1.3.0] - 2026-11-22
 
 ### 变更
 
 - 运行时镜像升级到 Python 3.15，构建镜像升级到 Node 26（Node 26 不再内置 corepack，构建改用 npm 安装 pnpm）
 - 前端升级 React 19、react-router-dom 7.18、lucide-react 1.x、Vite React 插件与 PWA 插件
 - 后端升级 uvicorn、SQLAlchemy、httpx 与 ruff 等中间版本
+- GitHub Actions 升级到当前主版本
+
+### 修复
+
+- 登录失败不再整页刷新，错误提示改为表单上方的「用户名或密码错误」
+- 创建管理员账户后直接进入日报页，不再跳回登录页
+- 发布流程的冒烟测试补齐加密主密钥，并修正 JWT 密钥长度不满足启动要求的问题
 
 ### 工程化
 
-- CI 矩阵调整为 Python 3.11 与 3.15（最低支持版本与生产运行时）
-- GitHub Actions 升级到当前主版本
-- Dependabot 忽略 bcrypt 的版本更新：passlib 已停止维护，bcrypt 5 会导致登录不可用
+- CI 矩阵调整为 Python 3.11 与 3.15（最低支持版本与生产运行时），前端改为 Node 26
+- Dependabot 忽略 bcrypt 与 Vite 的 major 升级，待单独迁移后恢复
 
 ### 文档
 
 - README 补充 Docker Swarm 与 Portainer 的部署约束
+- 文档中的运行时版本、CI 矩阵与依赖状态已同步
 
 ## [1.2.0] - 2026-11-22
 
@@ -88,7 +95,8 @@
 
 首个公开版本：日报 / 周报 / 月报、待办、多用户与角色权限、系统配置、API Token、PWA 安装。
 
-[Unreleased]: https://github.com/hmilyld/weekly-report/compare/v1.2.0...HEAD
+[Unreleased]: https://github.com/hmilyld/weekly-report/compare/v1.3.0...HEAD
+[1.3.0]: https://github.com/hmilyld/weekly-report/compare/v1.2.0...v1.3.0
 [1.2.0]: https://github.com/hmilyld/weekly-report/compare/v1.1.0...v1.2.0
 [1.1.0]: https://github.com/hmilyld/weekly-report/compare/v1.0.2...v1.1.0
 [1.0.2]: https://github.com/hmilyld/weekly-report/compare/v1.0.1...v1.0.2
