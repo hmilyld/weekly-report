@@ -3,7 +3,7 @@
 本文件记录面向用户的变更。格式参考 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，
 版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
-## [Unreleased]
+## [1.2.0] - 2026-11-22
 
 ### 新增
 
@@ -28,7 +28,9 @@
 ### 文档
 
 - 新增 `docs/architecture.md`：运行形态、模块边界、请求与加密链路、关键不变量
-- 校准 README 与产品 / 设计 / 协作文档
+- 新增 `docs/api.md`：HTTP 端点、认证方式、状态码与调用示例（从 README 拆出）
+- 新增界面截图（`docs/images/`），README 精简为快速扫读的结构
+- 统一文档语气，去除表情符号与口语化表达
 
 ## [1.1.0] - 2026-11-17
 
@@ -68,7 +70,8 @@
 
 首个公开版本：日报 / 周报 / 月报、待办、多用户与角色权限、系统配置、API Token、PWA 安装。
 
-[Unreleased]: https://github.com/hmilyld/weekly-report/compare/v1.1.0...HEAD
+[Unreleased]: https://github.com/hmilyld/weekly-report/compare/v1.2.0...HEAD
+[1.2.0]: https://github.com/hmilyld/weekly-report/compare/v1.1.0...v1.2.0
 [1.1.0]: https://github.com/hmilyld/weekly-report/compare/v1.0.2...v1.1.0
 [1.0.2]: https://github.com/hmilyld/weekly-report/compare/v1.0.1...v1.0.2
 [1.0.1]: https://github.com/hmilyld/weekly-report/compare/v1.0.0...v1.0.1
