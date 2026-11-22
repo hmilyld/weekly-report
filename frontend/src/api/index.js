@@ -36,12 +36,18 @@ api.interceptors.response.use(
     // 401 means the session itself is invalid; 402 is used by the API for a wrong
     // password re-entry inside a valid session (e.g. changing the password).
     if (err.response?.status === 401) {
-      // 如果有重新登录处理器，使用它（避免页面跳转）
-      if (_showReLogin) {
+      // A rejected login or setup is not an expired session: the form shows the
+      // error itself, so handling it here would reload the page and lose it.
+      const url = err.config?.url || ''
+      const isAuthAttempt = url.startsWith('/auth/login') || url.startsWith('/auth/setup')
+      if (isAuthAttempt) {
+        // 登录/初始化的失败由表单自己提示，这里不做任何跳转
+      } else if (_showReLogin) {
+        // 如果有重新登录处理器，使用它（避免页面跳转）
         _showReLogin()
       } else {
         localStorage.removeItem('token')
-        window.location.href = '/login'
+        if (window.location.pathname !== '/login') window.location.href = '/login'
       }
     }
     return Promise.reject(err)

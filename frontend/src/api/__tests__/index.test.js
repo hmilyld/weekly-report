@@ -64,6 +64,19 @@ describe('api client', () => {
     expect(reLogin).toHaveBeenCalledTimes(1)
   })
 
+  it('leaves a rejected login to the form instead of reloading', async () => {
+    const error = new Error('unauthorized')
+    error.response = { status: 401, data: { detail: 'Incorrect username or password' } }
+    error.config = { url: '/auth/login' }
+    stubAdapter(() => {
+      throw error
+    })
+
+    await expect(api.post('/auth/login', {})).rejects.toBe(error)
+    expect(reLogin).not.toHaveBeenCalled()
+    expect(localStorage.getItem('token')).toBeNull()
+  })
+
   it('does not open the re-login flow on 402 (wrong current password)', async () => {
     const error = new Error('wrong password')
     error.response = { status: 402 }

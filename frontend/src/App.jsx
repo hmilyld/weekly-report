@@ -318,7 +318,8 @@ export default function App() {
                   needsSetup ? (
                     <Setup onComplete={() => setNeedsSetup(false)} authError={authError} />
                   ) : (
-                    <Navigate to="/login" replace />
+                    // 账户已创建则直接进入应用；再去 /setup 也不再退回登录页
+                    <Navigate to="/" replace />
                   )
                 }
               />

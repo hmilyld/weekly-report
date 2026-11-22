@@ -37,7 +37,11 @@ export default function Login() {
       await refreshUser()
       navigate('/', { replace: true })
     } catch (err) {
-      toast.error(err.response?.data?.detail || '登录失败')
+      toast.error(
+        err.response?.status === 401
+          ? '用户名或密码错误'
+          : err.response?.data?.detail || '登录失败',
+      )
     } finally {
       setLoading(false)
     }
