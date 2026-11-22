@@ -42,7 +42,7 @@ weekly-report/
 │   └── main.py          # App entry, lifespan, error mapping, static SPA serving
 ├── .github/workflows/ # ci.yml (PR gate), release-image.yml (tag → ghcr.io)
 ├── scripts/           # dev.sh (dev helper), docker-publish.sh (Docker Hub)
-├── Dockerfile         # Multi-stage build (Node 24 + Python 3.11)
+├── Dockerfile         # Multi-stage build (Node 26 + Python 3.15)
 ├── docker-compose.yml
 ├── README.md          # Project intro + usage (users/operators)
 ├── PRODUCT.md         # Product truth
@@ -136,7 +136,7 @@ The visual system is documented in `DESIGN.md` and is not re-decided per screen.
 
 ## Testing
 
-- **Backend:** Pytest in `backend/tests/` (`test_crypto.py`, `test_envelope.py`, `test_dek_migration.py`, `test_pre_migration_backup.py`, `test_crud_encryption.py`, `test_key_cache.py`, `test_login_migration.py`, `test_unified_auth.py`, `test_unified_api.py`, `test_settings.py`, `test_auth_hardening.py`, `test_config_api.py`, `test_token_lifecycle.py`, `test_input_validation.py`, `test_llm_url_guard.py`, `test_data_layer.py`, `test_response_contract.py`). Run: `cd backend && uv run pytest`. `tests/conftest.py` sets a fixed `ENCRYPTION_MASTER_KEY` and provides the `api_env` TestClient fixture (its `get_db` override mirrors production: commit on success, rollback on error). CI runs the same suite on Python 3.11 and 3.12 with `pytest-cov` and prints the coverage table; it is informational, not a gate.
+- **Backend:** Pytest in `backend/tests/` (`test_crypto.py`, `test_envelope.py`, `test_dek_migration.py`, `test_pre_migration_backup.py`, `test_crud_encryption.py`, `test_key_cache.py`, `test_login_migration.py`, `test_unified_auth.py`, `test_unified_api.py`, `test_settings.py`, `test_auth_hardening.py`, `test_config_api.py`, `test_token_lifecycle.py`, `test_input_validation.py`, `test_llm_url_guard.py`, `test_data_layer.py`, `test_response_contract.py`). Run: `cd backend && uv run pytest`. `tests/conftest.py` sets a fixed `ENCRYPTION_MASTER_KEY` and provides the `api_env` TestClient fixture (its `get_db` override mirrors production: commit on success, rollback on error). CI runs the same suite on Python 3.11 and 3.15 with `pytest-cov` and prints the coverage table; it is informational, not a gate.
 - **Frontend:** Vitest + jsdom + Testing Library in `src/**/__tests__/` (utils: date/listInput/clipboard; api client; ui: Button/Field/PasswordInput/PeriodBar; pages: Settings; `useMediaQuery` hook). Run: `cd frontend && pnpm test`. `src/test/setup.js` loads jest-dom matchers and a memory `localStorage` (Node 25's global stub has no methods). Unit tests cover pure logic and the API client; UI changes still need a manual pass at 1440px and 390px in both themes.
 
 ## Commit Conventions

@@ -11,8 +11,8 @@ Issue、Pull Request 与提交信息使用中文；技术名词（JWT、AAD、DE
 
 | 工具 | 版本 | 说明 |
 |---|---|---|
-| Python | 3.11 | 与镜像一致；`pyproject.toml` 要求 `>=3.11` |
-| Node.js | 24 | 与镜像一致，见 `.nvmrc` |
+| Python | 3.15 | 与镜像一致；`pyproject.toml` 要求 `>=3.11`，CI 覆盖 3.11 与 3.15 |
+| Node.js | 26 | 与镜像一致，见 `.nvmrc` |
 | pnpm | 9 | 前端包管理器，`pnpm-lock.yaml` 已锁定 |
 | uv | 较新版本 | 后端虚拟环境与依赖安装 |
 | Docker | 可选 | 仅运行或验证镜像时需要 |

@@ -3,6 +3,24 @@
 本文件记录面向用户的变更。格式参考 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，
 版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [Unreleased]
+
+### 变更
+
+- 运行时镜像升级到 Python 3.15，构建镜像升级到 Node 26（Node 26 不再内置 corepack，构建改用 npm 安装 pnpm）
+- 前端升级 React 19、react-router-dom 7.18、lucide-react 1.x、Vite React 插件与 PWA 插件
+- 后端升级 uvicorn、SQLAlchemy、httpx 与 ruff 等中间版本
+
+### 工程化
+
+- CI 矩阵调整为 Python 3.11 与 3.15（最低支持版本与生产运行时）
+- GitHub Actions 升级到当前主版本
+- Dependabot 忽略 bcrypt 的版本更新：passlib 已停止维护，bcrypt 5 会导致登录不可用
+
+### 文档
+
+- README 补充 Docker Swarm 与 Portainer 的部署约束
+
 ## [1.2.0] - 2026-11-22
 
 ### 新增

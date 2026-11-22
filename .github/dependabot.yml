@@ -19,12 +19,10 @@ updates:
           - minor
           - patch
     ignore:
-      # passlib 1.7.4 的后端探测会用超过 72 字节的口令调用 bcrypt.hashpw，
-      # bcrypt 5 改为抛 ValueError，登录与改密会全部失败。
-      # 迁离 passlib 之后才能接受 bcrypt 的 major 升级。
+      # passlib 1.7.4 已停止维护：bcrypt 5 会让哈希初始化直接抛 ValueError（登录全挂），
+      # bcrypt ≥4.1 虽能工作但每次加载后端都会打印 "error reading bcrypt version" 堆栈。
+      # 在迁离 passlib 之前，bcrypt 的所有版本更新都跳过。
       - dependency-name: bcrypt
-        update-types:
-          - version-update:semver-major
 
   - package-ecosystem: npm
     directory: /frontend

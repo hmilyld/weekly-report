@@ -48,8 +48,9 @@ cd frontend && pnpm audit --prod --registry https://registry.npmjs.org
 |---|---|---|
 | `python-jose` 3.5.0 | PYSEC-2026-4298：HMAC 初始化接受未加 PEM 包装的非对称公钥；在算法未显式限制时，可用服务公钥伪造 HS256 Token | 本项目仅使用 HS256 与对称密钥，`jwt.decode(..., algorithms=[...])` 显式限制算法，且不配置非对称密钥，该路径不可达。根治方案为迁移到 PyJWT |
 | `ecdsa` 0.19.2 | PYSEC-2026-1325：P-256 曲线上的 Minerva 时序攻击，仅在调用 `SigningKey.sign_digest()` 时成立 | 项目不生成也不校验 ECDSA 签名；该包仅为 python-jose 的传递依赖，不在执行路径上 |
-| `react-router` 6.30.6（经 `react-router-dom`） | 开放重定向（`<Link>`、`useNavigate` 反斜杠处理）与 SSR 水合 `deserializeErrors()` 构造器注入；修复版本为 7.18.0 及以上 | 应用为纯客户端渲染，无 SSR 水合路径；导航目标全部来自代码内固定路由，不接受用户输入 |
 | `starlette` | 旧版本存在 7 条 PYSEC 公告 | 已随 FastAPI 0.165.0 升级到 1.10.0，全部修复 |
+| `react-router` | 旧版本存在开放重定向与 SSR 水合构造器注入公告 | 已升级到 7.18.6，公告全部修复 |
+| `passlib` 1.7.4（配合 `bcrypt` 4.0.1） | 上游自 2020 年起不再维护 | 版本被显式钉住以保持登录可用；Dependabot 已忽略 bcrypt 的更新，迁离 passlib 前不再升级 |
 
 ## 处理流程
 
