@@ -1,10 +1,10 @@
 # ─── Stage 1: Build frontend ────────────────────────────
-FROM node:24-alpine AS frontend-build
+FROM node:26-alpine AS frontend-build
 
 WORKDIR /build/frontend
 
-# Install pnpm (pin to v9, compatible with Node 24)
-RUN corepack enable && corepack prepare pnpm@9 --activate
+# Install pnpm (pin to v9). Node 26 no longer bundles corepack.
+RUN npm install -g pnpm@9
 
 # Copy package files and install
 COPY frontend/package.json frontend/pnpm-lock.yaml* ./
@@ -18,7 +18,7 @@ ARG APP_VERSION=dev
 RUN APP_VERSION=${APP_VERSION} pnpm run build
 
 # ─── Stage 2: Runtime ───────────────────────────────────
-FROM python:3.11-slim
+FROM python:3.15-slim
 
 WORKDIR /app
 
