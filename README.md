@@ -1,8 +1,26 @@
 # 周报/月报自动生成系统
 
+[![CI](https://github.com/hmilyld/weekly-report/actions/workflows/ci.yml/badge.svg)](https://github.com/hmilyld/weekly-report/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
+[![ghcr.io](https://img.shields.io/badge/ghcr.io-weekly--report-blue)](https://github.com/hmilyld/weekly-report/pkgs/container/weekly-report)
+
 按天记录进展，由大模型汇总成周报和月报。前端 React + Vite，后端 Python FastAPI，SQLite 存储，支持多用户与管理员/普通用户两种角色。
 
 界面为中文，可安装为 PWA（桌面 / 手机），支持跟随系统、亮色、暗色三种主题。
+
+## 目录
+
+- [功能](#功能)
+- [界面](#界面)
+- [快速开始（Docker）](#快速开始docker)
+- [本地开发](#本地开发)
+- [发布与部署](#发布与部署)
+- [环境变量](#环境变量)
+- [安全与备份](#安全与备份)
+- [API](#api)
+- [技术栈](#技术栈)
+- [文档](#文档)
+- [许可证](#许可证)
 
 ## 功能
 
@@ -23,6 +41,20 @@
 | 管理自己的 API Token | ✓ | ✓ |
 | 大模型配置 | ✓ | ✗ |
 | 用户管理（创建 / 删除 / 改角色） | ✓ | ✗ |
+
+---
+
+## 界面
+
+以下截图使用示例数据（账号 `demo`）。
+
+| 日报（桌面） | 日报（手机） |
+|---|---|
+| ![日报管理](docs/images/daily-desktop-light.png) | ![日报管理（手机）](docs/images/daily-mobile-light.png) |
+
+| 工作待办 | 暗色模式 |
+|---|---|
+| ![工作待办](docs/images/tasks-desktop-light.png) | ![暗色模式](docs/images/daily-desktop-dark.png) |
 
 ---
 
@@ -89,8 +121,8 @@ bash scripts/dev.sh stop      # 停止
 
 ```bash
 cd backend
-uv venv                                 # 创建虚拟环境
-uv pip install -r requirements.txt      # 安装依赖
+uv venv                                                    # 创建虚拟环境
+uv pip install -r requirements.txt -r dev-requirements.txt  # 运行依赖 + 开发工具
 uv run uvicorn main:app --reload --port 18001
 ```
 
@@ -100,9 +132,20 @@ uv run uvicorn main:app --reload --port 18001
 cd frontend
 pnpm install
 pnpm dev        # http://localhost:5173，/api 代理到 :18001
+pnpm test       # 单元测试（vitest）
 pnpm build      # 产物在 frontend/dist，后端会直接托管
 pnpm generate:icons   # 重新生成应用图标（SVG；装了 ffmpeg 时同时输出 PNG）
 ```
+
+### 质量检查
+
+```bash
+cd backend && uv run ruff check . && uv run ruff format --check . && uv run pytest
+cd frontend && pnpm lint && pnpm format:check && pnpm test && pnpm build
+```
+
+CI 在每次 PR 上跑同一组命令（Python 3.11 / 3.12、Node 24）。架构、加密链路与必须保持的不变量见
+[`docs/architecture.md`](docs/architecture.md)。
 
 ### 首次使用
 
@@ -131,7 +174,7 @@ git tag -a v1.2.0 -m "v1.2.0"
 git push origin v1.2.0
 ```
 
-工作流 `.github/workflows/release-image.yml` 会依次：校验标签 → 构建镜像 → 启动容器请求 `/api/v1/health` 做冒烟测试 → 推送到 `ghcr.io`。冒烟测试不通过不会推送。
+工作流 `.github/workflows/release-image.yml` 依次执行：校验标签、构建镜像、启动容器请求 `/api/v1/health` 完成冒烟测试，通过后推送到 `ghcr.io`。冒烟测试不通过时不会推送。
 
 也可以在 Actions 页面手动运行 **Release image** 并填写标签（标签必须已存在于远端）。
 
@@ -162,9 +205,9 @@ docker compose pull && docker compose up -d
 | 官方镜像默认 `ENV=production` | 缺少 `JWT_SECRET_KEY` 或 `ENCRYPTION_MASTER_KEY` 时容器**拒绝启动**（不再静默生成开发密钥） | 在 `.env` 里配好两个密钥 |
 | `JWT_SECRET_KEY` 至少 32 字节，且不能是 `.env.example` 的占位值 | 过短的旧密钥会导致启动失败 | `python3 -c 'import secrets; print(secrets.token_urlsafe(64))'` 重新生成（已登录用户需重新登录一次） |
 | 数据库启用 WAL | 在线备份必须带 `-wal`/`-shm`，否则可能丢最近事务 | 先 `docker compose stop` 再复制 `data/` |
-| 未认证统一返回 `401`（原本部分管理接口返回 `403`） | 客户端若按 403 判断"权限不足"，需改为按 401 判断"凭据问题" | 见「API 接口」的状态码约定 |
+| 未认证统一返回 `401`（原本部分管理接口返回 `403`） | 客户端若按 403 判断"权限不足"，需改为按 401 判断"凭据问题" | 见 [`docs/api.md`](docs/api.md) 的状态码约定 |
 
-> ⚠️ **信封加密版本不可回滚**：升级到信封加密版本并完成登录后，数据用新的 DEK 加密，旧版本镜像无法解密。升级前务必备份数据库；如需回退，只能恢复升级前的备份。
+> **注意**：升级到信封加密版本并完成首次登录后，数据由新的 DEK 加密，旧版本镜像无法解密。升级前必须备份数据库；如需回退，只能恢复升级前的备份。
 
 ---
 
@@ -206,10 +249,10 @@ KEK ──AES-256-GCM 包裹──> users.wrapped_dek（存库，绑定用户身
 
 | 威胁 | 是否防住 |
 |---|---|
-| 数据库文件 / 备份泄露 | ✅ 没有主密钥无法解密 |
-| 长期离线备份 | ✅（前提：主密钥妥善保管） |
-| 主机被入侵（含 env 与进程内存） | ❌ 服务端生成周报必须读明文，这不是零知识系统 |
-| 登录密码泄露 | ❌ 密码用于认证，泄露后可登录读取 |
+| 数据库文件 / 备份泄露 | 可防：没有主密钥无法解密 |
+| 长期离线备份 | 可防：前提是主密钥妥善保管 |
+| 主机被入侵（含环境变量与进程内存） | 不可防：服务端生成周报必须读取明文，本系统不是零知识架构 |
+| 登录密码泄露 | 不可防：密码用于认证，泄露后可登录读取 |
 
 ### 备份要求
 
@@ -221,134 +264,15 @@ KEK ──AES-256-GCM 包裹──> users.wrapped_dek（存库，绑定用户身
 
 ### 主密钥轮换
 
-泄露主密钥时：生成新主密钥 → 用旧主密钥解包每个用户的 DEK → 用新主密钥重新包裹写回。内容密文无需改动（DEK 不变）。当前版本未提供自动化轮换命令，需通过脚本完成。
+主密钥泄露时：生成新主密钥，用旧主密钥解包每个用户的 DEK，再用新主密钥重新包裹并写回。内容密文无需改动，因为 DEK 未变。当前版本未提供自动化轮换命令，需通过脚本完成。
 
 ---
 
-## API 接口
+## API
 
-所有接口前缀为 `/api/v1`。认证方式：
+所有接口前缀为 `/api/v1`。网页端使用 `Authorization: Bearer <JWT>`，脚本与移动端使用 `X-API-Token`。
 
-- **数据接口**（日报/周报/月报/待办）同时接受 `Authorization: Bearer <JWT>` 与 `X-API-Token: <Token>`；两者都带时以 JWT 为准，且 JWT 无效时**不会**回退到 Token；
-- **认证/管理接口**（`/auth`、`/config`、`/users`、`/tokens`）仅接受 JWT——用 API Token 调用会得到 `401`；API Token 只能读写内容数据，无法管理账号、配置或其他 Token；
-- 完整机器可读接口定义见 `/openapi.json`（交互文档 `/docs`）。
-
-登录失败限流按**客户端 IP** 计数（5 次/60 秒）。若部署在反向代理之后，容器的对端地址是代理 IP，请把代理地址加入 `FORWARDED_ALLOW_IPS`（如 `FORWARDED_ALLOW_IPS=*` 仅在代理可信时使用），否则所有用户共用一个限流桶。
-
-状态码约定：
-
-| 状态码 | 含义 |
-|---|---|
-| `401` | 未认证或凭据失效（JWT 过期/改密后失效、API Token 无效） |
-| `402` | 会话有效，但改密请求里的当前密码不正确（前端就地提示，不退出登录） |
-| `403` | 已认证但角色不足（非管理员访问管理接口） |
-| `400` | 参数越界（如周起始日超出可处理范围、截止日期早于今天），响应体为 `{"detail": ...}` |
-| `409` | 内容加密/解密不可用，拒绝写入或拒绝返回空内容 |
-| `422` | 请求体或路径参数不合法（Pydantic 校验） |
-
-### 认证
-
-| 方法 | 路径 | 说明 | 认证 |
-|---|---|---|---|
-| GET | `/auth/status` | 是否需要初始化 | ✗ |
-| POST | `/auth/setup` | 初始化第一个管理员账号 | ✗ |
-| POST | `/auth/login` | 登录获取 token | ✗ |
-| POST | `/auth/change-password` | 修改密码（需当前密码，返回新 token） | ✓ |
-| POST | `/auth/logout` | 退出登录（不影响同账号其他设备） | ✓ |
-
-### 日报
-
-| 方法 | 路径 | 说明 |
-|---|---|---|
-| GET | `/daily?start_date=&end_date=` | 按日期范围查询 |
-| GET | `/daily/week/{week_start}` | 按周查询 |
-| POST | `/daily` | 创建/覆盖某天日报（`date` 可省略，默认今天；`append=true` 追加） |
-| DELETE | `/daily/{date}` | 删除某天的日报 |
-
-### 周报 / 月报
-
-| 方法 | 路径 | 说明 |
-|---|---|---|
-| GET | `/weekly?limit=` · `/weekly/{week_start}` | 查询周报（`/weekly` 默认返回最近 12 条，`limit` 1–52） |
-| POST | `/weekly/{week_start}?force=` | 生成/重新生成；`force=false` 且已存在则不调用模型，返回 `generated=false` |
-| PUT | `/weekly/{week_start}` | 编辑正文 |
-| GET | `/monthly?limit=` · `/monthly/{year}/{month}` | 查询月报（`limit` 1–120，默认 12） |
-| POST | `/monthly/{year}/{month}` | 生成/重新生成 |
-| PUT | `/monthly/{year}/{month}` | 编辑正文 |
-
-### 待办
-
-| 方法 | 路径 | 说明 |
-|---|---|---|
-| GET | `/tasks` | 全部待办 |
-| GET | `/tasks/pending` | 未完成待办（支持 API Token） |
-| GET | `/tasks/completed?offset=&limit=` | 已完成待办（分页） |
-| POST | `/tasks` | 新建待办（内容 + 可选截止日期） |
-| PUT | `/tasks/{id}` | 更新内容、截止日期或完成状态 |
-| DELETE | `/tasks/{id}` | 删除待办 |
-
-### 配置（管理员）
-
-| 方法 | 路径 | 说明 |
-|---|---|---|
-| GET | `/config` | 读取配置（API Key 脱敏） |
-| PUT | `/config` | 更新配置 |
-| POST | `/config/test` | 测试大模型连接 |
-
-### 用户
-
-| 方法 | 路径 | 说明 | 认证 |
-|---|---|---|---|
-| GET | `/users/me` | 当前用户（含最近登录时间） | ✓ |
-| GET | `/users` | 用户列表 | admin |
-| POST | `/users` | 创建用户 | admin |
-| PUT | `/users/{id}/role` | 修改角色 | admin |
-| DELETE | `/users/{id}` | 删除用户 | admin |
-
-### API Token
-
-| 方法 | 路径 | 说明 |
-|---|---|---|
-| GET | `/tokens` | 列出自己的 Token（返回值掩码） |
-| POST | `/tokens` | 创建 Token（完整值只返回一次） |
-| DELETE | `/tokens` | **吊销自己的全部 Token**（换机 / 怀疑泄露时使用） |
-| DELETE | `/tokens/{id}` | 删除单个 Token |
-
-Token 与登录密码相互独立：**改密不会吊销 API Token**（JWT 会立即失效），需要时用 `DELETE /tokens` 显式吊销。Token 目前明文存储、不过期、无 scope，等效于该账号的数据读写权限，请按凭据对待。
-
-### API Token 调用示例
-
-API Token 与 JWT 使用**同一套数据接口**，创建方式见网页端「系统配置 → API Token」。Token 仅具数据权限，不能访问认证/管理接口。
-
-```bash
-# 追加一条今天的日报（无需登录）
-curl -X POST http://localhost:18001/api/v1/daily \
-  -H "X-API-Token: <你的Token>" \
-  -H "Content-Type: application/json" \
-  -d '{"content":"今天完成了 xxx","append":true}'
-
-# 读取本周日报（自行计算周一的日期）
-curl "http://localhost:18001/api/v1/daily?start_date=2026-11-16&end_date=2026-11-22" \
-  -H "X-API-Token: <你的Token>"
-
-# 生成周报；已存在时不覆盖（返回 generated=false）
-curl -X POST "http://localhost:18001/api/v1/weekly/2026-11-16?force=false" \
-  -H "X-API-Token: <你的Token>"
-
-# 未完成待办
-curl http://localhost:18001/api/v1/tasks/pending \
-  -H "X-API-Token: <你的Token>"
-```
-
-> - 旧的 `/api/v1/external/*` 已移除，请改用上表中的同义接口（第三方脚本需按新文档重指向；完整定义见 `/openapi.json`）。
-> - 写入接口在账号尚未完成加密迁移（升级后从未登录过）时返回 `409`（`code: encryption_key_missing`），不会落明文；在网页端登录一次即永久解决。内容无法解密时读取/生成接口返回 `409`（`code: decryption_failed`）。
-> - 数据接口的**读取**响应带 `_decryption_failed` 字段，客户端应据此提示用户而不是把空内容当成"没有数据"；周报 `force=false` 遇到无法解密的已有报告时返回 409。
-
-### 健康检查
-
-| 方法 | 路径 | 说明 |
-|---|---|---|
-| GET | `/health` | 返回 `{"status":"ok"}`，用于容器健康检查 |
+端点清单、状态码约定、调用示例与健康检查见 [`docs/api.md`](docs/api.md)；机器可读定义见 `/openapi.json`。
 
 ---
 
@@ -357,7 +281,7 @@ curl http://localhost:18001/api/v1/tasks/pending \
 - **前端**：React 18、Vite 5、React Router 6、Axios、Lucide 图标、vite-plugin-pwa；手写 CSS（设计令牌见 `frontend/src/styles/tokens.css`）
 - **后端**：Python 3.11、FastAPI、SQLAlchemy 2、python-jose、passlib/bcrypt、cryptography（AES-GCM 加密存储）、httpx
 - **数据库**：SQLite（单文件，随 `./data` 挂载持久化）
-- **部署**：多阶段 Docker 构建（Node 20 构建前端 + Python 3.11 运行），单容器同时提供 API 与前端
+- **部署**：多阶段 Docker 构建（Node 24 构建前端 + Python 3.11 运行），单容器同时提供 API 与前端
 
 ---
 
@@ -368,4 +292,17 @@ curl http://localhost:18001/api/v1/tasks/pending \
 | `PRODUCT.md` | 产品定位、用户、能力与约束（改需求前先读） |
 | `DESIGN.md` | 设计系统：令牌、排版、组件、交互规则（改界面前先读） |
 | `AGENTS.md` | 仓库结构与开发约定、提交规范、发布流程（给人和 AI 协作用） |
+| `CONTRIBUTING.md` | 本地开发、提交规范与 PR 检查项（外部贡献者入口） |
+| `SECURITY.md` | 漏洞报告通道与支持范围 |
+| `CHANGELOG.md` | 面向用户的变更记录 |
 | `docs/android-api.md` | Android / Token 客户端对接：认证、端点、日报/周报语义、错误码 |
+| `docs/architecture.md` | 运行形态、模块边界、请求与加密链路、必须保持的不变量 |
+| `docs/api.md` | HTTP 端点、认证方式、状态码与调用示例 |
+
+---
+
+## 许可证
+
+本项目采用 [MIT 许可证](LICENSE)。
+
+任何人均可自由使用、修改与分发本软件（包括商业用途），条件是在副本或主要部分中保留版权声明与许可证文本。软件按「现状」提供，不附带任何明示或暗示的担保。

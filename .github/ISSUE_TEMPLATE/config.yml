@@ -1,0 +1,11 @@
+blank_issues_enabled: false
+contact_links:
+  - name: 安全问题（请勿公开）
+    url: https://github.com/hmilyld/weekly-report/security/advisories/new
+    about: 通过 GitHub 私密通道报告漏洞，不要提交公开 issue
+  - name: 安装、部署与备份
+    url: https://github.com/hmilyld/weekly-report#readme
+    about: 环境变量、主密钥备份、镜像来源与升级步骤
+  - name: 参与贡献
+    url: https://github.com/hmilyld/weekly-report/blob/main/CONTRIBUTING.md
+    about: 本地开发、提交规范与 PR 检查项

@@ -1,0 +1,15 @@
+# Development-only tooling for the backend.
+#
+# Install together with the runtime dependencies:
+#   cd backend
+#   uv venv && uv pip install -r requirements.txt -r dev-requirements.txt
+#
+# Nothing here is needed at runtime, so it is deliberately kept out of
+# requirements.txt (and out of the Docker image).
+#
+# Versions are pinned to what `uv run ruff check .` / `uv run pytest` were
+# verified with, so a clean checkout reproduces the same results.
+
+ruff==0.17.3
+pytest==9.2.0
+pytest-cov==7.1.0

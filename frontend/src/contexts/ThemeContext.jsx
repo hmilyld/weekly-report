@@ -1,6 +1,5 @@
-import { createContext, useContext, useState, useEffect, useCallback } from 'react'
-
-const ThemeContext = createContext()
+import { useState, useEffect, useCallback } from 'react'
+import { ThemeContext } from './theme'
 
 /* The two <meta name="theme-color"> tags carry the system-preference colours.
    Pinning a scheme has to move them too, otherwise the browser chrome keeps
@@ -70,10 +69,4 @@ export function ThemeProvider({ children }) {
   return (
     <ThemeContext.Provider value={{ mode, cycleTheme, label }}>{children}</ThemeContext.Provider>
   )
-}
-
-export function useTheme() {
-  const ctx = useContext(ThemeContext)
-  if (!ctx) throw new Error('useTheme must be used within ThemeProvider')
-  return ctx
 }
