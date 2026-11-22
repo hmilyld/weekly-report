@@ -38,6 +38,11 @@ updates:
         update-types:
           - minor
           - patch
+    ignore:
+      # Vite 8 改变了 JSX 转换默认行为，现有测试与 PWA 插件需要单独迁移验证。
+      - dependency-name: vite
+        update-types:
+          - version-update:semver-major
 
   - package-ecosystem: github-actions
     directory: /
