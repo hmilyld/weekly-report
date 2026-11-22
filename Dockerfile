@@ -18,7 +18,7 @@ ARG APP_VERSION=dev
 RUN APP_VERSION=${APP_VERSION} pnpm run build
 
 # ─── Stage 2: Runtime ───────────────────────────────────
-FROM python:3.11-slim
+FROM python:3.15-slim
 
 WORKDIR /app
 
