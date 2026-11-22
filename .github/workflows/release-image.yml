@@ -79,7 +79,7 @@ jobs:
           # 用全限定 ref，避免 checkout 用通配 refspec 去猜分支
           ref: refs/tags/${{ steps.version.outputs.value }}
 
-      - uses: docker/setup-buildx-action@v3
+      - uses: docker/setup-buildx-action@v4
 
       - name: Image metadata
         id: meta
