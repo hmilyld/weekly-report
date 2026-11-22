@@ -18,6 +18,13 @@ updates:
         update-types:
           - minor
           - patch
+    ignore:
+      # passlib 1.7.4 的后端探测会用超过 72 字节的口令调用 bcrypt.hashpw，
+      # bcrypt 5 改为抛 ValueError，登录与改密会全部失败。
+      # 迁离 passlib 之后才能接受 bcrypt 的 major 升级。
+      - dependency-name: bcrypt
+        update-types:
+          - version-update:semver-major
 
   - package-ecosystem: npm
     directory: /frontend
