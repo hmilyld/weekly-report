@@ -83,7 +83,7 @@ jobs:
 
       - name: Image metadata
         id: meta
-        uses: docker/metadata-action@v5
+        uses: docker/metadata-action@v6
         with:
           images: ${{ env.IMAGE }}
           # 预发布（如 v1.2.0-rc1）只发精确版本，不移动浮动标签与 latest
